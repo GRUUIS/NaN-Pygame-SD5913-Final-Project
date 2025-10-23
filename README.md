@@ -1,1 +1,1 @@
-# GruuLearningPygame
+# LearningPygame
