@@ -1,0 +1,27 @@
+# Game Configuration Settings
+
+# Display Settings
+SCREENWIDTH = 1280
+SCREENHEIGHT = 720
+FPS = 60
+FULLSCREEN = False
+
+# Game Balance
+PLAYER_SPEED = 200
+PLAYER_JUMP_STRENGTH = 400
+GRAVITY = 1200
+
+# Boss Health Values
+PERFECTIONIST_HEALTH = 100
+PROCRASTINATION_HEALTH = 150
+NIHILISM_HEALTH = 200
+
+# Audio Settings
+MASTER_VOLUME = 0.7
+MUSIC_VOLUME = 0.5
+SFX_VOLUME = 0.8
+
+# Development Flags
+DEBUG_MODE = True
+SHOW_HITBOXES = False
+SHOW_FPS = True

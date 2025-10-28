@@ -1,0 +1,145 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Pygame specific
+*.log
+screenshots/
+recordings/
+
+# Game development files
+*.tmp
+*.bak
+*.orig
+save_data/
+player_data/
+
+# Asset sources (keep compiled assets, ignore source files)
+*.psd
+*.ai
+*.sketch
+*.xcf
+*.blend
+*.blend1
+*.blend2
+*.mb
+*.ma
+
+# Audio editing files
+*.aup
+*.aup3
+*.reapeaks
+*.rpp
+
+# Temporary game files
+temp/
+cache/
+*.cache
+
+# Windows
+*.lnk
+desktop.ini
+ehthumbs.db
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# System files
+*.sys
+*.dll
+
+# Development tools
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Distribution packages
+*.deb
+*.rpm
+*.msi
+*.exe
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Development tools
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+profile_output/
+
+# Game specific ignores
+config/local_settings.py
+saves/
+debug_output/
+performance_logs/
