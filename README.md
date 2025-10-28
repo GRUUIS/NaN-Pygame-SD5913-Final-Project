@@ -79,7 +79,7 @@ Mind's-Maze/
 
 ## Team Roles & Responsibilities
 
-### Lead Developer
+### Structure Developer
 - **Responsibilities:** Core game architecture, scene management, integration
 - **Files:** `main.py`, `src/scenes/`, project coordination
 
