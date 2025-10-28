@@ -80,32 +80,31 @@ Mind's-Maze/
 ## Team Roles & Responsibilities
 
 ### Structure Developer
-- **Responsibilities:** Core game architecture, scene management, integration
-- **Files:** `main.py`, `src/scenes/`, project coordination
+- **Responsibilities:** main loop, scene management, and overall integration
+- **Files:** `main.py`, `src/scenes/`, `src/utils/`, project coordination
 
-### Combat Systems Developer  
-- **Responsibilities:** Boss behaviors, combat mechanics, player controls
-- **Files:** `src/entities/`, `src/systems/combat.py`
+### Combat Systems Developer
+- **Responsibilities:** Boss behaviors, combat mechanics, player controls, and balancing
+- **Files:** `src/entities/`, `src/systems/combat.py`, `src/utils/collision.py`
 
-### Level Design & Assets Integration
-- **Responsibilities:** Map creation, asset implementation, UI design
-- **Files:** `assets/` organization, `src/systems/renderer.py`
+### Visual & UI Developer
+- **Responsibilities:** Map creation, camera movement, and basic UI design
+- **Files:** `assets/` organization, `src/systems/renderer.py`, `src/systems/camera.py`, `src/scenes/`
 
-### Content Text & Audio & Polish Developer
-- **Responsibilities:** Texts, Sound system, game balance, bug fixes
-- **Files:** `src/systems/audio.py`, `config/`, testing
+### Content & Asset Integration Developer
+- **Responsibilities:** Asset preparation (audio, images, sprites, animations), narrative text, and dialogue implementation
+- **Files:** `assets/`, `src/systems/audio.py`, `config/`, `src/utils/dialogue.py`
 
 ## Development Guidelines
 
 ### Code Standards
-- Follow PEP 8 Python style guidelines
+- Pull lastest version everytime coding
 - Use descriptive variable and function names
 - Comment complex logic sections
-- Keep functions small and focused
 
 ### Asset Guidelines
 - Pixel art sprites: 16x16 or 32x32 base size
-- Audio files: OGG or WAV format
+- Audio files: MP3 or WAV format
 - Consistent color palette across all art
 - Organize assets by type and usage
 
