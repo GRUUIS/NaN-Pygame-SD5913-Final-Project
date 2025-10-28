@@ -91,8 +91,8 @@ Mind's-Maze/
 - **Responsibilities:** Map creation, asset implementation, UI design
 - **Files:** `assets/` organization, `src/systems/renderer.py`
 
-### Audio & Polish Developer
-- **Responsibilities:** Sound system, game balance, bug fixes
+### Content Text & Audio & Polish Developer
+- **Responsibilities:** Texts, Sound system, game balance, bug fixes
 - **Files:** `src/systems/audio.py`, `config/`, testing
 
 ## Development Guidelines
