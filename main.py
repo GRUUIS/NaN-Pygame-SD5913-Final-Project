@@ -13,6 +13,10 @@ import sys
 import os
 from src.scenes.game_manager import GameManager
 from globals import *
+from utils.logger import setup_logger
+logger = setup_logger()
+
+logger.info("Game started!")
 
 def main():
     """
