@@ -20,24 +20,24 @@ PLAYER_INVINCIBLE_DURATION = 1.0
 # Boss Configuration - Perfectionist
 BOSS_MAX_HEALTH = 500 
 BOSS_ATTACK_COOLDOWN_PHASE1 = 2
-BOSS_ATTACK_COOLDOWN_PHASE2 = 0.5  # Phase 2更具挑战性
-BOSS_TELEGRAPH_DURATION = 0.8  # 稍微减少预告时间
-BOSS_MOVE_SPEED = 150  # 增加移动速度
+BOSS_ATTACK_COOLDOWN_PHASE2 = 0.5  # Phase 2 more challenging
+BOSS_TELEGRAPH_DURATION = 0.8  # Slightly reduce telegraph time
+BOSS_MOVE_SPEED = 150  # Increase movement speed
 BOSS_CHARGE_SPEED = 300
 
 # Bullet Configuration
 BULLET_SPEEDS = {
-    'normal': 250,    # 稍微加快boss子弹速度
-    'homing': 180,    # 追踪弹稍慢但更危险
-    'laser': 350,     # 激光更快
-    'player': 450     # 玩家子弹更快以保持平衡
+    'normal': 250,    # Slightly increase boss bullet speed
+    'homing': 180,    # Homing bullets slower but more dangerous
+    'laser': 350,     # Laser faster
+    'player': 450     # Player bullets faster to maintain balance
 }
 
 BULLET_DAMAGE = {
-    'normal': 15,     # 增加boss子弹伤害
-    'homing': 18,     # 追踪弹更危险
-    'laser': 20,      # 激光高伤害
-    'player': 12      # 降低玩家伤害，需要更多技巧
+    'normal': 15,     # Increase boss bullet damage
+    'homing': 18,     # Homing bullets more dangerous
+    'laser': 20,      # Laser high damage
+    'player': 12      # Reduce player damage, requires more skill
 }
 
 # Colors

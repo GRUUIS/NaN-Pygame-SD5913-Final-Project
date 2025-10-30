@@ -50,7 +50,7 @@ class BossBattleScene:
                     speed = g.BULLET_SPEEDS['player']
                     self.bullet_manager.add_bullet(x, y, dx * speed, dy * speed, 'player', 'player')
                     
-                    # Debug: 显示射击信息
+                    # Debug: Show shooting information
                     if g.DEBUG_MODE:
                         print(f"Player shot: pos=({x:.1f}, {y:.1f}), dir=({dx:.2f}, {dy:.2f})")
             
@@ -60,7 +60,7 @@ class BossBattleScene:
             # Check bullet collisions
             self.bullet_manager.check_collisions(self.player, self.boss)
             
-            # Debug: 显示生命值变化
+            # Debug: Show health changes
             if g.DEBUG_MODE and hasattr(self, '_last_boss_health'):
                 if self._last_boss_health != self.boss.health:
                     print(f"Boss health: {self.boss.health}/{self.boss.max_health}")
