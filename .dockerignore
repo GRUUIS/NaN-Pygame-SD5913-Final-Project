@@ -1,0 +1,40 @@
+# VCS
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual envs
+venv/
+.env/
+.envrc
+.Python
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local data / logs / caches
+*.log
+.cache/
+tmp/
+__pycache__/
+
+# Package managers / node (if any)
+node_modules/
+
+# Docker files we don't want to copy
+docker-compose*.yml
