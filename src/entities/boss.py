@@ -5,12 +5,16 @@ Terraria Twins-inspired boss with FSM-based AI and phase transitions.
 Uses configuration from globals.py.
 """
 
+#region Imports
+
 import pygame
 import math
 import random
 import globals as g
+#endregion Imports
 
 
+#region State Base
 class BossState:
     """Base class for boss states"""
     def __init__(self, boss):
@@ -27,8 +31,10 @@ class BossState:
     def update(self, dt: float, player, bullet_manager):
         """Update state logic"""
         pass
+#endregion State Base
 
 
+#region IdleState
 class IdleState(BossState):
     """Boss idle state - positioning and preparation"""
     def __init__(self, boss):
@@ -61,8 +67,10 @@ class IdleState(BossState):
                 attack = random.choice(['spread_shot', 'predictive_shot', 'homing_barrage', 'laser_sweep'])
             
             self.boss.change_state(attack)
+#endregion IdleState
 
 
+#region SpreadShotState
 class SpreadShotState(BossState):
     """Boss fires a spread of bullets"""
     def __init__(self, boss):
@@ -107,8 +115,10 @@ class SpreadShotState(BossState):
             
             # Return to idle
             self.boss.change_state('idle')
+#endregion SpreadShotState
 
 
+#region PredictiveShotState
 class PredictiveShotState(BossState):
     """Boss fires at where player will be"""
     def __init__(self, boss):
@@ -161,8 +171,10 @@ class PredictiveShotState(BossState):
                     )
             
             self.boss.change_state('idle')
+#endregion PredictiveShotState
 
 
+#region HomingBarrageState
 class HomingBarrageState(BossState):
     """Boss fires homing missiles (Phase 2 only)"""
     def __init__(self, boss):
@@ -208,8 +220,10 @@ class HomingBarrageState(BossState):
             # Return to idle after all missiles fired
             if self.missiles_fired >= 5:
                 self.boss.change_state('idle')
+#endregion HomingBarrageState
 
 
+#region LaserSweepState
 class LaserSweepState(BossState):
     """Boss fires sweeping laser (Phase 2 only)"""
     def __init__(self, boss):
@@ -248,8 +262,10 @@ class LaserSweepState(BossState):
                 self.sweep_angle += (math.pi/2) * dt / 2.0  # 90 degrees over 2 seconds
             else:
                 self.boss.change_state('idle')
+#endregion LaserSweepState
 
 
+#region Perfectionist Boss
 class Perfectionist:
     """
     Terraria Twins-inspired boss with phase-based behavior
@@ -337,3 +353,4 @@ class Perfectionist:
         font = pygame.font.Font(None, 24)
         phase_text = font.render(f"Phase {self.phase}", True, g.COLORS['ui_text'])
         screen.blit(phase_text, (self.x, self.y - 30))
+#endregion Perfectionist Boss

@@ -5,12 +5,16 @@ Handles bullets for both player and boss, including different bullet types
 and collision detection. Uses configuration from globals.py.
 """
 
+#region Imports
+
 import pygame
 import math
 from typing import List
 import globals as g
+#endregion Imports
 
 
+#region Bullet
 class Bullet:
     """Bullet projectile for both player and boss"""
     def __init__(self, x: float, y: float, vx: float, vy: float, bullet_type: str, source: str):
@@ -85,8 +89,10 @@ class Bullet:
         if g.SHOW_COLLISION_BOXES:
             rect = self.get_rect()
             pygame.draw.rect(screen, (255, 0, 255), rect, 1)
+#endregion Bullet
 
 
+#region BulletManager
 class BulletManager:
     """Manages all bullets in the scene"""
     def __init__(self):
@@ -132,3 +138,4 @@ class BulletManager:
         """Draw all bullets"""
         for bullet in self.bullets:
             bullet.draw(screen)
+#endregion BulletManager

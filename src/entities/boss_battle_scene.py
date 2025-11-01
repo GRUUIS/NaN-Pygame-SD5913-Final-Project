@@ -5,22 +5,28 @@ This module combines all entities into a complete boss battle experience.
 Uses modular components from separate files and globals.py configuration.
 """
 
+#region Imports
+
 import pygame
 import globals as g
 from .player import Player
 from .boss import Perfectionist
+from .boss_procrastinator import Procrastinator
 from .bullets import BulletManager
 from .platform import Platform
+#endregion Imports
 
 
 class BossBattleScene:
     """
     Complete boss battle scene with integrated platformer mechanics
     """
-    def __init__(self):
+    def __init__(self, boss_type: str = 'perfectionist'):
+        #region Initialization
         # Initialize entities
         self.player = Player(g.SCREENWIDTH // 2, g.SCREENHEIGHT - 150)
-        self.boss = Perfectionist(g.SCREENWIDTH // 2, 100)
+        self._boss_type = boss_type.lower() if boss_type else 'perfectionist'
+        self.boss = self._create_boss()
         self.bullet_manager = BulletManager()
         
         # Create platforms for 2D platformer gameplay
@@ -34,7 +40,17 @@ class BossBattleScene:
             Platform(50, g.SCREENHEIGHT - 450, 150, 20),
             Platform(g.SCREENWIDTH - 200, g.SCREENHEIGHT - 450, 150, 20),
         ]
+        #endregion Initialization
+
+    def _create_boss(self):
+        x = g.SCREENWIDTH // 2
+        y = 100
+        if self._boss_type in ('procrastinator', 'procrastination'):
+            return Procrastinator(x, y)
+        # default
+        return Perfectionist(x, y)
     
+    #region Update Loop
     def update(self, dt: float):
         """Update the entire battle scene"""
         if not self.is_game_over():
@@ -67,7 +83,9 @@ class BossBattleScene:
                     self._last_boss_health = self.boss.health
             elif g.DEBUG_MODE:
                 self._last_boss_health = self.boss.health
+    #endregion Update Loop
     
+    #region Draw
     def draw(self, screen: pygame.Surface):
         """Draw the entire battle scene"""
         # Clear screen
@@ -85,7 +103,9 @@ class BossBattleScene:
         # Draw debug information
         if g.SHOW_DEBUG_INFO:
             self._draw_debug_info(screen)
+    #endregion Draw
     
+    #region Debug/Helpers
     def _draw_debug_info(self, screen: pygame.Surface):
         """Draw debug information on screen"""
         font = pygame.font.Font(None, 20)
@@ -102,33 +122,25 @@ class BossBattleScene:
         for i, info in enumerate(debug_info):
             text = font.render(info, True, g.COLORS['ui_text'])
             screen.blit(text, (10, debug_y + i * 22))
+    #endregion Debug/Helpers
     
+    #region Game State & Reset
     def is_game_over(self) -> bool:
         """Check if battle is over"""
         return self.player.health <= 0 or self.boss.health <= 0
-    
+
     def reset_battle(self):
-        """Reset the battle to initial state"""
-        # Reset player
+        """Reset the battle maintaining the same boss type and clear bullets."""
         self.player = Player(g.SCREENWIDTH // 2, g.SCREENHEIGHT - 150)
-        
-        # Reset boss
-        self.boss = Perfectionist(g.SCREENWIDTH // 2, 100)
-        
-        # Clear bullets
+        self.boss = self._create_boss()
         self.bullet_manager = BulletManager()
-        
-        # Debug message
+
         if g.DEBUG_MODE:
             print("Battle reset! Player and Boss restored to full health.")
-    
+
     def get_battle_result(self) -> str:
-        """Get the result of the battle"""
+        """Get the result of the battle: victory/defeat/ongoing."""
         if not self.is_game_over():
             return "ongoing"
-        elif self.player.health <= 0:
-            return "defeat"
-        elif self.boss.health <= 0:
-            return "victory"
-        else:
-            return "unknown"
+        return "victory" if self.boss.health <= 0 else "defeat"
+    #endregion Game State & Reset

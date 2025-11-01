@@ -5,10 +5,13 @@ Handles player physics, input, combat, and rendering.
 Uses configuration from globals.py.
 """
 
+#region Imports
+
 import pygame
 import math
 from typing import List, Tuple
 import globals as g
+#endregion Imports
 
 
 class Player:
@@ -16,6 +19,7 @@ class Player:
     2D Platformer Player with physics and combat abilities
     """
     def __init__(self, x: float, y: float):
+        #region Init/State
         self.x = x
         self.y = y
         self.vx = 0.0
@@ -34,7 +38,9 @@ class Player:
         self.keys = pygame.key.get_pressed()
         self.mouse_pos = (0, 0)
         self.mouse_pressed = False
+        #endregion Init/State
     
+    #region Update & Physics
     def update(self, dt: float, platforms: List):
         """Update player physics and state"""
         # Update timers
@@ -80,7 +86,9 @@ class Player:
         if self.y > g.SCREENHEIGHT:
             self.take_damage(20)  # Fall damage
             self.y = g.SCREENHEIGHT - 100  # Reset position
+    #endregion Update & Physics
     
+    #region Collisions
     def handle_platform_collision(self, platforms: List):
         """Handle collision with platforms"""
         from .platform import Platform  # Local import to avoid circular imports
@@ -106,7 +114,9 @@ class Player:
                     else:  # Moving left
                         self.x = platform.rect.right
                     self.vx = 0
+    #endregion Collisions
     
+    #region Combat
     def can_shoot(self) -> bool:
         """Check if player can shoot"""
         return self.attack_cooldown <= 0
@@ -140,7 +150,9 @@ class Player:
             self.invincible_time = g.PLAYER_INVINCIBLE_DURATION
             if self.health <= 0:
                 self.health = 0
+    #endregion Combat
     
+    #region Rendering
     def draw(self, screen: pygame.Surface):
         """Draw the player"""
         # Choose color based on state
@@ -161,3 +173,4 @@ class Player:
         if g.SHOW_COLLISION_BOXES:
             pygame.draw.rect(screen, (255, 255, 0), 
                            (int(self.x), int(self.y), self.width, self.height), 1)
+    #endregion Rendering

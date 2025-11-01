@@ -5,10 +5,14 @@ Simple platform objects for collision detection in the game world.
 Uses configuration from globals.py.
 """
 
+#region Imports
+
 import pygame
 import globals as g
+#endregion Imports
 
 
+#region Platform
 class Platform:
     """Simple platform for collision"""
     def __init__(self, x: float, y: float, width: float, height: float):
@@ -22,3 +26,4 @@ class Platform:
         
         if g.SHOW_COLLISION_BOXES:
             pygame.draw.rect(screen, (0, 255, 0), self.rect, 1)
+#endregion Platform

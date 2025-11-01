@@ -8,9 +8,11 @@ Author: Team NaN
 Course: Creative Programming SD5913
 
 Usage:
-    python main.py          # Normal game mode
-    python main.py boss     # Boss battle test mode
-    python main.py test     # Same as boss mode
+    python main.py                              # Normal game mode
+    python main.py boss [perfectionist|procrastinator]   # Boss battle test mode (default: perfectionist)
+    python main.py test [perfectionist|procrastinator]   # Same as boss mode
+    python main.py boss1                        # Shortcut: Perfectionist boss test
+    python main.py boss2                        # Shortcut: Procrastinator boss test
 """
 
 import pygame
@@ -36,10 +38,23 @@ def main():
         if len(sys.argv) > 1:
             mode = sys.argv[1].lower()
             
+            if mode in ['boss1', 'perfectionist']:
+                print("Starting Boss Battle Test Mode... (Perfectionist)")
+                run_boss_test('perfectionist')
+                return
+            if mode in ['boss2', 'procrastinator', 'procrastination']:
+                print("Starting Boss Battle Test Mode... (Procrastinator)")
+                run_boss_test('procrastinator')
+                return
             if mode in ['boss', 'test']:
                 # Direct boss battle test mode
-                print("Starting Boss Battle Test Mode...")
-                run_boss_test()
+                boss_type = 'perfectionist'
+                if len(sys.argv) > 2:
+                    arg = (sys.argv[2] or '').lower()
+                    if arg in ('perfectionist', 'procrastinator', 'procrastination'):
+                        boss_type = 'procrastinator' if arg.startswith('procrast') else 'perfectionist'
+                print(f"Starting Boss Battle Test Mode... ({boss_type.title()})")
+                run_boss_test(boss_type)
                 return
             elif mode == 'help':
                 show_help()
@@ -67,18 +82,19 @@ def main():
         sys.exit()
 
 
-def run_boss_test():
+def run_boss_test(boss_type: str = 'perfectionist'):
     """
     Direct boss battle test without menu navigation.
     Tests the Perfectionist boss with full 2D platformer mechanics.
     """
     # Initialize display
     screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
-    pygame.display.set_caption("Boss Battle Test - Perfectionist")
+    title = "Procrastinator" if (boss_type or 'perfectionist').lower().startswith('procrast') else "Perfectionist"
+    pygame.display.set_caption(f"Boss Battle Test - {title}")
     clock = pygame.time.Clock()
     
     # Initialize boss battle scene
-    boss_scene = BossBattleScene()
+    boss_scene = BossBattleScene(boss_type=boss_type)
     
     print("Boss Battle Controls:")
     print("  WASD: Move")
@@ -86,6 +102,7 @@ def run_boss_test():
     print("  Mouse: Aim and Shoot")
     print("  R: Reset Battle")
     print("  ESC: Exit")
+    print(f"  Boss: {title}")
     
     # Game loop
     running = True
@@ -112,10 +129,10 @@ def run_boss_test():
             boss_scene.update(dt)
         
         boss_scene.draw(screen)
-        
+
         # Show instructions and debug info
         draw_ui_overlay(screen, boss_scene)
-        
+
         # Handle game over state
         if boss_scene.is_game_over():
             if show_game_over_timer <= 0:
@@ -157,6 +174,45 @@ def draw_ui_overlay(screen, boss_scene):
     
     draw_health_bar(screen, boss_scene.boss.health, boss_scene.boss.max_health,
                    g.SCREENWIDTH - 210, 10, 200, 20, "Boss")
+
+    # Optional boss-specific overlays (Stress meter, Deadline timer)
+    boss = boss_scene.boss
+    if hasattr(boss, 'max_stress') and hasattr(boss, 'stress'):
+        # Draw Stress bar below boss HP
+        stress_current = getattr(boss, 'stress', 0)
+        stress_max = max(1, getattr(boss, 'max_stress', 100))
+        draw_meter_bar(
+            screen,
+            current=stress_current,
+            maximum=stress_max,
+            x=g.SCREENWIDTH - 210,
+            y=35,
+            width=200,
+            height=14,
+            label="Stress",
+            color_high=(220, 120, 120),
+            color_mid=(230, 180, 80),
+            color_low=(120, 200, 120)
+        )
+
+    if hasattr(boss, 'deadline_left') and hasattr(boss, 'deadline_total'):
+        # Draw Deadline bar at top center
+        d_left = max(0.0, float(getattr(boss, 'deadline_left', 0.0)))
+        d_total = max(0.01, float(getattr(boss, 'deadline_total', 60.0)))
+        center_x = g.SCREENWIDTH // 2 - 110
+        draw_meter_bar(
+            screen,
+            current=d_left,
+            maximum=d_total,
+            x=center_x,
+            y=10,
+            width=220,
+            height=14,
+            label=f"Deadline: {int(d_left)}s",
+            color_high=(120, 200, 120),
+            color_mid=(230, 180, 80),
+            color_low=(220, 120, 120)
+        )
     
     # Debug info if enabled
     if g.SHOW_DEBUG_INFO:
@@ -201,6 +257,29 @@ def draw_health_bar(screen, current, maximum, x, y, width, height, label):
     screen.blit(label_text, (x, y - 20))
 
 
+def draw_meter_bar(screen, current, maximum, x, y, width, height, label,
+                   color_high=(120, 200, 120), color_mid=(230, 180, 80), color_low=(220, 120, 120)):
+    """Generic meter bar (e.g., Stress or Deadline) with label, colors based on percentage."""
+    font = pygame.font.Font(None, 18)
+    pct = max(0.0, min(1.0, float(current) / float(maximum))) if maximum else 0.0
+    # For meters where "more is better" (e.g., time left), use high color when pct > .6
+    if pct > 0.6:
+        color = color_high
+    elif pct > 0.3:
+        color = color_mid
+    else:
+        color = color_low
+    # background
+    pygame.draw.rect(screen, (50, 50, 50), (x, y, width, height))
+    # fill
+    pygame.draw.rect(screen, color, (x, y, width * pct, height))
+    # border
+    pygame.draw.rect(screen, g.COLORS['ui_text'], (x, y, width, height), 2)
+    # label
+    label_text = font.render(str(label), True, g.COLORS['ui_text'])
+    screen.blit(label_text, (x, y - 18))
+
+
 def draw_game_over_screen(screen, boss_scene):
     """Draw game over overlay"""
     # Semi-transparent overlay
@@ -231,9 +310,11 @@ def draw_game_over_screen(screen, boss_scene):
 def show_help():
     """Show help information"""
     print("\nMind's Maze - Game Modes:")
-    print("  python main.py        - Start normal game")
-    print("  python main.py boss   - Boss battle test mode")
-    print("  python main.py test   - Same as boss mode") 
+    print("  python main.py                              - Start normal game")
+    print("  python main.py boss [perfectionist|procrastinator]   - Boss battle test mode (default: perfectionist)")
+    print("  python main.py test [perfectionist|procrastinator]   - Same as boss mode") 
+    print("  python main.py boss1                        - Shortcut: Perfectionist boss test")
+    print("  python main.py boss2                        - Shortcut: Procrastinator boss test")
     print("  python main.py help   - Show this help")
     print("\nBoss Battle Controls:")
     print("  WASD: Move player")
