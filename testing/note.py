@@ -24,6 +24,7 @@ class Note:
         self.collected = True
 
     def get_rect(self) -> pygame.Rect:
+        """Return bounding rect for just the note square."""
         return self.rect
 
     def draw(self, screen: pygame.Surface):
@@ -35,9 +36,9 @@ class Note:
         pygame.draw.rect(screen, color, self.rect)
         # subtle border
         pygame.draw.rect(screen, (120, 90, 30), self.rect, 2)
-
         if g.SHOW_COLLISION_BOXES:
             pygame.draw.rect(screen, (255, 0, 255), self.rect, 1)
+        
 
     def render_content(self, screen: pygame.Surface, center_x: int, center_y: int, width: int = 360, height: int = 240):
         """Render an open note as a lined square with the note content centered near the top."""

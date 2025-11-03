@@ -25,6 +25,16 @@ except Exception:
     note_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(note_mod)
     Note = getattr(note_mod, 'Note')
+# Tool is a separate entity in testing/tool.py
+try:
+    from src.entities.tool import Tool
+except Exception:
+    import importlib.util, os
+    tool_path = os.path.join(os.path.dirname(__file__), 'tool.py')
+    spec2 = importlib.util.spec_from_file_location('testing_tool', tool_path)
+    tool_mod = importlib.util.module_from_spec(spec2)
+    spec2.loader.exec_module(tool_mod)
+    Tool = getattr(tool_mod, 'Tool')
 import globals as g
 
 
@@ -58,11 +68,19 @@ class GameplayScene(BaseScene):
         note_size = 18
         note_x = 200
         note_y = ground.rect.top - note_size
+        # create a plain note and a separate Tool object to its right
         self.note = Note(note_x, note_y, size=note_size, name='note 01', content='Hello world')
+        # tool position: just to the right of the note
+        tool_radius = 8
+        tool_x = note_x + note_size + 6 + tool_radius
+        tool_y = note_y + note_size // 2
+        self.tool = Tool(tool_x, tool_y, radius=tool_radius, name='tool 01')
         self.note_prompt_shown = False
 
         # Inventory and UI state
-        self.inventory = []
+        # fixed-size inventory: each slot is either None or an item
+        self.inventory_slots = 10
+        self.inventory = [None] * self.inventory_slots
         self.opened_note = None
         self.hovered_name = ''
         # Rect for the close button of opened note overlay (set during draw)
@@ -98,13 +116,46 @@ class GameplayScene(BaseScene):
                 self.message = "Action triggered"
                 self.message_timer = 1.0
             elif event.key == pygame.K_c:
-                # Try to pick up a nearby note
-                if self.note and not self.note.collected:
-                    player_rect = pygame.Rect(int(self.player.x), int(self.player.y), self.player.width, self.player.height)
+                # Try to pick up a nearby tool first, then a note
+                player_rect = pygame.Rect(int(self.player.x), int(self.player.y), self.player.width, self.player.height)
+                picked = False
+                # Tool pickup
+                if hasattr(self, 'tool') and self.tool and not getattr(self.tool, 'collected', False):
+                    if player_rect.colliderect(self.tool.get_rect()):
+                        # place the collected tool object into the first empty inventory slot
+                        placed = False
+                        for si in range(self.inventory_slots):
+                            if self.inventory[si] is None:
+                                # store the Tool instance directly
+                                self.inventory[si] = self.tool
+                                placed = True
+                                break
+                        if not placed:
+                            self.head_message = f"Inventory full"
+                            self.head_message_timer = 2.0
+                        else:
+                            try:
+                                self.tool.pick_up()
+                            except Exception:
+                                pass
+                            self.head_message = f"Picked up {self.tool.name}"
+                            self.head_message_timer = 2.0
+                        picked = placed
+                # Try to pick up a nearby note (only if we didn't pick up a tool)
+                if not picked and self.note and not self.note.collected:
                     if player_rect.colliderect(self.note.get_rect()):
                         self.note.collect()
-                        # add the collected note object to inventory
-                        self.inventory.append(self.note)
+                        # place the collected note object into the first empty inventory slot
+                        placed = False
+                        for si in range(self.inventory_slots):
+                            if self.inventory[si] is None:
+                                self.inventory[si] = self.note
+                                placed = True
+                                break
+                        if not placed:
+                            # inventory full: show message
+                            self.head_message = f"Inventory full"
+                            self.head_message_timer = 2.0
                         self.opened_note = None
                         self.head_message = f"Picked up {self.note.name}"
                         self.head_message_timer = 2.0
@@ -120,16 +171,29 @@ class GameplayScene(BaseScene):
             # Hover over note
             if self.note and not self.note.collected and self.note.get_rect().collidepoint(mx, my):
                 self.hovered_name = self.note.name
-            # Hover over inventory slot -> show last collected note name
+            # Hover over world tool (if present)
+            elif hasattr(self, 'tool') and self.tool and not getattr(self.tool, 'collected', False) and self.tool.get_rect().collidepoint(mx, my):
+                self.hovered_name = getattr(self.tool, 'name', '')
+            # Hover over inventory slots -> show the name for that slot's item
             else:
                 screen_w = g.SCREENWIDTH
                 inv_w = 48
                 inv_h = 48
-                inv_x = screen_w//2 - inv_w//2
+                spacing = 8
+                total_w = self.inventory_slots * inv_w + (self.inventory_slots - 1) * spacing
+                start_x = screen_w // 2 - total_w // 2
                 inv_y = g.SCREENHEIGHT - inv_h - 10
-                inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
-                if inv_rect.collidepoint(mx, my) and self.inventory:
-                    self.hovered_name = self.inventory[-1].name
+                for i in range(self.inventory_slots):
+                    inv_x = start_x + i * (inv_w + spacing)
+                    inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
+                    if inv_rect.collidepoint(mx, my):
+                        item = self.inventory[i]
+                        if item is not None:
+                            if isinstance(item, dict):
+                                self.hovered_name = item.get('name', '')
+                            else:
+                                self.hovered_name = getattr(item, 'name', '')
+                        break
 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos
@@ -137,15 +201,138 @@ class GameplayScene(BaseScene):
             if self.note and self.note.get_rect().collidepoint(mx, my):
                 self.opened_note = self.note
             else:
-                # Click inventory slot to open last collected note
+                # Click inventory slots to open the corresponding collected note
                 screen_w = g.SCREENWIDTH
                 inv_w = 48
                 inv_h = 48
-                inv_x = screen_w//2 - inv_w//2
+                spacing = 8
+                total_w = self.inventory_slots * inv_w + (self.inventory_slots - 1) * spacing
+                start_x = screen_w // 2 - total_w // 2
                 inv_y = g.SCREENHEIGHT - inv_h - 10
-                inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
-                if inv_rect.collidepoint(mx, my) and self.inventory:
-                    self.opened_note = self.inventory[-1]
+                for i in range(self.inventory_slots):
+                    inv_x = start_x + i * (inv_w + spacing)
+                    inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
+                    if inv_rect.collidepoint(mx, my):
+                        item = self.inventory[i]
+                        if item is not None:
+                            # Only open items that are notes (have render_content)
+                            if hasattr(item, 'render_content'):
+                                self.opened_note = item
+                            else:
+                                # Tools: toggle hold on click (left click toggles hold)
+                                is_tool = False
+                                try:
+                                    is_tool = isinstance(item, Tool) or getattr(item, 'name', '').lower().startswith('tool')
+                                except Exception:
+                                    is_tool = False
+
+                                if is_tool:
+                                    # Toggle hold state without removing the item from inventory
+                                    current_held = getattr(self.player, 'held_tool', None)
+                                    if current_held is item:
+                                        # Unhold: remove held_tool reference
+                                        try:
+                                            self.player.drop_tool()
+                                        except Exception:
+                                            setattr(self.player, 'held_tool', None)
+                                        self.head_message = f"Dropped {getattr(item, 'name', 'tool')}"
+                                        self.head_message_timer = 1.5
+                                    else:
+                                        # Hold this tool (if holding another, it simply switches held reference)
+                                        try:
+                                            self.player.hold_tool(item)
+                                        except Exception:
+                                            setattr(self.player, 'held_tool', item)
+                                        self.head_message = f"Holding {getattr(item, 'name', 'tool')}"
+                                        self.head_message_timer = 1.5
+                                else:
+                                    # not a tool: open/view instead
+                                    self.opened_note = item
+                        break
+
+            # If an overlay is open, check for its close button (allow left-click to close)
+            if self.opened_note and hasattr(self, 'opened_note_close_rect') and self.opened_note_close_rect:
+                if self.opened_note_close_rect.collidepoint(mx, my):
+                    self.opened_note = None
+
+        # Right-click: hold a tool (if clicking the tool-circle or an inventory tool)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            mx, my = event.pos
+            # Right-clicking the note: if it has a tool, pick it up; otherwise open/view the note
+            if self.note and self.note.get_rect().collidepoint(mx, my):
+                # If this note contains a separate tool, take it into player's hand
+                if getattr(self.note, 'has_tool', False):
+                    tool = None
+                    try:
+                        tool = self.note.take_tool()
+                    except Exception:
+                        tool = None
+                    if tool:
+                        # If note was previously collected into inventory, remove it from inventory
+                        # (search by identity) - clear matching slots
+                        try:
+                            for si in range(self.inventory_slots):
+                                if self.inventory[si] is self.note:
+                                    self.inventory[si] = None
+                        except Exception:
+                            pass
+                        # Give tool to player
+                        try:
+                            self.player.hold_tool(tool)
+                        except Exception:
+                            # fallback: store simple dict on player
+                            setattr(self.player, 'held_tool', tool)
+                        self.head_message = f"Holding {tool.get('name', 'tool')}"
+                        self.head_message_timer = 2.0
+                else:
+                    # Notes cannot be held; open/view instead
+                    self.opened_note = self.note
+            else:
+                # Right-click on inventory slots: if slot contains a tool, hold it
+                screen_w = g.SCREENWIDTH
+                inv_w = 48
+                inv_h = 48
+                spacing = 8
+                total_w = self.inventory_slots * inv_w + (self.inventory_slots - 1) * spacing
+                start_x = screen_w // 2 - total_w // 2
+                inv_y = g.SCREENHEIGHT - inv_h - 10
+                for i in range(self.inventory_slots):
+                    inv_x = start_x + i * (inv_w + spacing)
+                    inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
+                    if inv_rect.collidepoint(mx, my):
+                        item = self.inventory[i]
+                        if item is None:
+                            break
+                        # If the inventory item is a tool (dict from take_tool() or named tool), hold it
+                        is_tool = False
+                        try:
+                            if isinstance(item, dict) and item.get('type') == 'tool':
+                                is_tool = True
+                            elif hasattr(item, 'name') and getattr(item, 'name', '').lower() == 'tool 01':
+                                is_tool = True
+                        except Exception:
+                            is_tool = False
+                        if is_tool:
+                            # Toggle hold state without removing from inventory
+                            current_held = getattr(self.player, 'held_tool', None)
+                            if current_held is item:
+                                try:
+                                    self.player.drop_tool()
+                                except Exception:
+                                    setattr(self.player, 'held_tool', None)
+                                self.head_message = f"Dropped {getattr(item, 'name', 'tool')}"
+                                self.head_message_timer = 2.0
+                            else:
+                                try:
+                                    self.player.hold_tool(item)
+                                except Exception:
+                                    setattr(self.player, 'held_tool', item)
+                                self.head_message = f"Holding {getattr(item, 'name', 'tool')}"
+                                self.head_message_timer = 2.0
+                        else:
+                            # notes cannot be held; open/view instead
+                            self.opened_note = item
+                        break
 
             # If an overlay is open, check for its close button
             if self.opened_note and hasattr(self, 'opened_note_close_rect') and self.opened_note_close_rect:
@@ -201,9 +388,11 @@ class GameplayScene(BaseScene):
         for p in self.platforms:
             p.draw(screen)
 
-        # Draw note and player
+        # Draw note and tool on the ground (tool may be collected)
         if self.note:
             self.note.draw(screen)
+        if hasattr(self, 'tool') and self.tool:
+            self.tool.draw(screen)
 
         self.player.draw(screen)
 
@@ -230,24 +419,60 @@ class GameplayScene(BaseScene):
             head_rect = head_surf.get_rect(center=(int(self.player.x + self.player.width/2), int(self.player.y) - 16))
             screen.blit(head_surf, head_rect)
 
-        # Draw inventory slot at bottom center
+        # Held-tool UI removed per request (icons are dimmed in inventory instead)
+
+        # Draw inventory slots (centered) with up to self.inventory_slots slots
         inv_w = 48
         inv_h = 48
-        inv_x = screen_width//2 - inv_w//2
+        spacing = 8
+        total_w = self.inventory_slots * inv_w + (self.inventory_slots - 1) * spacing
+        start_x = screen_width // 2 - total_w // 2
         inv_y = screen_height - inv_h - 10
-        inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
-        pygame.draw.rect(screen, (30, 30, 30), inv_rect)
-        pygame.draw.rect(screen, (180, 180, 180), inv_rect, 2)
-        if self.inventory:
-            # Draw a thumbnail for the last collected note
-            thumb_rect = pygame.Rect(inv_x + 6, inv_y + 6, inv_w - 12, inv_h - 12)
-            pygame.draw.rect(screen, (230, 200, 80), thumb_rect)
+        for i in range(self.inventory_slots):
+            inv_x = start_x + i * (inv_w + spacing)
+            inv_rect = pygame.Rect(inv_x, inv_y, inv_w, inv_h)
+            # inventory background: black
+            pygame.draw.rect(screen, (0, 0, 0), inv_rect)
+            pygame.draw.rect(screen, (180, 180, 180), inv_rect, 2)
+            # draw icon only when this slot has an object
+            item = self.inventory[i]
+            if item is not None:
+                thumb_rect = pygame.Rect(inv_x + 6, inv_y + 6, inv_w - 12, inv_h - 12)
+                try:
+                    # Tool icon: small circle inside the thumbnail
+                    if hasattr(item, 'name') and getattr(item, 'name', '').lower().startswith('tool'):
+                                pygame.draw.rect(screen, (30, 30, 30), thumb_rect)
+                                # larger tool icon centered in thumb
+                                cx, cy = thumb_rect.centerx, thumb_rect.centery
+                                radius = min(12, (thumb_rect.width // 2) - 2)
+                                # If the player is holding this tool, draw it dimmer
+                                held = False
+                                try:
+                                    held = (getattr(self.player, 'held_tool', None) is item)
+                                except Exception:
+                                    held = False
+                                if held:
+                                    circle_color = (70, 120, 140)
+                                    outline = (10, 10, 10)
+                                else:
+                                    circle_color = (100, 200, 220)
+                                    outline = (0, 0, 0)
+                                pygame.draw.circle(screen, circle_color, (cx, cy), radius)
+                                pygame.draw.circle(screen, outline, (cx, cy), radius, 1)
+                    else:
+                        # Note thumbnail: simple paper-colored rectangle
+                        pygame.draw.rect(screen, (230, 200, 80), thumb_rect)
+                except Exception:
+                    pygame.draw.rect(screen, (230, 200, 80), thumb_rect)
 
         # Draw note prompt
         if self.note_prompt_shown:
             prompt = "Press C to pick up"
             prompt_surf = pygame.font.Font(None, 20).render(prompt, True, (255, 255, 255))
             screen.blit(prompt_surf, (int(self.player.x), int(self.player.y) - 28))
+
+        # Draw the tool hover / world tool if present
+        # (Tool drawn earlier with note so nothing more needed here)
 
         # Hover name display (near cursor)
         if self.hovered_name:

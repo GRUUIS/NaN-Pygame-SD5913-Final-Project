@@ -23,7 +23,7 @@ if project_root not in sys.path:
 from src.scenes.game_manager import GameManager
 import globals as g
 from src.entities.boss_battle_scene import BossBattleScene
-from utils.logger import setup_logger
+from src.utils.logger import setup_logger
 logger = setup_logger()
 logger.info("Game (normal copy) started!")
 
