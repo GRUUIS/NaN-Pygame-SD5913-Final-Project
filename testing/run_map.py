@@ -45,6 +45,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.tiled_loader import load_map, draw_map
+# Optional physics engine
+try:
+    import pymunk
+    USE_PYMUNK = True
+except Exception:
+    pymunk = None
+    USE_PYMUNK = False
 
 
 def main(map_path="testing/tilemap/testingmap.tmj"):
@@ -160,26 +167,144 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     except Exception:
         collision_rects = []
 
-    # --- Player: use the existing Player entity from the game code ---
+    # --- Pymunk integration: build physics world from collision_rects ---
+    space = None
+    pymunk_player = None  # tuple (body, shape, w, h)
+    pymunk_static_shapes = []
+
+    import globals as g
+    # make gravity a bit stronger than the game's default so jumps feel less floaty
+    GRAVITY_BASE = float(getattr(g, 'GRAVITY', 1200)) * 1.5
+
+    def build_pymunk_world(player_pos=None):
+        """Create a fresh pymunk.Space and static shapes from collision_rects.
+        If player_pos is provided, recreate the dynamic player at that position.
+        """
+        nonlocal space, pymunk_player, pymunk_static_shapes
+        # clear old
+        pymunk_player = None
+        pymunk_static_shapes = []
+        if not USE_PYMUNK:
+            space = None
+            return
+        space = pymunk.Space()
+        # Pymunk uses pixels as units here; use the stronger gravity base
+        space.gravity = (0.0, float(GRAVITY_BASE))
+
+        # Add static boxes for each collision rect
+        for r in collision_rects:
+            bx = float(r.x + r.width / 2.0)
+            by = float(r.y + r.height / 2.0)
+            body = pymunk.Body(body_type=pymunk.Body.STATIC)
+            body.position = (bx, by)
+            poly = pymunk.Poly.create_box(body, (float(r.width), float(r.height)))
+            poly.friction = 1.0
+            poly.elasticity = 0.0
+            space.add(body, poly)
+            pymunk_static_shapes.append(poly)
+
+        # (re)create dynamic player if requested
+        if player_pos is not None:
+            px, py, pw, ph = player_pos
+            try:
+                mass = 1.0
+                moment = pymunk.moment_for_box(mass, (pw, ph))
+                body = pymunk.Body(mass, moment)
+                body.position = (px, py)
+                shape = pymunk.Poly.create_box(body, (pw, ph))
+                shape.friction = 1.0
+                shape.elasticity = 0.0
+                space.add(body, shape)
+                pymunk_player = (body, shape, pw, ph)
+            except Exception:
+                pymunk_player = None
+
+    # Determine a sensible spawn position so the player starts on the floor
+    # Spawn X: center of the map (middle)
+    spawn_x = float((map_pixel_w_natural * draw_scale) / 2.0)
+    # Default spawn platform top is the bottom of the map
+    map_pixel_h = int(map_pixel_h_natural * draw_scale)
+    spawn_platform_top = float(map_pixel_h)
     try:
-        from src.entities.player import Player as GamePlayer
-        import globals as g
-        # Instantiate player at a safe spawn (tile 2,2)
-        start_x = int(2 * tile_w * draw_scale)
-        start_y = int(2 * tile_h * draw_scale)
-        player = GamePlayer(start_x, start_y)
-        # Override player size to match tile scaling
-        player.width = int(max(8, g.PLAYER_SIZE * draw_scale))
-        player.height = int(max(8, g.PLAYER_SIZE * draw_scale))
+        # Find any collision rects under spawn_x and choose the lowest (largest y)
+        candidates = [r for r in collision_rects if float(r.left) <= spawn_x <= float(r.right)]
+        if candidates:
+            # choose the platform with the largest top (closest to the bottom)
+            spawn_platform_top = float(max(candidates, key=lambda r: r.top).top)
     except Exception:
-        # Fallback to simple rectangle player if import fails
-        player_w = int(16 * draw_scale)
-        player_h = int(28 * draw_scale)
-        player = {
-            "rect": pygame.Rect(32, 32, player_w, player_h),
-            "vel": [0.0, 0.0],
-            "on_ground": False,
-        }
+        pass
+
+    # Build initial world (no player_pos yet)
+    build_pymunk_world()
+
+    # Create initial player: prefer Pymunk dynamic body
+    # start_x/start_y used below will be set relative to spawn_platform_top
+    start_x = spawn_x
+    # start_y for pymunk is the center y (we'll offset by half player height when creating)
+    start_y = float(spawn_platform_top)
+    player = None
+    use_game_player = False
+    if USE_PYMUNK and space is not None:
+        pw = float(max(8, 16 * draw_scale))
+        ph = float(max(8, 28 * draw_scale))
+        # For pymunk the player_pos expects the center; place the player so its bottom
+        # sits on the spawn_platform_top
+        center_y = start_y - (ph / 2.0)
+        build_pymunk_world(player_pos=(start_x, center_y, pw, ph))
+        if pymunk_player:
+            player = pymunk_player
+    # If pymunk failed, fallback to game Player or dict
+    if player is None:
+        try:
+            from src.entities.player import Player as GamePlayer
+            import globals as g
+            start_x = int(2 * tile_w * draw_scale)
+            start_y = int(2 * tile_h * draw_scale)
+            # For GamePlayer constructor we pass top-left coordinates. Place the player
+            # so their bottom sits on the spawn_platform_top and centered at spawn_x.
+            pw = int(max(8, g.PLAYER_SIZE * draw_scale))
+            ph = int(max(8, g.PLAYER_SIZE * draw_scale))
+            px = int(spawn_x - pw // 2)
+            py = int(spawn_platform_top - ph)
+            player = GamePlayer(px, py)
+            player.width = pw
+            player.height = ph
+            use_game_player = True
+        except Exception:
+            player_w = int(16 * draw_scale)
+            player_h = int(28 * draw_scale)
+            player = {
+                "rect": pygame.Rect(int(spawn_x - player_w // 2), int(spawn_platform_top - player_h), player_w, player_h),
+                "vel": [0.0, 0.0],
+                "on_ground": False,
+            }
+
+    # (player was created above: either pymunk dynamic body, GamePlayer, or dict fallback)
+    # Center camera on the player initially so they don't appear off-screen
+    try:
+        map_pixel_w = int(map_pixel_w_natural * draw_scale)
+        map_pixel_h = int(map_pixel_h_natural * draw_scale)
+        if USE_PYMUNK and isinstance(player, tuple):
+            body, shape, pw, ph = player
+            px = float(body.position.x)
+            py = float(body.position.y)
+            print(f"[spawn] pymunk player at ({px:.1f},{py:.1f})")
+            cam.x = max(0, min(int(px - cam.width // 2), max(0, map_pixel_w - cam.width)))
+            cam.y = max(0, min(int(py - cam.height // 2), max(0, map_pixel_h - cam.height)))
+        elif hasattr(player, 'x'):
+            px = float(getattr(player, 'x', 0))
+            py = float(getattr(player, 'y', 0))
+            print(f"[spawn] GamePlayer at ({px:.1f},{py:.1f})")
+            cam.x = max(0, min(int(px + player.width//2 - cam.width // 2), max(0, map_pixel_w - cam.width)))
+            cam.y = max(0, min(int(py + player.height//2 - cam.height // 2), max(0, map_pixel_h - cam.height)))
+        else:
+            rect = player.get('rect') if isinstance(player, dict) else None
+            if rect is not None:
+                print(f"[spawn] dict player rect at {rect.topleft}")
+                cam.x = max(0, min(int(rect.centerx - cam.width // 2), max(0, map_pixel_w - cam.width)))
+                cam.y = max(0, min(int(rect.centery - cam.height // 2), max(0, map_pixel_h - cam.height)))
+    except Exception:
+        pass
 
     while running:
         for ev in pygame.event.get():
@@ -226,6 +351,39 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                     collision_rects = []
         # --- player update using game Player if available ---
         dt = clock.get_time() / 1000.0
+        # If we're using a Pymunk-backed player (tuple: (body, shape, w, h)),
+        # drive it here and step the physics space so it isn't left untouched
+        # (previously the code fell through and later tried to treat the tuple
+        # like a dict which raised the TypeError you saw).
+        if USE_PYMUNK and isinstance(player, tuple) and space is not None:
+            try:
+                body, shape, pw, ph = player
+                keys = pygame.key.get_pressed()
+                move_speed = 160 * draw_scale
+                # horizontal control (set velocity directly for simplicity)
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    vx = -move_speed
+                elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    vx = move_speed
+                else:
+                    vx = body.velocity.x * 0.8
+
+                vy = body.velocity.y
+                # simple grounded check: if vertical speed is very small, allow jump
+                # reduce jump impulse so player doesn't jump too high
+                if (keys[pygame.K_SPACE] or keys[pygame.K_UP]) and abs(body.velocity.y) < 1.0:
+                    vy = -300 * draw_scale
+
+                body.velocity = (float(vx), float(vy))
+                # Step the physics world for this frame
+                try:
+                    space.step(dt)
+                except Exception:
+                    pass
+            except Exception:
+                # If anything goes wrong with the pymunk path, continue to
+                # the other player code paths (we'll avoid treating tuple as dict)
+                pass
         # Build platform wrappers from collision rects for player collision
         class _P:
             def __init__(self, rect):
@@ -233,46 +391,149 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
 
         platforms = [ _P(r) for r in collision_rects ]
 
+        # Only call the game Player update path if the player is not a pymunk tuple
+        if not (USE_PYMUNK and isinstance(player, tuple)):
+            try:
+                # GamePlayer has update(dt, platforms)
+                player.update(dt, platforms)
+            except Exception as e:
+                # If player is the fallback dict, run the simple physics fallback.
+                # If player is a Player instance, avoid treating it like a dict (which raises
+                # TypeError: 'Player' object is not subscriptable). Instead log the error and skip.
+                import traceback
+                traceback.print_exc()
+                if isinstance(player, dict):
+                    dt = clock.get_time() / 1000.0
+                    keys = pygame.key.get_pressed()
+                    move_speed = 160 * draw_scale
+                    if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                        player['vel'][0] = -move_speed
+                    elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                        player['vel'][0] = move_speed
+                    else:
+                        player['vel'][0] *= 0.8
+                    if keys[pygame.K_SPACE] and player['on_ground']:
+                        # reduced jump impulse for the fallback physics
+                        player['vel'][1] = -300 * draw_scale
+                        player['on_ground'] = False
+                        # use the stronger gravity base for the simple fallback physics
+                        gravity = GRAVITY_BASE * draw_scale
+                    player['vel'][1] += gravity * dt
+                    dx = player['vel'][0] * dt
+                    dy = player['vel'][1] * dt
+                    player['rect'].x += int(dx)
+                    for r in collision_rects:
+                        if player['rect'].colliderect(r):
+                            if dx > 0:
+                                player['rect'].right = r.left
+                            elif dx < 0:
+                                player['rect'].left = r.right
+                            player['vel'][0] = 0
+                    player['rect'].y += int(dy)
+                    player['on_ground'] = False
+                    for r in collision_rects:
+                        if player['rect'].colliderect(r):
+                            if dy > 0:
+                                player['rect'].bottom = r.top
+                                player['vel'][1] = 0
+                                player['on_ground'] = True
+                            elif dy < 0:
+                                player['rect'].top = r.bottom
+                                player['vel'][1] = 0
+                else:
+                    print("Warning: player.update failed for Player instance; skipping fallback.")
+
+        # --- wrap-around through opposite-side doors ---
+        # If the player walks out past the map edge, teleport them to the opposite side.
+        # This is a simple wrap behavior (can be limited to door tiles later).
+        cur_map_w = int(map_pixel_w_natural * draw_scale)
+        cur_map_h = int(map_pixel_h_natural * draw_scale)
         try:
-            # GamePlayer has update(dt, platforms)
-            player.update(dt, platforms)
-        except Exception:
-            # Fallback: if player is the simple dict, perform previous simple physics
-            dt = clock.get_time() / 1000.0
-            keys = pygame.key.get_pressed()
-            move_speed = 160 * draw_scale
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                player['vel'][0] = -move_speed
-            elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                player['vel'][0] = move_speed
+            if USE_PYMUNK and isinstance(player, tuple):
+                body, shape, pw, ph = player
+                halfw = float(pw) / 2.0
+                halfh = float(ph) / 2.0
+                bx = float(body.position.x)
+                by = float(body.position.y)
+                wrapped = False
+                if bx < -halfw:
+                    body.position = (cur_map_w + halfw, by)
+                    wrapped = True
+                elif bx > cur_map_w + halfw:
+                    body.position = (-halfw, by)
+                    wrapped = True
+                if by < -halfh:
+                    body.position = (body.position.x, cur_map_h + halfh)
+                    wrapped = True
+                elif by > cur_map_h + halfh:
+                    body.position = (body.position.x, -halfh)
+                    wrapped = True
+                if wrapped:
+                    # damp velocities when teleporting to avoid flying off
+                    try:
+                        body.velocity = (0.0, 0.0)
+                    except Exception:
+                        pass
+            elif hasattr(player, 'x'):
+                # Game Player instance
+                px = float(getattr(player, 'x', 0))
+                py = float(getattr(player, 'y', 0))
+                pw = float(getattr(player, 'width', 16))
+                ph = float(getattr(player, 'height', 16))
+                halfw = pw / 2.0
+                halfh = ph / 2.0
+                wrapped = False
+                if px + halfw < 0:
+                    player.x = cur_map_w - halfw
+                    wrapped = True
+                elif px - halfw > cur_map_w:
+                    player.x = halfw
+                    wrapped = True
+                if py + halfh < 0:
+                    player.y = cur_map_h - halfh
+                    wrapped = True
+                elif py - halfh > cur_map_h:
+                    player.y = halfh
+                    wrapped = True
+                if wrapped:
+                    # try to zero velocities if available
+                    if hasattr(player, 'vx'):
+                        try:
+                            player.vx = 0
+                        except Exception:
+                            pass
+                    if hasattr(player, 'vy'):
+                        try:
+                            player.vy = 0
+                        except Exception:
+                            pass
             else:
-                player['vel'][0] *= 0.8
-            if keys[pygame.K_SPACE] and player['on_ground']:
-                player['vel'][1] = -420 * draw_scale
-                player['on_ground'] = False
-            gravity = 1200 * draw_scale
-            player['vel'][1] += gravity * dt
-            dx = player['vel'][0] * dt
-            dy = player['vel'][1] * dt
-            player['rect'].x += int(dx)
-            for r in collision_rects:
-                if player['rect'].colliderect(r):
-                    if dx > 0:
-                        player['rect'].right = r.left
-                    elif dx < 0:
-                        player['rect'].left = r.right
-                    player['vel'][0] = 0
-            player['rect'].y += int(dy)
-            player['on_ground'] = False
-            for r in collision_rects:
-                if player['rect'].colliderect(r):
-                    if dy > 0:
-                        player['rect'].bottom = r.top
-                        player['vel'][1] = 0
-                        player['on_ground'] = True
-                    elif dy < 0:
-                        player['rect'].top = r.bottom
-                        player['vel'][1] = 0
+                # dict fallback
+                rect = player.get('rect') if isinstance(player, dict) else None
+                if rect is not None:
+                    wrapped = False
+                    if rect.centerx < 0:
+                        rect.centerx = cur_map_w - 1
+                        wrapped = True
+                    elif rect.centerx > cur_map_w:
+                        rect.centerx = 1
+                        wrapped = True
+                    if rect.centery < 0:
+                        rect.centery = cur_map_h - 1
+                        wrapped = True
+                    elif rect.centery > cur_map_h:
+                        rect.centery = 1
+                        wrapped = True
+                    if wrapped:
+                        # reset vertical velocity so they don't immediately fall through
+                        try:
+                            player['vel'][0] = 0
+                            player['vel'][1] = 0
+                        except Exception:
+                            pass
+        except Exception:
+            # non-critical: if wrap logic errors, continue without wrapping
+            pass
 
         screen.fill((0, 0, 0))
         # Recompute map display pixel size for current draw_scale (for camera bounds)
@@ -287,13 +548,46 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
             s.fill((139, 69, 19, 160))  # brown with alpha
             screen.blit(s, (rr.x, rr.y))
 
-        # Draw player (simple rectangle)
-        pr = pygame.Rect(player['rect'].x - cam.x, player['rect'].y - cam.y, player['rect'].width, player['rect'].height)
-        pygame.draw.rect(screen, (50, 150, 250), pr)
+        # Draw player (use game Player if available)
+        if hasattr(player, 'x'):
+            # GamePlayer: compute screen rect
+            pr = pygame.Rect(int(player.x - cam.x), int(player.y - cam.y), int(player.width), int(player.height))
+            # choose color similarly to Player.draw
+            import globals as g
+            if getattr(player, 'invincible_time', 0) > 0:
+                if int(getattr(player, 'invincible_time', 0) * 10) % 2:
+                    color = g.COLORS['player_invincible']
+                else:
+                    color = g.COLORS['player']
+            elif not getattr(player, 'on_ground', True):
+                color = g.COLORS['player_jumping']
+            else:
+                color = g.COLORS['player']
+            pygame.draw.rect(screen, color, pr)
 
-        # Optionally center camera on player (clamp to map bounds)
-        cam.x = max(0, min(int(player['rect'].centerx - cam.width // 2), max(0, map_pixel_w - cam.width)))
-        cam.y = max(0, min(int(player['rect'].centery - cam.height // 2), max(0, map_pixel_h - cam.height)))
+            # center camera on player (clamped)
+            cam.x = max(0, min(int(player.x + player.width//2 - cam.width // 2), max(0, map_pixel_w - cam.width)))
+            cam.y = max(0, min(int(player.y + player.height//2 - cam.height // 2), max(0, map_pixel_h - cam.height)))
+        elif USE_PYMUNK and isinstance(player, tuple):
+            # Pymunk player tuple: (body, shape, w, h)
+            try:
+                body, shape, pw, ph = player
+                # body.position is center-based; compute top-left for pygame.Rect
+                bx = float(body.position.x)
+                by = float(body.position.y)
+                pr = pygame.Rect(int(bx - float(pw) / 2.0 - cam.x), int(by - float(ph) / 2.0 - cam.y), int(pw), int(ph))
+                pygame.draw.rect(screen, (50, 150, 250), pr)
+                # center camera on player's body position
+                cam.x = max(0, min(int(bx - cam.width // 2), max(0, map_pixel_w - cam.width)))
+                cam.y = max(0, min(int(by - cam.height // 2), max(0, map_pixel_h - cam.height)))
+            except Exception:
+                # If something unexpected, skip drawing the pymunk player to avoid errors
+                pass
+        else:
+            pr = pygame.Rect(player['rect'].x - cam.x, player['rect'].y - cam.y, player['rect'].width, player['rect'].height)
+            pygame.draw.rect(screen, (50, 150, 250), pr)
+            cam.x = max(0, min(int(player['rect'].centerx - cam.width // 2), max(0, map_pixel_w - cam.width)))
+            cam.y = max(0, min(int(player['rect'].centery - cam.height // 2), max(0, map_pixel_h - cam.height)))
 
         pygame.display.flip()
         clock.tick(60)
