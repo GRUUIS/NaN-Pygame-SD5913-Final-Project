@@ -306,6 +306,36 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     except Exception:
         pass
 
+    # Try to load a character sprite if present (user added Blue_witch PNGs)
+    sprite_surface = None
+    try:
+        # prefer an idle image if available
+        possible = [
+            PROJECT_ROOT / "testing" / "Blue_witch" / "B_witch_idle.png",
+            PROJECT_ROOT / "testing" / "Blue_witch" / "B_witch_run.png",
+        ]
+        for p in possible:
+            if p.exists():
+                img = pygame.image.load(str(p)).convert_alpha()
+                sprite_surface = img
+                break
+    except Exception:
+        sprite_surface = None
+    # Create a scaled sprite surface matching the chosen player's size
+    scaled_sprite = None
+    try:
+        if sprite_surface is not None:
+            if USE_PYMUNK and isinstance(player, tuple):
+                _, _, pw, ph = player
+                scaled_sprite = pygame.transform.smoothscale(sprite_surface, (int(pw), int(ph)))
+            elif hasattr(player, 'width'):
+                scaled_sprite = pygame.transform.smoothscale(sprite_surface, (int(player.width), int(player.height)))
+            elif isinstance(player, dict) and 'rect' in player:
+                r = player['rect']
+                scaled_sprite = pygame.transform.smoothscale(sprite_surface, (r.width, r.height))
+    except Exception:
+        scaled_sprite = None
+
     while running:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
@@ -563,7 +593,13 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 color = g.COLORS['player_jumping']
             else:
                 color = g.COLORS['player']
-            pygame.draw.rect(screen, color, pr)
+            if scaled_sprite is not None:
+                try:
+                    screen.blit(scaled_sprite, pr.topleft)
+                except Exception:
+                    pygame.draw.rect(screen, color, pr)
+            else:
+                pygame.draw.rect(screen, color, pr)
 
             # center camera on player (clamped)
             cam.x = max(0, min(int(player.x + player.width//2 - cam.width // 2), max(0, map_pixel_w - cam.width)))
@@ -576,7 +612,13 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 bx = float(body.position.x)
                 by = float(body.position.y)
                 pr = pygame.Rect(int(bx - float(pw) / 2.0 - cam.x), int(by - float(ph) / 2.0 - cam.y), int(pw), int(ph))
-                pygame.draw.rect(screen, (50, 150, 250), pr)
+                if scaled_sprite is not None:
+                    try:
+                        screen.blit(scaled_sprite, pr.topleft)
+                    except Exception:
+                        pygame.draw.rect(screen, (50, 150, 250), pr)
+                else:
+                    pygame.draw.rect(screen, (50, 150, 250), pr)
                 # center camera on player's body position
                 cam.x = max(0, min(int(bx - cam.width // 2), max(0, map_pixel_w - cam.width)))
                 cam.y = max(0, min(int(by - cam.height // 2), max(0, map_pixel_h - cam.height)))
@@ -585,7 +627,13 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 pass
         else:
             pr = pygame.Rect(player['rect'].x - cam.x, player['rect'].y - cam.y, player['rect'].width, player['rect'].height)
-            pygame.draw.rect(screen, (50, 150, 250), pr)
+            if scaled_sprite is not None:
+                try:
+                    screen.blit(scaled_sprite, pr.topleft)
+                except Exception:
+                    pygame.draw.rect(screen, (50, 150, 250), pr)
+            else:
+                pygame.draw.rect(screen, (50, 150, 250), pr)
             cam.x = max(0, min(int(player['rect'].centerx - cam.width // 2), max(0, map_pixel_w - cam.width)))
             cam.y = max(0, min(int(player['rect'].centery - cam.height // 2), max(0, map_pixel_h - cam.height)))
 
