@@ -29,7 +29,14 @@ class Bullet:
         self.homing_target = None
         
         # Visual properties
-        self.size = 4 if bullet_type != 'laser' else 6
+        if bullet_type == 'laser':
+            self.size = 6
+        elif bullet_type == 'void_shard':
+            self.size = 6
+        elif bullet_type == 'voidfire':
+            self.size = 5
+        else:
+            self.size = 4
         
     def update(self, dt: float, target=None):
         """Update bullet position and behavior"""
@@ -81,6 +88,18 @@ class Bullet:
             pygame.draw.ellipse(screen, color, 
                               (self.x - self.size, self.y - self.size//2, 
                                self.size*2, self.size))
+        elif self.type == 'void_shard':
+            # Black square shard
+            size = self.size
+            rect = pygame.Rect(int(self.x - size/2), int(self.y - size/2), size, size)
+            pygame.draw.rect(screen, color, rect)
+        elif self.type == 'voidfire':
+            # Fiery orb
+            pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
+            # small aura
+            aura = pygame.Surface((self.size*4, self.size*4), pygame.SRCALPHA)
+            pygame.draw.circle(aura, (*color, 60), (self.size*2, self.size*2), self.size*2)
+            screen.blit(aura, (int(self.x - self.size*2), int(self.y - self.size*2)))
         else:
             # Circular bullets
             pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)

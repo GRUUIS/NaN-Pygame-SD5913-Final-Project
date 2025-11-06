@@ -38,6 +38,7 @@ class Player:
         self.keys = pygame.key.get_pressed()
         self.mouse_pos = (0, 0)
         self.mouse_pressed = False
+        self.mouse_pressed_right = False
         #endregion Init/State
     
     #region Update & Physics
@@ -50,7 +51,9 @@ class Player:
         # Handle input
         self.keys = pygame.key.get_pressed()
         self.mouse_pos = pygame.mouse.get_pos()
-        self.mouse_pressed = pygame.mouse.get_pressed()[0]
+        buttons = pygame.mouse.get_pressed()
+        self.mouse_pressed = buttons[0]
+        self.mouse_pressed_right = buttons[2]
         
         # Horizontal movement
         if self.keys[pygame.K_a] or self.keys[pygame.K_LEFT]:
@@ -141,6 +144,23 @@ class Player:
             # Return bullet spawn position and direction
             return (self.x + self.width/2, self.y + self.height/2, dx, dy)
         
+        return None
+
+    def shoot_voidfire(self) -> Tuple[float, float, float, float]:
+        """Fire a Voidfire projectile towards mouse; separate cooldown for clarity."""
+        if not self.can_shoot():
+            return None
+
+        # Slightly longer cooldown for voidfire for balance
+        self.attack_cooldown = max(g.PLAYER_ATTACK_COOLDOWN, 0.6)
+
+        dx = self.mouse_pos[0] - (self.x + self.width/2)
+        dy = self.mouse_pos[1] - (self.y + self.height/2)
+        distance = math.sqrt(dx*dx + dy*dy)
+        if distance > 0:
+            dx /= distance
+            dy /= distance
+            return (self.x + self.width/2, self.y + self.height/2, dx, dy)
         return None
     
     def take_damage(self, damage: float):

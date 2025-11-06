@@ -307,8 +307,9 @@ class Perfectionist:
         # Update telegraph timer
         self.telegraph_timer = max(0, self.telegraph_timer - dt)
         
-        # Check for phase transition
-        if self.phase == 1 and self.health <= self.max_health * 0.5:
+        # Check for phase transition (configurable ratio)
+        p2_ratio = getattr(g, 'PERFECTIONIST_PHASE2_HP_RATIO', 0.5)
+        if self.phase == 1 and self.health <= self.max_health * p2_ratio:
             self.phase = 2
             self.change_state('idle')  # Reset to idle for phase transition
         

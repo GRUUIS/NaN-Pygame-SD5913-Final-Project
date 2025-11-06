@@ -9,10 +9,10 @@ Course: Creative Programming SD5913
 
 Usage:
     python main.py                              # Normal game mode
-    python main.py boss [perfectionist|procrastinator]   # Boss battle test mode (default: perfectionist)
-    python main.py test [perfectionist|procrastinator]   # Same as boss mode
+    python main.py boss [perfectionist|hollow]  # Boss battle test mode (default: perfectionist)
+    python main.py test [perfectionist|hollow]  # Same as boss mode
     python main.py boss1                        # Shortcut: Perfectionist boss test
-    python main.py boss2                        # Shortcut: Procrastinator boss test
+    python main.py boss3                        # Shortcut: The Hollow boss test
 """
 
 import pygame
@@ -42,18 +42,19 @@ def main():
                 print("Starting Boss Battle Test Mode... (Perfectionist)")
                 run_boss_test('perfectionist')
                 return
-            if mode in ['boss2', 'procrastinator', 'procrastination']:
-                print("Starting Boss Battle Test Mode... (Procrastinator)")
-                run_boss_test('procrastinator')
+            if mode in ['boss2', 'procrastinator', 'procrastination', 'boss3', 'hollow', 'the_hollow', 'nihilism']:
+                print("Starting Boss Battle Test Mode... (The Hollow)")
+                run_boss_test('hollow')
                 return
             if mode in ['boss', 'test']:
                 # Direct boss battle test mode
                 boss_type = 'perfectionist'
                 if len(sys.argv) > 2:
                     arg = (sys.argv[2] or '').lower()
-                    if arg in ('perfectionist', 'procrastinator', 'procrastination'):
-                        boss_type = 'procrastinator' if arg.startswith('procrast') else 'perfectionist'
-                print(f"Starting Boss Battle Test Mode... ({boss_type.title()})")
+                    if arg in ('perfectionist', 'procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
+                        boss_type = 'hollow' if (arg in ('hollow','the_hollow','nihilism') or arg.startswith('procrast')) else 'perfectionist'
+                display_name = 'The Hollow' if boss_type == 'hollow' else 'Perfectionist'
+                print(f"Starting Boss Battle Test Mode... ({display_name})")
                 run_boss_test(boss_type)
                 return
             elif mode == 'help':
@@ -89,7 +90,9 @@ def run_boss_test(boss_type: str = 'perfectionist'):
     """
     # Initialize display
     screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
-    title = "Procrastinator" if (boss_type or 'perfectionist').lower().startswith('procrast') else "Perfectionist"
+    # Title mapping: show The Hollow when using the new boss aliases or legacy procrastinator alias
+    bt = (boss_type or 'perfectionist').lower()
+    title = "The Hollow" if bt in ('hollow','the_hollow','nihilism','procrastinator','procrastination') else "Perfectionist"
     pygame.display.set_caption(f"Boss Battle Test - {title}")
     clock = pygame.time.Clock()
     
@@ -311,10 +314,10 @@ def show_help():
     """Show help information"""
     print("\nMind's Maze - Game Modes:")
     print("  python main.py                              - Start normal game")
-    print("  python main.py boss [perfectionist|procrastinator]   - Boss battle test mode (default: perfectionist)")
-    print("  python main.py test [perfectionist|procrastinator]   - Same as boss mode") 
+    print("  python main.py boss [perfectionist|hollow]  - Boss battle test mode (default: perfectionist)")
+    print("  python main.py test [perfectionist|hollow]  - Same as boss mode") 
     print("  python main.py boss1                        - Shortcut: Perfectionist boss test")
-    print("  python main.py boss2                        - Shortcut: Procrastinator boss test")
+    print("  python main.py boss3                        - Shortcut: The Hollow boss test")
     print("  python main.py help   - Show this help")
     print("\nBoss Battle Controls:")
     print("  WASD: Move player")

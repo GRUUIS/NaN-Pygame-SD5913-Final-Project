@@ -25,16 +25,15 @@ Players control a puppet figure representing "neglected self-awareness" within a
 ### Boss Encounters
 
 1. **Perfectionist** - "Self-Censorship/Fear of Action"
-   - Initial defeat teaches importance of preparation
-   - Victory requires creative tools acquisition
+   - Entry boss, teaches baseline movement and dodge patterns
+   - Standard bullet-hell patterns: spread, predictive, homing, sweep
 
-2. **Procrastination** - "Laziness Ghost/Creative Drought"  
-   - Slow but wide-range attacks
-   - Requires constant movement and positioning
-
-3. **Nihilism** - "Meaninglessness/Futility"
-   - Cannot be attacked directly  
-   - Must clear environmental puzzle elements
+2. **The Hollow (Nihilism)** - Black silhouette of emptiness
+   - New Boss 3 (re-themed from Procrastinator mechanics)
+   - Summons "Void Shards" (black squares) from above; touching hurts
+   - Entry bubble: “You think words can scare me away?”
+   - Player uses “Voidfire” (purple flame) as the primary attack in this fight
+   - Victory bubble: “This is not a threat-it's my process”
 
 ### Technical Specifications
 
@@ -76,6 +75,38 @@ Mind's-Maze/
    ```bash
    python main.py
    ```
+
+### Quick Boss Tests
+
+- Perfectionist boss test:
+   ```bash
+   python main.py boss1
+   ```
+
+- The Hollow boss test (Boss 3):
+   ```bash
+   python main.py boss hollow
+   # or
+   python main.py boss3
+   ```
+
+Controls in boss tests:
+
+- WASD / Arrow keys: Move
+- Space / W / Up: Jump
+- Mouse Left: Shoot (Perfectionist: normal bullets; The Hollow: Voidfire)
+- R: Reset battle
+- ESC: Exit
+
+Idle penalty (anti-camping) in boss battles:
+
+- If you stand still on the ground too long, punishment escalates:
+   - Periodic “Void Shards” fall near you, count and speed scale with idle time
+   - Continuous health drain while idle (tunable)
+   - Tunables in `globals.py`:
+      - `PLAYER_IDLE_THRESHOLD` (seconds)
+      - `PLAYER_IDLE_SHARD_INTERVAL` (seconds)
+      - `PLAYER_IDLE_HEALTH_DRAIN` (HP per second)
 
 ## Team Roles & Responsibilities
 
