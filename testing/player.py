@@ -6,10 +6,23 @@ Do not import this from production code unless intentionally switching imports i
 """
 
 #region Imports
-
+import sys
+import os
 import pygame
 import math
 from typing import List, Tuple
+
+# If this testing script is executed directly (python testing/player.py) then
+# Python's import path will have the `testing/` directory as sys.path[0]. That
+# hides the project root where `globals.py` lives. Insert the project root on
+# sys.path when the module has no package context so local imports like
+# `import globals as g` work both when run as a script and when imported as a
+# module from the project root.
+if __package__ is None:
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
 import globals as g
 #endregion Imports
 
@@ -38,8 +51,8 @@ class Player:
         self.keys = pygame.key.get_pressed()
         self.mouse_pos = (0, 0)
         self.mouse_pressed = False
-    # Held tool (testing only)
-    self.held_tool = None
+        # Held tool (testing only)
+        self.held_tool = None
         #endregion Init/State
     
     #region Update & Physics
@@ -93,9 +106,13 @@ class Player:
     #region Collisions
     def handle_platform_collision(self, platforms: List):
         """Handle collision with platforms"""
-        from .platform import Platform  # Local import to avoid circular imports
-        
-        player_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        # We collide against any object providing a `.rect` with x/y/width/height;
+        # importing the Platform class is not required here and can introduce
+        # circular-import headaches. If you really need the symbol for typing,
+        # uncomment the import below, but it's intentionally avoided at runtime.
+        # from src.entities.platform import Platform  # noqa: F401
+
+        player_rect = pygame.Rect(int(self.x), int(self.y), int(self.width), int(self.height))
         self.on_ground = False
         
         for platform in platforms:

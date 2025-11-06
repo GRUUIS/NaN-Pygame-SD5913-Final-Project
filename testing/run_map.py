@@ -1035,5 +1035,23 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
 
 
 if __name__ == "__main__":
-    map_path = sys.argv[1] if len(sys.argv) > 1 else "testing/tilemap/testingmap.tmj"
-    sys.exit(main(map_path))
+    # Accept an optional map path argument. If none provided, prefer a path
+    # relative to this script's folder so "python testing/run_map.py" AND
+    # "cd testing; python run_map.py" both work.
+    if len(sys.argv) > 1:
+        candidate = sys.argv[1]
+    else:
+        # Default to ./tilemap/testingmap.tmj next to this script
+        candidate = str(Path(__file__).parent / "tilemap" / "testingmap.tmj")
+
+    # If not found, also try the project-root relative path used previously
+    # (testing/tilemap/testingmap.tmj) to be extra forgiving.
+    try:
+        if not os.path.exists(candidate):
+            alt = Path(__file__).resolve().parents[1] / "testing" / "tilemap" / "testingmap.tmj"
+            if alt.exists():
+                candidate = str(alt)
+    except Exception:
+        pass
+
+    sys.exit(main(candidate))
