@@ -38,6 +38,7 @@ import sys
 import os
 from pathlib import Path
 import pygame
+import time
 
 # Ensure project root is on sys.path so this script can be executed from the testing/ folder
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +72,8 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     # Base integer scale you want for gameplay (tiles get larger). We will
     # compute a FINAL_SCALE that fits the map to the native screen if needed.
     BASE_SCALE = 3
+    # Character visual scale multiplier (1.0 = native Aseprite size). Increase to make character look bigger.
+    CHARACTER_SCALE = 1.9
 
     # Native display size (we already created a tiny display earlier)
     info = pygame.display.Info()
@@ -336,6 +339,198 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     except Exception:
         scaled_sprite = None
 
+    # Try to load the Aseprite-based animation loader from the cloned repo.
+    ase_manager = None
+    ase_anim_map = {}
+    ase_current_tag = None
+    try:
+        ase_src = PROJECT_ROOT / 'testing' / 'pygame_aseprite_animator' / 'src'
+        if str(ase_src) not in sys.path:
+            sys.path.insert(0, str(ase_src))
+        from pygame_aseprite_animation.pygame_aseprite_animation import Animation, AnimationManager
+        from py_aseprite.chunks import FrameTagsChunk
+        ase_file = PROJECT_ROOT / 'testing' / 'Blue_witch' / 'B_witch.aseprite'
+        if ase_file.exists():
+            try:
+                anim = Animation(str(ase_file))
+                # Do NOT rescale frames to the player's physics rect here; keep native ratio.
+                # However, we will optionally increase visual size by CHARACTER_SCALE while preserving ratio.
+                def _ensure_transparency(frame_surf: 'pygame.Surface'):
+                    # Guarantee an alpha channel. If the frame already contains transparent pixels, keep as-is.
+                    try:
+                        fs = frame_surf.convert_alpha()
+                    except Exception:
+                        fs = frame_surf.copy()
+                        fs = fs.convert_alpha()
+                    # fast check for any non-255 alpha
+                    try:
+                        import pygame.surfarray as surfarray
+                        alpha = surfarray.pixels_alpha(fs)
+                        any_transparent = alpha.min() < 255
+                        del alpha
+                    except Exception:
+                        any_transparent = False
+                    if any_transparent:
+                        return fs
+                    # No per-pixel alpha found — assume a solid background color in corners.
+                    w, h = fs.get_size()
+                    try:
+                        corners = [fs.get_at((0,0))[:3], fs.get_at((max(0,w-1),0))[:3], fs.get_at((0,max(0,h-1)))[:3], fs.get_at((max(0,w-1),max(0,h-1)))[:3]]
+                    except Exception:
+                        return fs
+                    from collections import Counter
+                    bg = Counter(corners).most_common(1)[0][0]
+                    # make this color transparent
+                    fs.set_colorkey(bg)
+                    return fs.convert_alpha()
+                # Build a map of named tags -> (start, end) frame indices using py_aseprite frame chunks.
+                tag_ranges = {}
+                for frame in anim.aseprite_file.frames:
+                    for chunk in getattr(frame, 'chunks', []):
+                        if isinstance(chunk, FrameTagsChunk):
+                            for t in chunk.tags:
+                                name = t.get('name', '').lower()
+                                tag_ranges[name] = (int(t.get('from', 0)), int(t.get('to', 0)))
+
+                # Build simple Animation-like objects per tag so AnimationManager can switch between them.
+                class _SimpleAnim:
+                    def __init__(self, frames, durations, anchors):
+                        self.animation_frames = frames
+                        self.frame_duration = durations
+                        # anchors: list of (anchor_x, anchor_y) per frame in surface pixels
+                        self.anchors = anchors
+
+                # If no tags found, treat whole file as a single anonymous animation
+                if not tag_ranges:
+                    frames = []
+                    anchors = []
+                    durations = list(anim.frame_duration)
+                    for f in anim.animation_frames:
+                        fs = _ensure_transparency(f)
+                        fw, fh = fs.get_size()
+                        if CHARACTER_SCALE != 1.0:
+                            nw = max(1, int(round(fw * CHARACTER_SCALE)))
+                            nh = max(1, int(round(fh * CHARACTER_SCALE)))
+                            try:
+                                fs = pygame.transform.smoothscale(fs, (nw, nh))
+                            except Exception:
+                                fs = pygame.transform.scale(fs, (nw, nh))
+                        try:
+                            br = fs.get_bounding_rect()
+                            anchor_x = float(br.x + br.width / 2.0)
+                            anchor_y = float(br.y + br.height)
+                        except Exception:
+                            anchor_x = float(fs.get_width() / 2)
+                            anchor_y = float(fs.get_height())
+                        frames.append(fs)
+                        anchors.append((anchor_x, anchor_y))
+                    ase_anim_map['default'] = _SimpleAnim(frames, durations, anchors)
+                else:
+                    for name, (s, e) in tag_ranges.items():
+                        frames = []
+                        anchors = []
+                        durations = anim.frame_duration[s:e+1]
+                        for f in anim.animation_frames[s:e+1]:
+                            fs = _ensure_transparency(f)
+                            # enlarge visually while keeping native ratio
+                            fw, fh = fs.get_size()
+                            if CHARACTER_SCALE != 1.0:
+                                nw = max(1, int(round(fw * CHARACTER_SCALE)))
+                                nh = max(1, int(round(fh * CHARACTER_SCALE)))
+                                try:
+                                    fs = pygame.transform.smoothscale(fs, (nw, nh))
+                                except Exception:
+                                    fs = pygame.transform.scale(fs, (nw, nh))
+                            # compute bounding rect of visible pixels to find anchor
+                            try:
+                                br = fs.get_bounding_rect()
+                                anchor_x = float(br.x + br.width / 2.0)
+                                anchor_y = float(br.y + br.height)  # bottom of bounding box
+                            except Exception:
+                                anchor_x = float(fs.get_width() / 2)
+                                anchor_y = float(fs.get_height())
+                            frames.append(fs)
+                            anchors.append((anchor_x, anchor_y))
+                        ase_anim_map[name] = _SimpleAnim(frames, durations, anchors)
+
+                # Create precomputed left-facing variants for animations when explicit left tags are not present.
+                existing = set(ase_anim_map.keys())
+                for name in list(existing):
+                    # common left-name patterns to check
+                    left_variants = [f"{name}_left", f"left_{name}", f"{name}left", f"{name}_l"]
+                    found = any(v in existing for v in left_variants)
+                    if not found:
+                        # build left flipped frames for this animation
+                        src = ase_anim_map[name]
+                        try:
+                            flipped_frames = [pygame.transform.flip(f, True, False) for f in src.animation_frames]
+                            # compute anchors for flipped frames
+                            flipped_anchors = []
+                            for f in flipped_frames:
+                                try:
+                                    br = f.get_bounding_rect()
+                                    ax = float(br.x + br.width / 2.0)
+                                    ay = float(br.y + br.height)
+                                except Exception:
+                                    ax = float(f.get_width() / 2)
+                                    ay = float(f.get_height())
+                                flipped_anchors.append((ax, ay))
+                            ase_anim_map[f"{name}_left"] = _SimpleAnim(flipped_frames, list(src.frame_duration), flipped_anchors)
+                        except Exception:
+                            # if flipping fails, skip creating left variant
+                            pass
+
+                # Choose a sensible default order: idle then walk/run then default
+                anim_list = []
+                if 'idle' in ase_anim_map:
+                    anim_list.append(ase_anim_map['idle'])
+                if 'run' in ase_anim_map:
+                    anim_list.append(ase_anim_map['run'])
+                if 'walk' in ase_anim_map and 'run' not in ase_anim_map:
+                    anim_list.append(ase_anim_map['walk'])
+                # add any remaining animations
+                for k, v in ase_anim_map.items():
+                    if v not in anim_list:
+                        anim_list.append(v)
+
+                if anim_list:
+                    ase_manager = AnimationManager(anim_list, screen)
+                    # helper to advance ase_manager timing and return current frame surface
+                    def _ase_get_current_frame(manager):
+                        """Advance timing and return (surface, anchor_x, anchor_y) for the current frame.
+                        Returns (surface, anchor_x, anchor_y) or (None, None, None) on failure.
+                        """
+                        try:
+                            now = round(time.time() * 1000)
+                            if now > manager.tend:
+                                if manager.framenum == len(manager.current_animation.frame_duration) - 1:
+                                    if manager.next_animation is not None:
+                                        manager.current_animation = manager.next_animation
+                                    manager.framenum = 0
+                                else:
+                                    manager.framenum += 1
+                                manager.tstart = now
+                                manager.tend = manager.tstart + manager.current_animation.frame_duration[manager.framenum]
+                            ca = manager.current_animation
+                            fi = int(getattr(manager, 'framenum', 0))
+                            if ca and ca.animation_frames:
+                                surf = ca.animation_frames[fi]
+                                try:
+                                    ax, ay = ca.anchors[fi]
+                                except Exception:
+                                    ax = float(surf.get_width() / 2)
+                                    ay = float(surf.get_height())
+                                return surf, ax, ay
+                        except Exception:
+                            return None, None, None
+                        return None, None, None
+                else:
+                    ase_manager = None
+            except Exception:
+                ase_manager = None
+    except Exception:
+        ase_manager = None
+
     while running:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
@@ -593,7 +788,91 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 color = g.COLORS['player_jumping']
             else:
                 color = g.COLORS['player']
-            if scaled_sprite is not None:
+            if ase_manager is not None and ase_anim_map:
+                try:
+                    # choose animation based on horizontal speed
+                    desired = 'idle'
+                    vx = 0.0
+                    if USE_PYMUNK and isinstance(player, tuple):
+                        body, _, _, _ = player
+                        vx = float(body.velocity.x)
+                    elif hasattr(player, 'vx'):
+                        vx = float(getattr(player, 'vx', 0.0))
+                    elif isinstance(player, dict) and 'vel' in player:
+                        try:
+                            vx = float(player['vel'][0])
+                        except Exception:
+                            vx = 0.0
+                    if abs(vx) > 10.0:
+                        if 'run' in ase_anim_map:
+                            desired = 'run'
+                        elif 'walk' in ase_anim_map:
+                            desired = 'walk'
+                    # switch animation if needed
+                    desired_anim = ase_anim_map.get(desired) or next(iter(ase_anim_map.values()))
+                    if getattr(ase_manager, 'current_animation', None) is not desired_anim:
+                        try:
+                            ase_manager.start_animation(desired_anim)
+                        except Exception:
+                            pass
+                    # align sprite using per-frame anchors so flipping doesn't shift the visible character
+                    try:
+                        # determine horizontal velocity for facing
+                        vx = 0.0
+                        if hasattr(player, 'vx'):
+                            try:
+                                vx = float(getattr(player, 'vx', 0.0))
+                            except Exception:
+                                vx = 0.0
+                        elif hasattr(player, 'vel'):
+                            try:
+                                vx = float(getattr(player, 'vel')[0])
+                            except Exception:
+                                vx = 0.0
+                        facing_left = vx < -10.0
+                        # prefer left-named animation if available
+                        desired_key = desired + ("_left" if facing_left else "")
+                        desired_anim2 = ase_anim_map.get(desired_key) or ase_anim_map.get(desired) or next(iter(ase_anim_map.values()))
+                        if getattr(ase_manager, 'current_animation', None) is not desired_anim2:
+                            try:
+                                ase_manager.start_animation(desired_anim2)
+                            except Exception:
+                                pass
+                        # draw current frame using anchors
+                        ca = ase_manager.current_animation
+                        fi = int(getattr(ase_manager, 'framenum', 0))
+                        if ca and ca.animation_frames:
+                            try:
+                                surf = ca.animation_frames[fi]
+                                ax, ay = ca.anchors[fi] if fi < len(ca.anchors) else (float(surf.get_width()/2), float(surf.get_height()))
+                                fw, fh = surf.get_size()
+                                draw_x = int(pr.x + (pr.width / 2.0) - ax)
+                                draw_y = int(pr.y + (pr.height) - ay)
+                                screen.blit(surf, (draw_x, draw_y))
+                            except Exception:
+                                try:
+                                    screen.blit(ca.animation_frames[fi], (pr.x, pr.y))
+                                except Exception:
+                                    pass
+                        else:
+                            try:
+                                ase_manager.update_self(pr.x, pr.y)
+                            except Exception:
+                                pass
+                    except Exception:
+                        try:
+                            ase_manager.update_self(pr.x, pr.y)
+                        except Exception:
+                            pass
+                except Exception:
+                    if scaled_sprite is not None:
+                        try:
+                            screen.blit(scaled_sprite, pr.topleft)
+                        except Exception:
+                            pygame.draw.rect(screen, color, pr)
+                    else:
+                        pygame.draw.rect(screen, color, pr)
+            elif scaled_sprite is not None:
                 try:
                     screen.blit(scaled_sprite, pr.topleft)
                 except Exception:
@@ -612,7 +891,61 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 bx = float(body.position.x)
                 by = float(body.position.y)
                 pr = pygame.Rect(int(bx - float(pw) / 2.0 - cam.x), int(by - float(ph) / 2.0 - cam.y), int(pw), int(ph))
-                if scaled_sprite is not None:
+                if ase_manager is not None and ase_anim_map:
+                    try:
+                        # For pymunk player, pick animation based on horizontal speed
+                        vx = float(body.velocity.x)
+                        desired = 'idle'
+                        if abs(vx) > 10.0:
+                            if 'run' in ase_anim_map:
+                                desired = 'run'
+                            elif 'walk' in ase_anim_map:
+                                desired = 'walk'
+                        # decide facing and prefer left-named animation if needed
+                        facing_left = vx < -10.0
+                        desired_key = desired + ("_left" if facing_left else "")
+                        desired_anim = ase_anim_map.get(desired_key) or ase_anim_map.get(desired) or next(iter(ase_anim_map.values()))
+                        if getattr(ase_manager, 'current_animation', None) is not desired_anim:
+                            try:
+                                ase_manager.start_animation(desired_anim)
+                            except Exception:
+                                pass
+                        # compute draw position so sprite bottom aligns with physics rect bottom
+                        try:
+                            cur_anim = ase_manager.current_animation
+                            fi = int(getattr(ase_manager, 'framenum', 0))
+                            if cur_anim and cur_anim.animation_frames:
+                                try:
+                                    surf = cur_anim.animation_frames[fi]
+                                    ax, ay = cur_anim.anchors[fi] if fi < len(cur_anim.anchors) else (float(surf.get_width()/2), float(surf.get_height()))
+                                    fw, fh = surf.get_size()
+                                    draw_x = int(pr.x + (pr.width / 2.0) - ax)
+                                    draw_y = int(pr.y + (pr.height) - ay)
+                                    screen.blit(surf, (draw_x, draw_y))
+                                except Exception:
+                                    try:
+                                        screen.blit(cur_anim.animation_frames[fi], (pr.x, pr.y))
+                                    except Exception:
+                                        pass
+                            else:
+                                try:
+                                    ase_manager.update_self(pr.x, pr.y)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            try:
+                                ase_manager.update_self(pr.x, pr.y)
+                            except Exception:
+                                pass
+                    except Exception:
+                        if scaled_sprite is not None:
+                            try:
+                                screen.blit(scaled_sprite, pr.topleft)
+                            except Exception:
+                                pygame.draw.rect(screen, (50, 150, 250), pr)
+                        else:
+                            pygame.draw.rect(screen, (50, 150, 250), pr)
+                elif scaled_sprite is not None:
                     try:
                         screen.blit(scaled_sprite, pr.topleft)
                     except Exception:
@@ -627,7 +960,64 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 pass
         else:
             pr = pygame.Rect(player['rect'].x - cam.x, player['rect'].y - cam.y, player['rect'].width, player['rect'].height)
-            if scaled_sprite is not None:
+            if ase_manager is not None and ase_anim_map:
+                try:
+                    # choose animation based on dict velocity if available
+                    vx = 0.0
+                    try:
+                        vx = float(player.get('vel', [0.0, 0.0])[0])
+                    except Exception:
+                        vx = 0.0
+                    desired = 'idle'
+                    if abs(vx) > 10.0:
+                        if 'run' in ase_anim_map:
+                            desired = 'run'
+                        elif 'walk' in ase_anim_map:
+                            desired = 'walk'
+                    # choose left variant if moving left
+                    facing_left = vx < -10.0
+                    desired_key = desired + ("_left" if facing_left else "")
+                    desired_anim = ase_anim_map.get(desired_key) or ase_anim_map.get(desired) or next(iter(ase_anim_map.values()))
+                    if getattr(ase_manager, 'current_animation', None) is not desired_anim:
+                        try:
+                            ase_manager.start_animation(desired_anim)
+                        except Exception:
+                            pass
+                    try:
+                        cur_anim = ase_manager.current_animation
+                        fi = int(getattr(ase_manager, 'framenum', 0))
+                        if cur_anim and cur_anim.animation_frames:
+                            try:
+                                surf = cur_anim.animation_frames[fi]
+                                ax, ay = cur_anim.anchors[fi] if fi < len(cur_anim.anchors) else (float(surf.get_width()/2), float(surf.get_height()))
+                                fw, fh = surf.get_size()
+                                draw_x = int(pr.x + (pr.width / 2.0) - ax)
+                                draw_y = int(pr.y + (pr.height) - ay)
+                                screen.blit(surf, (draw_x, draw_y))
+                            except Exception:
+                                try:
+                                    screen.blit(cur_anim.animation_frames[fi], (pr.x, pr.y))
+                                except Exception:
+                                    pass
+                        else:
+                            try:
+                                ase_manager.update_self(pr.x, pr.y)
+                            except Exception:
+                                pass
+                    except Exception:
+                        try:
+                            ase_manager.update_self(pr.x, pr.y)
+                        except Exception:
+                            pass
+                except Exception:
+                    if scaled_sprite is not None:
+                        try:
+                            screen.blit(scaled_sprite, pr.topleft)
+                        except Exception:
+                            pygame.draw.rect(screen, (50, 150, 250), pr)
+                    else:
+                        pygame.draw.rect(screen, (50, 150, 250), pr)
+            elif scaled_sprite is not None:
                 try:
                     screen.blit(scaled_sprite, pr.topleft)
                 except Exception:
