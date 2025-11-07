@@ -1,0 +1,2 @@
+Placeholder for sound file: puzzle_solve.wav
+Generate a real audio file and replace this placeholder.

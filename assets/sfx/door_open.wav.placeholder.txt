@@ -1,0 +1,2 @@
+Placeholder for sound file: door_open.wav
+Generate a real audio file and replace this placeholder.
