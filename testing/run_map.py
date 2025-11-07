@@ -142,6 +142,12 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     inventory_slots = 10
     inventory = [None] * inventory_slots
     show_inventory = False
+    # Opened note overlay (None or Note instance)
+    opened_note = None
+    opened_note_close_rect = None
+    # simple on-screen message (text + timer)
+    message = ""
+    message_timer = 0.0
 
     # natural map pixel size (no scale)
     map_pixel_w_natural = map_w_tiles * tile_w
@@ -289,6 +295,44 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 "vel": [0.0, 0.0],
                 "on_ground": False,
             }
+
+    # Try to load a test Note object (use src.entities.note if present, otherwise testing/note.py)
+    try:
+        from src.entities.note import Note
+    except Exception:
+        try:
+            import importlib.util
+            note_path = os.path.join(os.path.dirname(__file__), 'note.py')
+            spec = importlib.util.spec_from_file_location('testing_note', note_path)
+            note_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(note_mod)
+            Note = getattr(note_mod, 'Note')
+        except Exception:
+            Note = None
+
+    note = None
+    if Note is not None:
+        try:
+            note_size = int(max(8, 18 * draw_scale))
+            note_x = int(spawn_x + 24 * draw_scale)
+            note_y = int(spawn_platform_top - note_size)
+            note = Note(note_x, note_y, size=note_size, name='note 01', content='A small scrap with scribbles')
+        except Exception:
+            note = None
+
+    # Try to load icon images for note (book) and close (delete)
+    note_img = None
+    close_img = None
+    try:
+        book_path = PROJECT_ROOT / 'testing' / 'rpgiab_icon_pack_v1.3' / '16x16' / 'book.png'
+        delete_path = PROJECT_ROOT / 'testing' / 'rpgiab_icon_pack_v1.3' / '16x16' / 'delete.png'
+        if book_path.exists():
+            note_img = pygame.image.load(str(book_path)).convert_alpha()
+        if delete_path.exists():
+            close_img = pygame.image.load(str(delete_path)).convert_alpha()
+    except Exception:
+        note_img = None
+        close_img = None
 
     # (player was created above: either pymunk dynamic body, GamePlayer, or dict fallback)
     # Center camera on the player initially so they don't appear off-screen
@@ -579,6 +623,34 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                         show_inventory = not show_inventory
                     except Exception:
                         show_inventory = True
+                elif ev.key == pygame.K_c:
+                    # Try to pick up nearby note (if present and not already collected)
+                    try:
+                        if note and not note.collected:
+                            # find player rect in world coords
+                            if USE_PYMUNK and isinstance(player, tuple):
+                                body, _, pw, ph = player
+                                player_rect = pygame.Rect(int(body.position.x - pw/2), int(body.position.y - ph/2), int(pw), int(ph))
+                            elif hasattr(player, 'x'):
+                                player_rect = pygame.Rect(int(player.x), int(player.y), int(player.width), int(player.height))
+                            else:
+                                player_rect = player.get('rect') if isinstance(player, dict) else None
+                            if player_rect and player_rect.colliderect(note.get_rect()):
+                                note.collect()
+                                placed = False
+                                for si in range(inventory_slots):
+                                    if inventory[si] is None:
+                                        inventory[si] = note
+                                        placed = True
+                                        break
+                                if not placed:
+                                    message = 'Inventory full'
+                                    message_timer = 2.0
+                                else:
+                                    message = f'Picked up {note.name}'
+                                    message_timer = 2.0
+                    except Exception:
+                        pass
             elif ev.type == pygame.VIDEORESIZE:
                 # Window resized by the user
                 win_w, win_h = ev.w, ev.h
@@ -588,6 +660,55 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                     collision_rects = extract_collision_rects(m, tileset_meta, collidable_gids=collidable_gids, scale=draw_scale)
                 except Exception:
                     collision_rects = []
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                # Left click: first, if an opened-note close button exists, allow clicking it to close
+                try:
+                    mx, my = ev.pos
+                    if opened_note_close_rect is not None:
+                        try:
+                            if opened_note_close_rect.collidepoint(mx, my):
+                                opened_note = None
+                                opened_note_close_rect = None
+                                # consume the click
+                                continue
+                        except Exception:
+                            pass
+                    # Otherwise, if inventory overlay is visible, attempt to open clicked slot
+                    if show_inventory:
+                        inv_w = 48
+                        inv_h = 48
+                        spacing = 8
+                        total_w = inventory_slots * inv_w + (inventory_slots - 1) * spacing
+                        center_map_x = int((map_pixel_w_natural * draw_scale) / 2.0)
+                        center_map_y = int((map_pixel_h_natural * draw_scale) / 2.0)
+                        screen_cx = center_map_x - cam.x
+                        screen_cy = center_map_y - cam.y
+                        panel_w = total_w + 20
+                        panel_h = inv_h + 20
+                        panel_x = int(screen_cx - panel_w // 2)
+                        panel_y = int(screen_cy - panel_h // 2)
+                        mx, my = ev.pos
+                        # compute local coords relative to panel
+                        lx = mx - panel_x
+                        ly = my - panel_y
+                        for i in range(inventory_slots):
+                            inv_x = 10 + i * (inv_w + spacing)
+                            inv_rect = pygame.Rect(panel_x + inv_x, panel_y + 10, inv_w, inv_h)
+                            if inv_rect.collidepoint(mx, my):
+                                item = inventory[i]
+                                if item is not None and hasattr(item, 'render_content'):
+                                    opened_note = item
+                                break
+                        # If there is an opened note close button from a previous frame, allow clicking it to close
+                        try:
+                            if opened_note_close_rect is not None:
+                                if opened_note_close_rect.collidepoint(mx, my):
+                                    opened_note = None
+                                    opened_note_close_rect = None
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
         # --- player update using game Player if available ---
         dt = clock.get_time() / 1000.0
         # If we're using a Pymunk-backed player (tuple: (body, shape, w, h)),
@@ -786,6 +907,34 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
             s = pygame.Surface((rr.width, rr.height), pygame.SRCALPHA)
             s.fill((139, 69, 19, 160))  # brown with alpha
             screen.blit(s, (rr.x, rr.y))
+
+        # Draw note in world coordinates (if present and not collected)
+        try:
+                if note is not None and not getattr(note, 'collected', False):
+                    nr = note.get_rect()
+                    screen_nr = pygame.Rect(int(nr.x - cam.x), int(nr.y - cam.y), nr.width, nr.height)
+                    # If we loaded a book icon, draw it; otherwise draw paper-colored rect
+                    try:
+                        if note_img is not None:
+                            # scale icon to note size
+                            try:
+                                img = pygame.transform.smoothscale(note_img, (screen_nr.width, screen_nr.height))
+                            except Exception:
+                                img = pygame.transform.scale(note_img, (screen_nr.width, screen_nr.height))
+                            screen.blit(img, screen_nr.topleft)
+                        else:
+                            pygame.draw.rect(screen, (230, 200, 80), screen_nr)
+                            pygame.draw.rect(screen, (120, 90, 30), screen_nr, 2)
+                        # optional collision box debug
+                        try:
+                            if getattr(g, 'SHOW_COLLISION_BOXES', False):
+                                pygame.draw.rect(screen, (255, 0, 255), screen_nr, 1)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         # Draw player (use game Player if available)
         if hasattr(player, 'x'):
@@ -1071,9 +1220,20 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                     pygame.draw.rect(panel_surf, (180, 180, 180, 255), inv_rect, 2)
                     item = inventory[i]
                     if item is not None:
-                        thumb_rect = pygame.Rect(inv_x + 6, 10 + 6, inv_w - 12, inv_h - 12)
-                        # simple thumbnail placeholder (notes/tools not drawn in map viewer)
-                        pygame.draw.rect(panel_surf, (230, 200, 80, 255), thumb_rect)
+                            thumb_rect = pygame.Rect(inv_x + 6, 10 + 6, inv_w - 12, inv_h - 12)
+                            # If item is a note and we have an icon, draw it
+                            try:
+                                if hasattr(item, 'render_content') and note_img is not None:
+                                    try:
+                                        img = pygame.transform.smoothscale(note_img, (thumb_rect.width, thumb_rect.height))
+                                    except Exception:
+                                        img = pygame.transform.scale(note_img, (thumb_rect.width, thumb_rect.height))
+                                    panel_surf.blit(img, (thumb_rect.x, thumb_rect.y))
+                                else:
+                                    # simple thumbnail placeholder (tools/unknown)
+                                    pygame.draw.rect(panel_surf, (230, 200, 80, 255), thumb_rect)
+                            except Exception:
+                                pygame.draw.rect(panel_surf, (230, 200, 80, 255), thumb_rect)
 
                 # Blit panel centered at map center on screen
                 panel_x = int(screen_cx - panel_w // 2)
@@ -1082,6 +1242,66 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
             except Exception:
                 # drawing overlay is non-critical; ignore failures
                 pass
+
+        # Draw opened note overlay if any
+        if opened_note is not None:
+            try:
+                sw, sh = screen.get_size()
+                opened_note.render_content(screen, sw//2, sh//2)
+                # draw a small close button at bottom-left of the note box (same defaults as Note.render_content)
+                note_w = 360
+                note_h = 240
+                box_rect = pygame.Rect(sw//2 - note_w//2, sh//2 - note_h//2, note_w, note_h)
+                # Close button area: prefer to fit the delete icon without distortion
+                max_btn_w, max_btn_h = 80, 28
+                btn_x = box_rect.left + 10
+                try:
+                    if close_img is not None:
+                        iw, ih = close_img.get_size()
+                        # scale to fit within max_btn_w x max_btn_h while preserving aspect ratio
+                        scale = min(float(max_btn_w) / float(iw), float(max_btn_h) / float(ih))
+                        img_w = max(1, int(round(iw * scale)))
+                        img_h = max(1, int(round(ih * scale)))
+                        try:
+                            img = pygame.transform.smoothscale(close_img, (img_w, img_h))
+                        except Exception:
+                            img = pygame.transform.scale(close_img, (img_w, img_h))
+                        close_rect = pygame.Rect(btn_x, box_rect.bottom - img_h - 10, img_w, img_h)
+                        screen.blit(img, close_rect.topleft)
+                    else:
+                        btn_w, btn_h = max_btn_w, max_btn_h
+                        close_rect = pygame.Rect(btn_x, box_rect.bottom - btn_h - 10, btn_w, btn_h)
+                        pygame.draw.rect(screen, (180, 50, 50), close_rect)
+                        pygame.draw.rect(screen, (0, 0, 0), close_rect, 2)
+                        btn_font = pygame.font.Font(None, 20)
+                        btn_text = btn_font.render('Close', True, (255, 255, 255))
+                        btn_text_rect = btn_text.get_rect(center=close_rect.center)
+                        screen.blit(btn_text, btn_text_rect)
+                except Exception:
+                    # fallback: simple rect if anything goes wrong
+                    try:
+                        close_rect = pygame.Rect(btn_x, box_rect.bottom - max_btn_h - 10, max_btn_w, max_btn_h)
+                        pygame.draw.rect(screen, (180, 50, 50), close_rect)
+                    except Exception:
+                        close_rect = None
+                opened_note_close_rect = close_rect
+            except Exception:
+                opened_note = None
+                opened_note_close_rect = None
+
+        # Draw transient message if any
+        try:
+            if message_timer > 0:
+                message_surf = pygame.font.Font(None, 24).render(message, True, (255, 255, 255))
+                ms_rect = message_surf.get_rect(center=(screen.get_width()//2, 30))
+                screen.blit(message_surf, ms_rect)
+                # decrement after draw (simple approach)
+                message_timer -= clock.get_time() / 1000.0
+                if message_timer <= 0:
+                    message = ''
+                    message_timer = 0.0
+        except Exception:
+            pass
 
         pygame.display.flip()
         clock.tick(60)
