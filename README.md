@@ -164,6 +164,9 @@ Idle penalty (anti-camping) in boss battles:
 - Icon pack: RPG IAB Icon Pack — downloaded from itch.io
    - Pack page: https://zeromatrix.itch.io/rpgiab-icons
 
+- UI / Book styles: Complete UI Book Styles Pack — downloaded from itch.io
+   - Pack page: https://crusenho.itch.io/complete-ui-book-styles-pack
+
 Please check the asset pages for licensing and attribution requirements before redistributing. If you want, I can add a copy of the license(s) or a short usage note for these assets in `assets/` or `docs/`.
 
 ## Game Design Document

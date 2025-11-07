@@ -148,6 +148,8 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     # simple on-screen message (text + timer)
     message = ""
     message_timer = 0.0
+    # Inventory hover name for tooltip
+    inv_hover_name = ''
 
     # natural map pixel size (no scale)
     map_pixel_w_natural = map_w_tiles * tile_w
@@ -333,6 +335,21 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     except Exception:
         note_img = None
         close_img = None
+
+    # Try to load TravelBook page left/right images for note background
+    tb_left = None
+    tb_right = None
+    try:
+        tb_base = PROJECT_ROOT / 'testing' / 'Complete_UI_Book_Styles_Pack_Free_v1.0' / '01_TravelBookLite' / 'Sprites'
+        left_path = tb_base / 'UI_TravelBook_BookPageLeft01a.png'
+        right_path = tb_base / 'UI_TravelBook_BookPageRight01a.png'
+        if left_path.exists():
+            tb_left = pygame.image.load(str(left_path)).convert_alpha()
+        if right_path.exists():
+            tb_right = pygame.image.load(str(right_path)).convert_alpha()
+    except Exception:
+        tb_left = None
+        tb_right = None
 
     # (player was created above: either pymunk dynamic body, GamePlayer, or dict fallback)
     # Center camera on the player initially so they don't appear off-screen
@@ -660,6 +677,40 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                     collision_rects = extract_collision_rects(m, tileset_meta, collidable_gids=collidable_gids, scale=draw_scale)
                 except Exception:
                     collision_rects = []
+            elif ev.type == pygame.MOUSEMOTION:
+                # Inventory slot hover detection (show item name tooltip)
+                try:
+                    mx, my = ev.pos
+                    inv_hover_name = ''
+                    if show_inventory:
+                        inv_w = 48
+                        inv_h = 48
+                        spacing = 8
+                        total_w = inventory_slots * inv_w + (inventory_slots - 1) * spacing
+                        center_map_x = int((map_pixel_w_natural * draw_scale) / 2.0)
+                        center_map_y = int((map_pixel_h_natural * draw_scale) / 2.0)
+                        screen_cx = center_map_x - cam.x
+                        screen_cy = center_map_y - cam.y
+                        panel_w = total_w + 20
+                        panel_h = inv_h + 20
+                        panel_x = int(screen_cx - panel_w // 2)
+                        panel_y = int(screen_cy - panel_h // 2)
+                        for i in range(inventory_slots):
+                            inv_x = panel_x + 10 + i * (inv_w + spacing)
+                            inv_rect = pygame.Rect(inv_x, panel_y + 10, inv_w, inv_h)
+                            if inv_rect.collidepoint(mx, my):
+                                item = inventory[i]
+                                if item is not None:
+                                    try:
+                                        if isinstance(item, dict):
+                                            inv_hover_name = item.get('name', '')
+                                        else:
+                                            inv_hover_name = getattr(item, 'name', '')
+                                    except Exception:
+                                        inv_hover_name = ''
+                                break
+                except Exception:
+                    inv_hover_name = ''
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 # Left click: first, if an opened-note close button exists, allow clicking it to close
                 try:
@@ -1243,15 +1294,156 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 # drawing overlay is non-critical; ignore failures
                 pass
 
+            # Draw inventory hover tooltip if any
+            try:
+                if show_inventory and inv_hover_name:
+                    mx, my = pygame.mouse.get_pos()
+                    tip_font = pygame.font.Font(None, 20)
+                    tip_surf = tip_font.render(inv_hover_name, True, (255, 255, 255))
+                    tip_rect = tip_surf.get_rect(topleft=(mx + 12, my + 12))
+                    bg = pygame.Surface((tip_rect.width + 8, tip_rect.height + 6), pygame.SRCALPHA)
+                    bg.fill((10, 10, 10, 200))
+                    screen.blit(bg, (tip_rect.left - 4, tip_rect.top - 3))
+                    screen.blit(tip_surf, tip_rect)
+            except Exception:
+                pass
+
         # Draw opened note overlay if any
         if opened_note is not None:
             try:
                 sw, sh = screen.get_size()
-                opened_note.render_content(screen, sw//2, sh//2)
-                # draw a small close button at bottom-left of the note box (same defaults as Note.render_content)
-                note_w = 360
-                note_h = 240
-                box_rect = pygame.Rect(sw//2 - note_w//2, sh//2 - note_h//2, note_w, note_h)
+                # Note overlay dimensions (enlarged)
+                note_w = 540
+                note_h = 360
+                center_x = sw // 2
+                center_y = sh // 2
+                box_rect = pygame.Rect(center_x - note_w//2, center_y - note_h//2, note_w, note_h)
+
+                # Draw TravelBook background if assets available: left + center paper + right
+                left_w = 0
+                right_w = 0
+                try:
+                    if tb_left is not None or tb_right is not None:
+                        # compute left image scaled to note_h height
+                        left_w = 0
+                        right_w = 0
+                        if tb_left is not None:
+                            lw, lh = tb_left.get_size()
+                            scale_l = float(note_h) / float(lh)
+                            left_w = max(1, int(round(lw * scale_l)))
+                            try:
+                                left_img = pygame.transform.smoothscale(tb_left, (left_w, note_h))
+                            except Exception:
+                                left_img = pygame.transform.scale(tb_left, (left_w, note_h))
+                            screen.blit(left_img, (box_rect.left, box_rect.top))
+                        if tb_right is not None:
+                            rw, rh = tb_right.get_size()
+                            scale_r = float(note_h) / float(rh)
+                            right_w = max(1, int(round(rw * scale_r)))
+                            try:
+                                right_img = pygame.transform.smoothscale(tb_right, (right_w, note_h))
+                            except Exception:
+                                right_img = pygame.transform.scale(tb_right, (right_w, note_h))
+                            screen.blit(right_img, (box_rect.right - right_w, box_rect.top))
+                        # fill center area between left and right with paper color
+                        center_left = box_rect.left + left_w
+                        center_right = box_rect.right - right_w
+                        if center_right > center_left:
+                            center_rect = pygame.Rect(center_left, box_rect.top, center_right - center_left, note_h)
+                            pygame.draw.rect(screen, (245, 245, 230), center_rect)
+                        # draw outer border around the composed book page
+                        try:
+                            pygame.draw.rect(screen, (120, 90, 30), box_rect, 3)
+                        except Exception:
+                            pass
+                    else:
+                        # fallback background box
+                        pygame.draw.rect(screen, (245, 245, 230), box_rect)
+                        pygame.draw.rect(screen, (120, 90, 30), box_rect, 3)
+                except Exception:
+                    try:
+                        pygame.draw.rect(screen, (245, 245, 230), box_rect)
+                        pygame.draw.rect(screen, (120, 90, 30), box_rect, 3)
+                    except Exception:
+                        pass
+
+                # Draw horizontal lines on the paper area
+                padding = 18
+                try:
+                    line_color = (220, 220, 200)
+                    line_y = box_rect.top + padding
+                    line_spacing = 24
+                    while line_y < box_rect.bottom - padding:
+                        pygame.draw.line(screen, line_color, (box_rect.left + padding, line_y), (box_rect.right - padding, line_y), 1)
+                        line_y += line_spacing
+                except Exception:
+                    pass
+
+                # Draw content text and title (smaller font, left-page alignment)
+                try:
+                    # Title at top center
+                    title_font = pygame.font.Font(None, 20)
+                    title_surf = title_font.render(getattr(opened_note, 'name', ''), True, (80, 80, 80))
+                    # Draw title above the note window with a subtle background for readability
+                    title_rect = title_surf.get_rect(center=(center_x, box_rect.top - (title_surf.get_height() // 2) - 8))
+                    try:
+                        # subtle paper-tinted background behind title (not black)
+                        bg_rect = pygame.Rect(title_rect.left - 6, title_rect.top - 4, title_rect.width + 12, title_rect.height + 6)
+                        bg_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                        bg_surf.fill((245, 245, 230, 200))
+                        screen.blit(bg_surf, (bg_rect.left, bg_rect.top))
+                    except Exception:
+                        pass
+                    # render title text (darker color for readability)
+                    try:
+                        title_surf = title_font.render(getattr(opened_note, 'name', ''), True, (40, 40, 40))
+                        screen.blit(title_surf, title_rect)
+                    except Exception:
+                        screen.blit(title_surf, title_rect)
+
+                    # Determine left page area: use the left half of the note box (respect padding)
+                    # This ensures text always starts visually on the left-hand page.
+                    inner_top = box_rect.top + padding
+                    inner_bottom = box_rect.bottom - padding
+                    inner_left = box_rect.left + padding
+                    inner_width = max(1, box_rect.width - (padding * 2))
+                    page_width = max(1, inner_width // 2)
+                    left_page_rect = pygame.Rect(inner_left, inner_top, page_width, inner_bottom - inner_top)
+
+                    # Content font (smaller)
+                    content_font = pygame.font.Font(None, 18)
+                    max_text_w = left_page_rect.width - (padding * 2)
+                    words = getattr(opened_note, 'content', '').split()
+                    lines = []
+                    cur = ''
+                    for w in words:
+                        test = (cur + ' ' + w).strip()
+                        try:
+                            if content_font.size(test)[0] <= max_text_w:
+                                cur = test
+                            else:
+                                if cur:
+                                    lines.append(cur)
+                                cur = w
+                        except Exception:
+                            # fallback: append and reset
+                            if cur:
+                                lines.append(cur)
+                            cur = w
+                    if cur:
+                        lines.append(cur)
+
+                    # Render wrapped lines starting on the left page (respecting inner padding)
+                    ly = left_page_rect.top + 6
+                    line_height = content_font.get_linesize()
+                    for ln in lines:
+                        if ly + line_height > left_page_rect.bottom - padding:
+                            break
+                        text_surf = content_font.render(ln, True, (40, 40, 40))
+                        screen.blit(text_surf, (left_page_rect.left + padding + 4, ly))
+                        ly += line_height
+                except Exception:
+                    pass
                 # Close button area: prefer to fit the delete icon without distortion
                 max_btn_w, max_btn_h = 80, 28
                 btn_x = box_rect.left + 10
