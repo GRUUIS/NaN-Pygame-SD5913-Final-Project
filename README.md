@@ -152,6 +152,17 @@ Idle penalty (anti-camping) in boss battles:
 - This copy was added as a vendor snapshot so the demo runner can parse `.aseprite` files without requiring an external install. The animator's original LICENSE file is included in `testing/pygame_aseprite_animator/LICENSE`.
 - If you prefer to track upstream changes directly, we can convert this to a git submodule instead (ask me and I can set that up).
 
+### Assets attribution
+
+- Map / tileset: Cozy Room Library (16x16) — downloaded from itch.io
+   - Link (download page): https://rolff.itch.io/cozy-room-library-tilemap-16x16/download/eyJpZCI6MjU1Njc0OSwiZXhwaXJlcyI6MTc2MjM5MzY1NH0%3d%2eVi8Y0Q5pfsFyRUsK2%2fz8ZZXBYQM%3d
+   - Author / source page: https://rolff.itch.io/cozy-room-library-tilemap-16x16
+
+- Character pack: Witches Pack — downloaded from itch.io
+   - Pack page: https://9e0.itch.io/witches-pack
+
+Please check the asset pages for licensing and attribution requirements before redistributing. If you want, I can add a copy of the license(s) or a short usage note for these assets in `assets/` or `docs/`.
+
 ## Game Design Document
 
 ### Core Loop
