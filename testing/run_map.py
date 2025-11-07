@@ -135,6 +135,14 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
     clock = pygame.time.Clock()
     running = True
 
+    # Simple inventory state for the map viewer (re-uses the inventory UI from
+    # the gameplay example). Toggle visibility with TAB. Inventory is drawn
+    # centered at the middle of the map (world coordinates) and rendered
+    # semi-transparently on top of the map when visible.
+    inventory_slots = 10
+    inventory = [None] * inventory_slots
+    show_inventory = False
+
     # natural map pixel size (no scale)
     map_pixel_w_natural = map_w_tiles * tile_w
     map_pixel_h_natural = map_h_tiles * tile_h
@@ -565,6 +573,12 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                         collision_rects = extract_collision_rects(m, tileset_meta, collidable_gids=collidable_gids, scale=draw_scale)
                     except Exception:
                         collision_rects = []
+                elif ev.key == pygame.K_TAB:
+                    # Toggle inventory overlay visibility
+                    try:
+                        show_inventory = not show_inventory
+                    except Exception:
+                        show_inventory = True
             elif ev.type == pygame.VIDEORESIZE:
                 # Window resized by the user
                 win_w, win_h = ev.w, ev.h
@@ -1026,6 +1040,48 @@ def main(map_path="testing/tilemap/testingmap.tmj"):
                 pygame.draw.rect(screen, (50, 150, 250), pr)
             cam.x = max(0, min(int(player['rect'].centerx - cam.width // 2), max(0, map_pixel_w - cam.width)))
             cam.y = max(0, min(int(player['rect'].centery - cam.height // 2), max(0, map_pixel_h - cam.height)))
+
+        # Draw inventory overlay (centered on the map world center) if toggled
+        if show_inventory:
+            try:
+                inv_w = 48
+                inv_h = 48
+                spacing = 8
+                total_w = inventory_slots * inv_w + (inventory_slots - 1) * spacing
+                # Map center in world pixels
+                center_map_x = int((map_pixel_w_natural * draw_scale) / 2.0)
+                center_map_y = int((map_pixel_h_natural * draw_scale) / 2.0)
+                # Convert to screen coordinates by subtracting camera
+                screen_cx = center_map_x - cam.x
+                screen_cy = center_map_y - cam.y
+
+                panel_w = total_w + 20
+                panel_h = inv_h + 20
+                panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+                # semi-transparent dark background
+                panel_surf.fill((10, 10, 10, 180))
+
+                # Draw individual slots onto panel_surf
+                for i in range(inventory_slots):
+                    inv_x = 10 + i * (inv_w + spacing)
+                    inv_rect = pygame.Rect(inv_x, 10, inv_w, inv_h)
+                    # slot bg (semi-opaque)
+                    pygame.draw.rect(panel_surf, (30, 30, 30, 220), inv_rect)
+                    # border
+                    pygame.draw.rect(panel_surf, (180, 180, 180, 255), inv_rect, 2)
+                    item = inventory[i]
+                    if item is not None:
+                        thumb_rect = pygame.Rect(inv_x + 6, 10 + 6, inv_w - 12, inv_h - 12)
+                        # simple thumbnail placeholder (notes/tools not drawn in map viewer)
+                        pygame.draw.rect(panel_surf, (230, 200, 80, 255), thumb_rect)
+
+                # Blit panel centered at map center on screen
+                panel_x = int(screen_cx - panel_w // 2)
+                panel_y = int(screen_cy - panel_h // 2)
+                screen.blit(panel_surf, (panel_x, panel_y))
+            except Exception:
+                # drawing overlay is non-critical; ignore failures
+                pass
 
         pygame.display.flip()
         clock.tick(60)
