@@ -1,0 +1,2 @@
+Placeholder for sound file: boss_theme_1.ogg
+Generate a real audio file and replace this placeholder.

@@ -1,0 +1,2 @@
+Placeholder for sound file: item_get.wav
+Generate a real audio file and replace this placeholder.

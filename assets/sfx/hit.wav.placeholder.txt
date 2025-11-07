@@ -1,0 +1,2 @@
+Placeholder for sound file: hit.wav
+Generate a real audio file and replace this placeholder.

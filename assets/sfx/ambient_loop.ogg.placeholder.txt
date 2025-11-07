@@ -1,0 +1,2 @@
+Placeholder for sound file: ambient_loop.ogg
+Generate a real audio file and replace this placeholder.
