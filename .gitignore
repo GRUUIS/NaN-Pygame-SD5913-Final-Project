@@ -143,3 +143,6 @@ config/local_settings.py
 saves/
 debug_output/
 performance_logs/
+
+# Ignore local vendored animator clone
+testing/pygame_aseprite_animator/
