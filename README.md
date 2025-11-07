@@ -145,6 +145,13 @@ Idle penalty (anti-camping) in boss battles:
 - Test before pushing to main branch
 - Use pull requests for code review
 
+## Third-party components / Attribution
+
+- The project includes a vendored copy of `pygame_aseprite_animator` (used for loading Aseprite `.aseprite` animations) under `testing/pygame_aseprite_animator/`.
+- Original upstream repository: https://github.com/ISebSej/pygame_aseprite_animator
+- This copy was added as a vendor snapshot so the demo runner can parse `.aseprite` files without requiring an external install. The animator's original LICENSE file is included in `testing/pygame_aseprite_animator/LICENSE`.
+- If you prefer to track upstream changes directly, we can convert this to a git submodule instead (ask me and I can set that up).
+
 ## Game Design Document
 
 ### Core Loop
