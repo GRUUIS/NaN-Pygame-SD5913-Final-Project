@@ -11,6 +11,8 @@ Defeat line (displayed for the player): "This is not a threat-it's my process"
 #region Imports
 import math
 import random
+import os
+from pathlib import Path
 import pygame
 import globals as g
 
@@ -415,6 +417,8 @@ class TheHollow:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        self.prev_x = x
+        self.facing_right = True
         self.max_health = getattr(g, 'BOSS3_MAX_HEALTH', 520)
         self.health = self.max_health
         self.phase = 1
@@ -437,6 +441,14 @@ class TheHollow:
         self.backlog_boost_timer = 0.0
         self.checkpoint_stage = 0
         self.drop_impulse = 0.0
+
+        # Animation state
+        self.anim_timer = 0.0
+        self.anim_index = 0
+        self.animations = {}
+        self.anim_name = 'walk'
+        self.anim_fps_by_name = {}
+        self._load_animations()
 
     def get_backlog_boost(self) -> float:
         return (getattr(g, 'BOSS3_BACKLOG_BOOST_MULT', 1.5) if self.backlog_boost_timer > 0.0 else 1.0)
@@ -472,6 +484,19 @@ class TheHollow:
             self.current_state.exit()
             self.current_state = self.states[name]
             self.current_state.enter()
+            # Switch animation based on state
+            prev_anim = self.anim_name
+            if name == 'drift':
+                self.anim_name = 'walk'
+            else:
+                # For now, non-drift states use attack animation if available
+                if 'attack' in self.animations:
+                    self.anim_name = 'attack'
+                else:
+                    self.anim_name = 'walk'
+            if self.anim_name != prev_anim:
+                self.anim_timer = 0.0
+                self.anim_index = 0
 
     # Update
     def update(self, dt, player, bullet_manager: BulletManager):
@@ -506,6 +531,24 @@ class TheHollow:
         self.telegraph_timer = max(0.0, self.telegraph_timer - dt)
         self.current_state.update(dt, player, bullet_manager)
 
+        # Facing direction based on horizontal motion
+        dx = self.x - self.prev_x
+        if dx > 1:
+            self.facing_right = True
+        elif dx < -1:
+            self.facing_right = False
+        self.prev_x = self.x
+
+        # Advance animation
+        frames = self.animations.get(self.anim_name) if self.animations else None
+        if frames:
+            self.anim_timer += dt
+            fps = int(self.anim_fps_by_name.get(self.anim_name, 8))
+            frame_time = 1.0 / max(1, fps)
+            while self.anim_timer >= frame_time:
+                self.anim_timer -= frame_time
+                self.anim_index = (self.anim_index + 1) % len(frames)
+
     # Combat
     def take_damage(self, dmg):
         self.health = max(0, self.health - dmg)
@@ -513,9 +556,16 @@ class TheHollow:
 
     # Render
     def draw(self, screen: pygame.Surface):
-        # Black silhouette body
-        body_color = (10, 10, 10)
-        pygame.draw.rect(screen, body_color, (int(self.x), int(self.y), self.width, self.height))
+        # Sprite-based draw if frames loaded; fallback to silhouette rect
+        frames = self.animations.get(self.anim_name) if self.animations else None
+        if frames:
+            frame = frames[self.anim_index]
+            if not self.facing_right:
+                frame = pygame.transform.flip(frame, True, False)
+            screen.blit(frame, (int(self.x), int(self.y)))
+        else:
+            body_color = (10, 10, 10)
+            pygame.draw.rect(screen, body_color, (int(self.x), int(self.y), self.width, self.height))
         # subtle outline when telegraphing
         if self.telegraph_timer > 0 and int(self.telegraph_timer * 10) % 2:
             pygame.draw.rect(screen, (200, 200, 200), (int(self.x), int(self.y), self.width, self.height), 2)
@@ -523,4 +573,104 @@ class TheHollow:
         font = pygame.font.Font(None, 22)
         label = font.render(f"The Hollow - P{self.phase}", True, (220, 220, 220))
         screen.blit(label, (self.x, self.y - 24))
+
+    # Internal helpers
+    def _load_animations(self):
+        try:
+            # Load walk
+            rel_walk = getattr(g, 'BOSS3_SPRITE_WALK_PATH', os.path.join('assets', 'sprites', 'boss', 'boss_hollow_walk.png'))
+            walk_frames = self._load_sheet(rel_walk, getattr(g, 'BOSS3_WALK_FRAME_COUNT', 15))
+            if walk_frames:
+                self.animations['walk'] = walk_frames
+                self.anim_fps_by_name['walk'] = getattr(g, 'BOSS3_WALK_ANIM_FPS', 8)
+
+            # Load attack
+            rel_attack = getattr(g, 'BOSS3_SPRITE_ATTACK_PATH', os.path.join('assets', 'sprites', 'boss', 'boss_hollow_attack.png'))
+            attack_frames = self._load_sheet(rel_attack, getattr(g, 'BOSS3_ATTACK_FRAME_COUNT', 12))
+            if attack_frames:
+                self.animations['attack'] = attack_frames
+                self.anim_fps_by_name['attack'] = getattr(g, 'BOSS3_ATTACK_ANIM_FPS', 10)
+
+            # default if something missing
+            if not self.animations:
+                self.animations = {}
+        except Exception:
+            self.animations = {}
+
+    def _resolve_sprite_path(self, rel_path: str) -> Path:
+        repo_root = Path(__file__).resolve().parents[2]
+        sprite_path = Path(rel_path)
+        if not sprite_path.is_absolute():
+            sprite_path = repo_root / sprite_path
+        if not sprite_path.exists():
+            sprite_path = Path(rel_path)
+        return sprite_path
+
+    def _load_sheet(self, rel_path: str, frame_count: int):
+        try:
+            sprite_path = self._resolve_sprite_path(rel_path)
+            # Resolve against repo root (two levels up from this file: src/entities -> repo root)
+            image = pygame.image.load(str(sprite_path)).convert_alpha()
+
+            # Determine frame size with support for margins/spacing
+            img_w, img_h = image.get_width(), image.get_height()
+            margin_x = int(getattr(g, 'BOSS3_SPRITE_MARGIN_X', 0) or 0)
+            margin_y = int(getattr(g, 'BOSS3_SPRITE_MARGIN_Y', 0) or 0)
+            spacing_x = int(getattr(g, 'BOSS3_SPRITE_SPACING_X', 0) or 0)
+            spacing_y = int(getattr(g, 'BOSS3_SPRITE_SPACING_Y', 0) or 0)
+
+            # Prefer explicit frame size from globals if provided
+            frame_w = getattr(g, 'BOSS3_FRAME_W', None)
+            frame_h = getattr(g, 'BOSS3_FRAME_H', None)
+
+            cols = None
+            if frame_count and frame_count > 0:
+                cols = frame_count
+                if not frame_w:
+                    # Try exact division first
+                    if (img_w - 2*margin_x - (cols-1)*spacing_x) % cols == 0:
+                        frame_w = (img_w - 2*margin_x - (cols-1)*spacing_x) // cols
+                    else:
+                        # Heuristic search for small spacing/margin when globals not set
+                        found = False
+                        for sx in range(0, 9):
+                            for mx in range(0, 9):
+                                rem = (img_w - 2*mx - (cols-1)*sx)
+                                if rem > 0 and rem % cols == 0:
+                                    frame_w = rem // cols
+                                    spacing_x, margin_x = sx, mx
+                                    found = True
+                                    break
+                            if found:
+                                break
+                        if not frame_w:
+                            frame_w = img_w // cols  # last resort
+                if not frame_h:
+                    # Single row by default
+                    frame_h = img_h - 2*margin_y
+            else:
+                # No count; derive from width/height if provided
+                if frame_w:
+                    cols = max(1, (img_w - 2*margin_x + spacing_x) // (frame_w + spacing_x))
+                else:
+                    # Assume square frames across one row
+                    frame_h = frame_h or img_h
+                    frame_w = frame_w or frame_h
+                    cols = max(1, (img_w - 2*margin_x + spacing_x) // (frame_w + spacing_x))
+
+            frames = []
+            for i in range(int(cols)):
+                x = margin_x + i * (frame_w + spacing_x)
+                y = margin_y
+                rect = pygame.Rect(x, y, frame_w, frame_h)
+                # Guard: ensure rect within bounds
+                if rect.right <= img_w and rect.bottom <= img_h:
+                    surf = image.subsurface(rect).copy()
+                    # Scale to boss logical size
+                    if (frame_w, frame_h) != (self.width, self.height):
+                        surf = pygame.transform.smoothscale(surf, (self.width, self.height))
+                    frames.append(surf)
+            return frames
+        except Exception:
+            return []
 #endregion The Hollow Boss

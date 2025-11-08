@@ -116,6 +116,22 @@ BOSS3_RAIN_VY_DEADLINE = 0.4
 BOSS3_RAIN_DURATION_BASE = 1.6
 BOSS3_RAIN_DURATION_STRESS = 0.3
 
+# Boss #3 Sprite / Animation
+# Walk and Attack spritesheets and meta.
+BOSS3_SPRITE_WALK_PATH = 'assets/sprites/boss/boss_hollow_walk.png'
+BOSS3_WALK_FRAME_COUNT = 15
+BOSS3_WALK_ANIM_FPS = 8
+BOSS3_SPRITE_ATTACK_PATH = 'assets/sprites/boss/boss_hollow_attack.png'
+BOSS3_ATTACK_FRAME_COUNT = 12
+BOSS3_ATTACK_ANIM_FPS = 10
+BOSS3_SPRITE_MARGIN_X = 0
+BOSS3_SPRITE_MARGIN_Y = 0
+BOSS3_SPRITE_SPACING_X = 0
+BOSS3_SPRITE_SPACING_Y = 0
+# Explicit frame size from provided resolution 3360x240 with 15 frames => 224x240
+BOSS3_FRAME_W = 224
+BOSS3_FRAME_H = 240
+
 # Bullet Configuration
 BULLET_SPEEDS = {
     'normal': 250,    # Slightly increase boss bullet speed
