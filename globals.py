@@ -192,3 +192,15 @@ SHOW_COLLISION_BOXES = False
 PLAYER_IDLE_THRESHOLD = 1.8  # seconds before penalty starts
 PLAYER_IDLE_SHARD_INTERVAL = 0.5  # spawn shards this often while idle
 PLAYER_IDLE_HEALTH_DRAIN = 4  # per second when idle; set to 0 to disable drain
+
+# Hollow Battle Spike Configuration
+HOLLOW_SPIKE_INTERVAL_P1 = 6.0   # seconds between spike waves phase 1
+HOLLOW_SPIKE_INTERVAL_P2 = 4.5   # phase 2 faster
+HOLLOW_SPIKE_INTERVAL_P3 = 3.2   # phase 3 fastest
+HOLLOW_SPIKE_DURATION = 3.0      # seconds spikes stay
+HOLLOW_SPIKE_WIDTH = 28          # spike base width
+HOLLOW_SPIKE_GAP_MIN = 90        # minimum gap between spikes for player passage
+HOLLOW_SPIKE_GAP_MAX = 140       # maximum gap size
+HOLLOW_SPIKE_TOP_HEIGHT = 260    # top spikes hanging length
+HOLLOW_SPIKE_BOTTOM_HEIGHT = 320 # bottom spikes rising length
+HOLLOW_SPIKE_DAMAGE = 18         # damage if player overlaps

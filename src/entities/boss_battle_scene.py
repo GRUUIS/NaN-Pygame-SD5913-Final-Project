@@ -10,6 +10,7 @@ Uses modular components from separate files and globals.py configuration.
 import pygame
 import random
 import globals as g
+import os
 from .player import Player
 from .boss import Perfectionist
 from .boss_the_hollow import TheHollow
@@ -36,18 +37,41 @@ class BossBattleScene:
         # Idle penalty tracking
         self._idle_timer = 0.0
         self._idle_spawn_timer = 0.0
-        
-        # Create platforms for 2D platformer gameplay
+        # Restore full horizontal play width
+        self.play_left = 0
+        self.play_right = g.SCREENWIDTH
+
+        ground_h = 70
+        ground_top = g.SCREENHEIGHT - ground_h
+        # New layout: tiers closer to ground to improve reachability
+        lower_y = ground_top - 110
+        middle_y = ground_top - 190
+        upper_y = ground_top - 260
+
         self.platforms = [
-            # Ground
-            Platform(0, g.SCREENHEIGHT - 50, g.SCREENWIDTH, 50),
-            # Platforms for movement
-            Platform(100, g.SCREENHEIGHT - 200, 200, 20),
-            Platform(g.SCREENWIDTH - 300, g.SCREENHEIGHT - 200, 200, 20),
-            Platform(g.SCREENWIDTH // 2 - 100, g.SCREENHEIGHT - 350, 200, 20),
-            Platform(50, g.SCREENHEIGHT - 450, 150, 20),
-            Platform(g.SCREENWIDTH - 200, g.SCREENHEIGHT - 450, 150, 20),
+            Platform(0, ground_top, g.SCREENWIDTH, ground_h),
+            # Lower tier (reachable from ground)
+            Platform(100, lower_y, 240, 20),
+            Platform(g.SCREENWIDTH - 340, lower_y, 240, 20),
+            # Middle tier (reachable from lower)
+            Platform(g.SCREENWIDTH // 2 - 110, middle_y, 220, 20),
+            # Upper side ledges (reachable from middle)
+            Platform(60, upper_y, 160, 20),
+            Platform(g.SCREENWIDTH - 220, upper_y, 160, 20),
         ]
+
+        # Spike system state
+        self.spikes_active = []  # list of rects
+        self.spike_timer = 0.0
+        self.spike_wave_elapsed = 0.0
+        self.spike_wave_active = False
+
+        # Background image (deep cave)
+        try:
+            bg_path = os.path.join('assets', 'backgrounds', 'boss_hollow_cave.png')
+            self.background = pygame.image.load(bg_path).convert()
+        except Exception:
+            self.background = None
         #endregion Initialization
 
     def _create_boss(self):
@@ -63,7 +87,11 @@ class BossBattleScene:
         """Update the entire battle scene"""
         if not self.is_game_over():
             # Update entities
+            # Full width movement
             self.player.update(dt, self.platforms)
+            # Spike wave logic (restrict movement)
+            self._update_spikes(dt)
+            self._handle_spike_collisions(block_player=True)
             self.boss.update(dt, self.player, self.bullet_manager)
             self.ui.update(dt)
 
@@ -140,8 +168,16 @@ class BossBattleScene:
     #region Draw
     def draw(self, screen: pygame.Surface):
         """Draw the entire battle scene"""
-        # Clear screen
-        screen.fill(g.COLORS['background'])
+        # Draw background (parallax-lite) or solid color fallback
+        if getattr(self, 'background', None) is not None:
+            # Simple vertical scroll to suggest infinite descent
+            t = pygame.time.get_ticks() * 0.02
+            offset_y = int(t) % self.background.get_height()
+            # Tile vertically to fake infinite
+            screen.blit(self.background, (0, -offset_y))
+            screen.blit(self.background, (0, -offset_y + self.background.get_height()))
+        else:
+            screen.fill(g.COLORS['background'])
         
         # Draw platforms
         for platform in self.platforms:
@@ -153,6 +189,27 @@ class BossBattleScene:
         self.bullet_manager.draw(screen)
         self.ui.draw(screen)
         
+        # Draw active spikes
+        if self.spikes_active:
+            flash_phase = (pygame.time.get_ticks() / 100.0) % 2.0
+            pre_spawn = self.spike_wave_active and self.spike_wave_elapsed < self._preflash_time()
+            for r, top in self.spikes_active:
+                # Pre-flash: alternate bright/dim to warn
+                if pre_spawn:
+                    if flash_phase < 1.0:
+                        color = (120, 120, 130)
+                    else:
+                        color = (40, 40, 50)
+                else:
+                    color = (15, 15, 20) if top else (20, 15, 25)
+                pygame.draw.rect(screen, color, r)
+                tip_w = r.width
+                tip_h = 12
+                if top:
+                    pygame.draw.polygon(screen, (8,8,12), [(r.left, r.bottom), (r.left+tip_w//2, r.bottom+tip_h), (r.right, r.bottom)])
+                else:
+                    pygame.draw.polygon(screen, (8,8,12), [(r.left, r.top), (r.left+tip_w//2, r.top - tip_h), (r.right, r.top)])
+
         # Draw debug information
         if g.SHOW_DEBUG_INFO:
             self._draw_debug_info(screen)
@@ -203,4 +260,78 @@ class BossBattleScene:
         if not self.is_game_over():
             return "ongoing"
         return "victory" if self.boss.health <= 0 else "defeat"
+
+    #region Spike System
+    def _current_spike_interval(self):
+        if getattr(self.boss, 'phase', 1) == 1:
+            return getattr(g, 'HOLLOW_SPIKE_INTERVAL_P1', 6.0)
+        elif self.boss.phase == 2:
+            return getattr(g, 'HOLLOW_SPIKE_INTERVAL_P2', 4.5)
+        else:
+            return getattr(g, 'HOLLOW_SPIKE_INTERVAL_P3', 3.2)
+
+    def _preflash_time(self):
+        return 0.8  # seconds of warning before becoming solid
+
+    def _update_spikes(self, dt: float):
+        self.spike_timer += dt
+        interval = self._current_spike_interval()
+        if not self.spike_wave_active and self.spike_timer >= interval:
+            self.spike_wave_active = True
+            self.spike_wave_elapsed = 0.0
+            self.spike_timer = 0.0
+            self._spawn_spike_wave()
+        if self.spike_wave_active:
+            self.spike_wave_elapsed += dt
+            duration = getattr(g, 'HOLLOW_SPIKE_DURATION', 3.0)
+            if self.spike_wave_elapsed >= duration:
+                self.spike_wave_active = False
+                self.spikes_active.clear()
+
+    def _spawn_spike_wave(self):
+        self.spikes_active.clear()
+        gap_min = getattr(g, 'HOLLOW_SPIKE_GAP_MIN', 90)
+        gap_max = getattr(g, 'HOLLOW_SPIKE_GAP_MAX', 140)
+        spike_w = getattr(g, 'HOLLOW_SPIKE_WIDTH', 28)
+        top_h = getattr(g, 'HOLLOW_SPIKE_TOP_HEIGHT', 260)
+        bottom_h = getattr(g, 'HOLLOW_SPIKE_BOTTOM_HEIGHT', 320)
+        x = 0
+        # Guarantee at least one gap near player x
+        player_x = self.player.x + self.player.width/2
+        gap_center = player_x
+        gap_size = random.randint(gap_min, gap_max)
+        gap_left = max(0, int(gap_center - gap_size/2))
+        gap_right = min(g.SCREENWIDTH, int(gap_center + gap_size/2))
+        while x < g.SCREENWIDTH:
+            # If in gap region skip placing spikes
+            if x + spike_w <= gap_left or x >= gap_right:
+                # choose top or bottom spike pattern alternation
+                place_top = random.random() < 0.5
+                if place_top:
+                    rect = pygame.Rect(x, 0, spike_w, top_h)
+                    self.spikes_active.append((rect, True))
+                else:
+                    rect = pygame.Rect(x, g.SCREENHEIGHT - bottom_h, spike_w, bottom_h)
+                    self.spikes_active.append((rect, False))
+            x += spike_w
+
+    def _handle_spike_collisions(self, block_player: bool = False):
+        if not self.spike_wave_active:
+            return
+        solid = self.spike_wave_elapsed >= self._preflash_time()
+        player_rect = pygame.Rect(self.player.x, self.player.y, self.player.width, self.player.height)
+        dmg = getattr(g, 'HOLLOW_SPIKE_DAMAGE', 18) * (1/ g.FPS)
+        for r, _ in self.spikes_active:
+            if player_rect.colliderect(r):
+                if solid:
+                    # Damage
+                    self.player.take_damage(dmg)
+                    if block_player:
+                        # Simple resolution: push player out horizontally based on center
+                        if player_rect.centerx < r.centerx:
+                            self.player.x = r.left - self.player.width - 1
+                        else:
+                            self.player.x = r.right + 1
+                # If not solid yet (pre-flash) we do not block, only warn visually
+    #endregion Spike System
     #endregion Game State & Reset
