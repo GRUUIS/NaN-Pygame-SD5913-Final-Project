@@ -1,0 +1,6 @@
+Door placeholder
+
+Filename expected: door.png (recommended 120x220 px)
+Usage: Vertical door sprite for room entrance. Provide separate frames for closed/open states: door_closed.png, door_open.png. Provide alpha channel.
+
+Art notes: dark wooden door with metal knob; interior view. Include a small collision footprint marker in the export (optional) or document pivot point in the asset filename or a small JSON file.

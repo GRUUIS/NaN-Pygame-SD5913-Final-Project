@@ -1,8 +1,9 @@
-﻿"""Compatibility wrapper: re-export the top-down third puzzle scene.
+﻿"""Compatibility wrapper: re-export the third puzzle scene.
 
-This keeps code that imports `src.scenes.third_puzzle_scene.ThirdPuzzleScene`
-working while the real implementation lives in `third_puzzle_scene_td.py`.
+During this editing session the original `third_puzzle_scene_td.py` was
+being rebuilt. Import the clean implementation added as
+`third_puzzle_scene_td_clean.py` so demos keep working.
 """
-from .third_puzzle_scene_td import ThirdPuzzleScene  # type: ignore
+from .third_puzzle_scene_td_clean import ThirdPuzzleScene  # type: ignore
 
 __all__ = ["ThirdPuzzleScene"]
