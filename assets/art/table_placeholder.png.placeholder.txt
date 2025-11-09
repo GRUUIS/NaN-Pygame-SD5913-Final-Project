@@ -1,0 +1,7 @@
+Table placeholder
+
+Filename expected: table.png (32/64/128 px art)
+Usage: Top-down / isometric-style table sprite for puzzle interactions. Provide at least two sizes: 64x48 and 128x96. Provide alpha channel. If multiple frames are provided, name them table_idle_0.png, table_idle_1.png etc.
+Suggested palette: warm browns for wooden table, slight highlights on edges.
+
+If you prefer an indexed PNG, provide a separate README with palette and export settings.
