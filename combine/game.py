@@ -1,6 +1,7 @@
 import os
 import sys
 import pygame
+import pymunk
 
 # Ensure repository root is on sys.path so imports like `import globals` work
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -20,22 +21,16 @@ def main():
 	choice = meun.run()
 
 	if choice == 'start':
-		# Placeholder game loop after selecting Start
-		clock = pygame.time.Clock()
-		font = pygame.font.Font(None, 36)
-		running = True
-		while running:
-			dt = clock.tick(g.FPS) / 1000.0
-			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
-					running = False
-				elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-					running = False
+		# Delegate the exploration map scene to the new scene module so this
+		# launcher stays small. The scene will run until the player exits it.
+		try:
+			from src.scenes.newmap_scene import run as run_newmap
+		except Exception as e:
+			print('Failed to import newmap scene:', e)
+			pygame.quit()
+			return
 
-			screen.fill((30, 30, 30))
-			text = font.render('Game started (placeholder). Press ESC to quit.', True, (255, 255, 255))
-			screen.blit(text, (50, 50))
-			pygame.display.flip()
+		run_newmap(screen)
 
 	pygame.quit()
 
