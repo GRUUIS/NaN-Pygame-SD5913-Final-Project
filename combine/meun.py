@@ -67,7 +67,10 @@ class Meun:
         if self.font_path:
             print(f"[meun] Using font: {self.font_path}")
         else:
+            # Helpful instruction for developers: where to place Silver.ttf
             print("[meun] Silver.ttf not found; using default font")
+            print("[meun] To use the Silver font place `Silver.ttf` (or `silver.ttf`) in one of:")
+            print("         assets/art/   assets/fonts/   assets/   combine/docs/")
 
         self.background_color = (20, 20, 40)
         self.text_color = (255, 255, 255)

@@ -22,9 +22,23 @@ _FONT_PATHS = [
 
 
 def _find_font_path():
+    # Check common explicit locations first
     for p in _FONT_PATHS:
         if os.path.exists(p):
             return p
+
+    # If not found, walk the assets directory looking for a file that
+    # contains 'silver' in the filename (case-insensitive) and has a
+    # typical font extension. This helps when the font was placed in
+    # a different subfolder (e.g. assets/fonts/, assets/art/, etc.).
+    assets_dir = 'assets'
+    if os.path.exists(assets_dir):
+        for root, dirs, files in os.walk(assets_dir):
+            for fname in files:
+                lower = fname.lower()
+                if 'silver' in lower and (lower.endswith('.ttf') or lower.endswith('.otf')):
+                    return os.path.join(root, fname)
+
     return None
 
 
