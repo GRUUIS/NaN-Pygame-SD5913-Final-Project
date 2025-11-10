@@ -21,16 +21,27 @@ def main():
 	choice = meun.run()
 
 	if choice == 'start':
-		# Delegate the exploration map scene to the new scene module so this
-		# launcher stays small. The scene will run until the player exits it.
+		# Try to load the map scene (map01). If it's not available fall back
+		# to the older newmap scene. We also create an Inventory instance and
+		# pass it into the scene so inventory features are available.
 		try:
-			from src.scenes.newmap_scene import run as run_newmap
-		except Exception as e:
-			print('Failed to import newmap scene:', e)
-			pygame.quit()
-			return
+			from src.systems.inventory import Inventory
+			inv = Inventory()
+		except Exception:
+			inv = None
 
-		run_newmap(screen)
+		try:
+			# prefer map01 scene when present
+			from src.scenes.map01_scene import run as run_map01
+			run_map01(screen, inventory=inv)
+		except Exception:
+			try:
+				from src.scenes.newmap_scene import run as run_newmap
+				run_newmap(screen)
+			except Exception as e:
+				print('Failed to import any map scene:', e)
+				pygame.quit()
+				return
 
 	pygame.quit()
 
