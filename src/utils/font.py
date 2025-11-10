@@ -11,6 +11,10 @@ _FONT_PATHS = [
     os.path.join('assets', 'art', 'Silver.ttf'),
     os.path.join('assets', 'art', 'silver.ttf'),
     os.path.join('assets', 'art', 'Silver.TTF'),
+    # Also look for fonts in common asset locations
+    os.path.join('assets', 'fonts', 'Silver.ttf'),
+    os.path.join('assets', 'fonts', 'silver.ttf'),
+    os.path.join('assets', 'Silver.ttf'),
     # Also look in the combine/docs folder in case the font was placed there
     os.path.join('combine', 'docs', 'Silver.ttf'),
     os.path.join('combine', 'docs', 'silver.ttf'),

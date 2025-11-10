@@ -243,11 +243,47 @@ class Meun:
 
         # Instructions overlay
         if self.show_instructions:
-            overlay = pygame.Surface((screen_width - 200, screen_height - 200))
-            overlay.fill((40, 40, 60))
-            overlay.set_alpha(230)
-            rect = overlay.get_rect(center=(screen_width // 2, screen_height // 2))
-            self.screen.blit(overlay, rect.topleft)
+            # Instruction overlay area
+            rect = pygame.Rect(0, 0, screen_width - 200, screen_height - 200)
+            rect.center = (screen_width // 2, screen_height // 2)
+
+            # Try to use a UI frame image as the background for the instructions.
+            # Look in a few likely locations for the requested asset name.
+            frame_filename = 'UI_Flat_FrameSlot02a.png'
+            candidates = [
+                os.path.join('assets', frame_filename),
+                os.path.join('assets', 'ui', frame_filename),
+                os.path.join('assets', 'art', frame_filename),
+                os.path.join('assets', 'sprites', 'ui', frame_filename),
+                os.path.join('assets', 'sprites', frame_filename),
+                os.path.join('combine', 'docs', frame_filename),
+            ]
+
+            frame_img = None
+            for p in candidates:
+                if os.path.exists(p):
+                    try:
+                        frame_img = pygame.image.load(p).convert_alpha()
+                        break
+                    except Exception:
+                        frame_img = None
+
+            if frame_img is not None:
+                try:
+                    # Scale the frame to the overlay rect while preserving aspect via smoothscale
+                    frame_scaled = pygame.transform.smoothscale(frame_img, (rect.width, rect.height))
+                    self.screen.blit(frame_scaled, rect.topleft)
+                except Exception:
+                    # Fall back to filled overlay on error
+                    overlay = pygame.Surface((rect.width, rect.height))
+                    overlay.fill((40, 40, 60))
+                    overlay.set_alpha(230)
+                    self.screen.blit(overlay, rect.topleft)
+            else:
+                overlay = pygame.Surface((rect.width, rect.height))
+                overlay.fill((40, 40, 60))
+                overlay.set_alpha(230)
+                self.screen.blit(overlay, rect.topleft)
 
             instr_lines = [
                 "Controls:",
