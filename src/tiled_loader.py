@@ -194,11 +194,50 @@ def draw_map(surface, m, tiles_by_gid, camera_rect=None, scale=1):
     width = m.get("width")
     height = m.get("height")
 
-    # Cache scaled surfaces to avoid resizing every frame
-    # key: (gid, target_w, target_h) -> Surface
-    scaled_cache = {}
-
     layers = m.get("layers", [])
+
+    # If we're scaling the whole map and no camera_rect is requested,
+    # draw at native resolution then scale the final image once using
+    # nearest-neighbour. This avoids per-tile rounding/seam artifacts
+    # that produce thin black lines when scaling non-integer factors.
+    if scale != 1 and camera_rect is None:
+        nat_w = tile_w * width
+        nat_h = tile_h * height
+        nat_surf = pygame.Surface((nat_w, nat_h), pygame.SRCALPHA)
+
+        for layer in layers:
+            if not layer.get("visible", True):
+                continue
+            if layer.get("type") != "tilelayer":
+                continue
+            data = layer.get("data", [])
+            for idx, raw_gid in enumerate(data):
+                gid = raw_gid & 0x1FFFFFFF
+                if gid == 0:
+                    continue
+                tx = idx % width
+                ty = idx // width
+                img = tiles_by_gid.get(gid)
+                if img is None:
+                    img = pygame.Surface((tile_w, tile_h), pygame.SRCALPHA)
+                    img.fill((255, 0, 255, 255))
+                nat_surf.blit(img, (tx * tile_w, ty * tile_h))
+
+        # Scale the full native surface to the requested size using
+        # pygame.transform.scale (nearest-neighbour) to keep pixel art crisp
+        target_w = max(1, int(nat_w * scale))
+        target_h = max(1, int(nat_h * scale))
+        try:
+            scaled = pygame.transform.scale(nat_surf, (target_w, target_h))
+        except Exception:
+            # As a fallback, try smoothscale though for pixel art we prefer scale
+            scaled = pygame.transform.smoothscale(nat_surf, (target_w, target_h))
+
+        surface.blit(scaled, (0, 0))
+        return
+
+    # Fallback: per-tile drawing (used when a camera_rect is provided)
+    scaled_cache = {}
     for layer in layers:
         if not layer.get("visible", True):
             continue
@@ -225,10 +264,7 @@ def draw_map(surface, m, tiles_by_gid, camera_rect=None, scale=1):
                 if cache_key in scaled_cache:
                     img2 = scaled_cache[cache_key]
                 else:
-                    try:
-                        img2 = pygame.transform.smoothscale(img, (target_w, target_h))
-                    except Exception:
-                        img2 = pygame.transform.scale(img, (target_w, target_h))
+                    img2 = pygame.transform.scale(img, (target_w, target_h))
                     scaled_cache[cache_key] = img2
             else:
                 img2 = img

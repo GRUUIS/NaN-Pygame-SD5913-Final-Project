@@ -90,18 +90,18 @@
          "tileheight":16,
          "tilewidth":16
         }, 
-        {
-         "firstgid":392,
-         "source":"Room_Builder_free_32x32.tsx"
-        }, 
+   {
+    "firstgid":392,
+    "source":"32_tile/Room_Builder_free_32x32.tsx"
+   }, 
         {
          "firstgid":783,
          "source":"new_Interiors_free_16x16.tsx"
         }, 
-        {
-         "firstgid":2207,
-         "source":"Interiors_free_32x32.tsx"
-        }, 
+   {
+    "firstgid":2207,
+    "source":"32_tile/Interiors_free_32x32.tsx"
+   }, 
         {
          "firstgid":3631,
          "source":"new room assets.tsx"
