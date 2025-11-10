@@ -152,6 +152,34 @@ Idle penalty (anti-camping) in boss battles:
 - This copy was added as a vendor snapshot so the demo runner can parse `.aseprite` files without requiring an external install. The animator's original LICENSE file is included in `testing/pygame_aseprite_animator/LICENSE`.
 - If you prefer to track upstream changes directly, we can convert this to a git submodule instead (ask me and I can set that up).
 
+- Map loader dependency: PyTMX
+
+   This project uses PyTMX (https://github.com/bitcraft/PyTMX) to load maps authored with Tiled in some parts of the tooling and map loaders. PyTMX is not vendored into the repository source; it was installed into the project's virtualenv during development and is available via PyPI/GitHub.
+
+   Recommended ways for collaborators to get PyTMX when checking out this repo:
+
+   - Install via pip into your virtualenv (easy):
+
+      ```bash
+      pip install -r requirements.txt
+      ```
+
+      (we've added `pytmx` to `requirements.txt` so the command above will fetch the PyPI package)
+
+   - If you prefer to include PyTMX in-tree so contributors don't need an extra pip step,
+      you can add it as a git submodule from the upstream repository:
+
+      ```bash
+      git submodule add https://github.com/bitcraft/PyTMX.git third_party/pytmx
+      git submodule update --init --recursive
+      ```
+
+      This repository now includes PyTMX as a submodule at `third_party/pytmx` (commit 7af805b from https://github.com/bitcraft/PyTMX.git).
+
+      If you'd prefer a fully-included snapshot (no git submodule), we can vendor the files directly into the repo and add the LICENSE file; tell me and I will copy the snapshot into `third_party/pytmx` and commit it.
+
+   - Check upstream license and attribution before redistributing a vendored copy. The upstream project is hosted at https://github.com/bitcraft/PyTMX — please review its LICENSE file.
+
 ### Assets attribution
 
 - Map / tileset: Cozy Room Library (16x16) — downloaded from itch.io

@@ -466,6 +466,47 @@ class Meun:
 
     def run(self):
         fps = getattr(g, 'FPS', 60)
+        # Try to locate and play the requested menu music (looped)
+        music_playing = False
+        music_path = None
+        repo_root = Path(__file__).resolve().parents[1]
+        target_name = "WAV_There's_no_Heart_Like_Yours.wav"
+        # common candidate locations
+        candidates = [
+            repo_root / 'assets' / 'sfx' / target_name,
+            repo_root / 'assets' / 'music' / target_name,
+            repo_root / 'assets' / target_name,
+        ]
+        for p in candidates:
+            if p.exists():
+                music_path = str(p)
+                break
+        # fallback: search assets for a wav containing 'heart' in the name
+        if music_path is None:
+            assets_dir = repo_root / 'assets'
+            if assets_dir.exists():
+                for root, dirs, files in os.walk(assets_dir):
+                    for fname in files:
+                        if fname.lower().endswith('.wav') and 'heart' in fname.lower():
+                            music_path = os.path.join(root, fname)
+                            break
+                    if music_path:
+                        break
+
+        if music_path:
+            try:
+                # ensure mixer initialized
+                try:
+                    pygame.mixer.get_init()
+                except Exception:
+                    pygame.mixer.init()
+                # use music playback (streaming) and loop indefinitely
+                pygame.mixer.music.load(music_path)
+                pygame.mixer.music.play(loops=-1)
+                music_playing = True
+                print(f"[meun] playing menu music: {music_path}")
+            except Exception as e:
+                print(f"[meun] failed to play menu music {music_path}: {e}")
         while True:
             dt = self.clock.tick(fps) / 1000.0
             for event in pygame.event.get():
@@ -478,3 +519,14 @@ class Meun:
             self.update(dt)
             self.draw()
             pygame.display.flip()
+
+        # stop music when menu exits
+        if music_playing:
+            try:
+                pygame.mixer.music.stop()
+                pygame.mixer.music.unload()
+            except Exception:
+                try:
+                    pygame.mixer.music.stop()
+                except Exception:
+                    pass

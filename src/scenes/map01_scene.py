@@ -92,15 +92,21 @@ def run(screen, inventory=None):
 			filtered_platforms.append(p)
 	platforms = filtered_platforms
 
-	# create player near the top-center of the map
+	# create player near the top-center of the map (position above floor)
 	spawn_x = max(16, map_pixel_w // 2)
-	spawn_y = max(16, map_pixel_h // 4)
-	player = MapPlayer(spawn_x, spawn_y, scale=scale_int)
+	spawn_y = max(16, map_pixel_h // 4 - (tile_h * 2 * scale_int))
+	player = MapPlayer(spawn_x, spawn_y, scale=scale_int, tile_w=tile_w, tile_h=tile_h)
 
 	clock = pygame.time.Clock()
 	running = True
 	last_teleport = -1.0
 	teleport_cooldown = 0.35
+
+	# debug font for on-screen state
+	try:
+		debug_font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 14)
+	except Exception:
+		debug_font = pygame.font.SysFont('consolas', 14)
 
 	while running:
 		dt = clock.tick(60) / 1000.0
@@ -150,6 +156,14 @@ def run(screen, inventory=None):
 			pygame.draw.rect(screen, (0, 255, 0), d, 1)
 
 		player.draw(screen)
+
+		# debug overlay: show player physics and animation state
+		try:
+			info = f"x={player.x:.1f} y={player.y:.1f} vx={player.vx:.1f} vy={player.vy:.1f} on={player.on_ground} anim={getattr(player,'cur_anim',None)} frame={getattr(player,'anim_frame',0)} facing={getattr(player,'facing','?')}"
+			surf = debug_font.render(info, True, (255, 255, 255))
+			screen.blit(surf, (8, 8))
+		except Exception:
+			pass
 
 		if inventory:
 			inventory.draw(screen)
