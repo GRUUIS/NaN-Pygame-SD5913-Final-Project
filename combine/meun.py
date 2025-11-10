@@ -10,8 +10,14 @@ import os
 import math
 import random
 from pathlib import Path
+import sys
+# Ensure repository root is on sys.path so imports like `import globals` work
+repo_root = Path(__file__).resolve().parents[1]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 import globals as g
 from src.utils.font import get_font, draw_text
+from PIL import Image
 
 
 class Meun:
@@ -20,42 +26,91 @@ class Meun:
 
     def __init__(self, screen):
         self.screen = screen
-        # Try to load Silver.ttf from assets/art, fall back to default font
-        font_path = None
+        # Try to load Silver.ttf from assets (root) or common asset folders; fall back to default
+        # Use repo root so paths are correct regardless of CWD
+        repo_root = Path(__file__).resolve().parents[1]
         candidates = [
-            os.path.join('assets', 'art', 'Silver.ttf'),
-            os.path.join('assets', 'art', 'silver.ttf'),
-            os.path.join('assets', 'art', 'Silver.TTF'),
+            repo_root / 'assets' / 'Silver.ttf',
+            repo_root / 'assets' / 'silver.ttf',
+            repo_root / 'assets' / 'Silver.TTF',
+            repo_root / 'assets' / 'art' / 'Silver.ttf',
+            repo_root / 'assets' / 'fonts' / 'Silver.ttf',
+            repo_root / 'combine' / 'docs' / 'Silver.ttf',
         ]
-        for c in candidates:
-            if os.path.exists(c):
-                font_path = c
-                break
+
+        font_path = None
+        for p in candidates:
+            try:
+                if p.exists():
+                    font_path = str(p)
+                    break
+            except Exception:
+                # Ignore invalid path checks and continue
+                continue
 
         # Use centralized font helper which prefers Silver.ttf
-        # Title larger, subtitle smaller per request
-        self.font_large = get_font(96)   # title
-        self.font_subtitle = get_font(28)  # subtitle (smaller)
-        self.font_medium = get_font(48)  # menu options
-        self.font_small = get_font(24)   # instructions/footer
-
-        # Create bold variants. Some TTFs don't include a bold face;
-        # pygame will fake bolding if necessary via set_bold(True).
+        # Prefer an explicit pygame.font.Font created from the resolved font path
         try:
-            self.font_large_bold = get_font(96)
-            self.font_large_bold.set_bold(True)
-            self.font_subtitle_bold = get_font(28)
-            self.font_subtitle_bold.set_bold(True)
-            self.font_medium_bold = get_font(48)
-            self.font_medium_bold.set_bold(True)
-            self.font_small_bold = get_font(24)
-            self.font_small_bold.set_bold(True)
+            from src.utils.font import get_font_path
+            self.font_path = get_font_path()
         except Exception:
-            # Fallback to non-bold if creation fails
-            self.font_large_bold = self.font_large
-            self.font_subtitle_bold = self.font_subtitle
-            self.font_medium_bold = self.font_medium
-            self.font_small_bold = self.font_small
+            self.font_path = None
+
+        # If a Silver.ttf (or similar) was found, create Font objects directly from it
+        if self.font_path:
+            try:
+                self.font_large = pygame.font.Font(self.font_path, 96)
+                self.font_subtitle = pygame.font.Font(self.font_path, 28)
+                self.font_medium = pygame.font.Font(self.font_path, 48)
+                self.font_small = pygame.font.Font(self.font_path, 24)
+
+                # Create bold variants by copying and requesting fake bold where necessary
+                self.font_large_bold = pygame.font.Font(self.font_path, 96)
+                self.font_large_bold.set_bold(True)
+                self.font_subtitle_bold = pygame.font.Font(self.font_path, 28)
+                self.font_subtitle_bold.set_bold(True)
+                self.font_medium_bold = pygame.font.Font(self.font_path, 48)
+                self.font_medium_bold.set_bold(True)
+                self.font_small_bold = pygame.font.Font(self.font_path, 24)
+                self.font_small_bold.set_bold(True)
+            except Exception:
+                # If direct loading fails for any reason, fall back to helper
+                self.font_large = get_font(96)
+                self.font_subtitle = get_font(28)
+                self.font_medium = get_font(48)
+                self.font_small = get_font(24)
+                self.font_large_bold = get_font(96)
+                self.font_large_bold.set_bold(True)
+                self.font_subtitle_bold = get_font(28)
+                self.font_subtitle_bold.set_bold(True)
+                self.font_medium_bold = get_font(48)
+                self.font_medium_bold.set_bold(True)
+                self.font_small_bold = get_font(24)
+                self.font_small_bold.set_bold(True)
+        else:
+            # No explicit font found; use the helper which searches for Silver.ttf or falls back
+            self.font_large = get_font(96)   # title
+            self.font_subtitle = get_font(28)  # subtitle (smaller)
+            self.font_medium = get_font(48)  # menu options
+            self.font_small = get_font(24)   # instructions/footer
+
+            # Create bold variants. Some TTFs don't include a bold face;
+            # pygame will fake bolding if necessary via set_bold(True).
+            try:
+                self.font_large_bold = get_font(96)
+                self.font_large_bold.set_bold(True)
+                self.font_subtitle_bold = get_font(28)
+                self.font_subtitle_bold.set_bold(True)
+                self.font_medium_bold = get_font(48)
+                self.font_medium_bold.set_bold(True)
+                self.font_small_bold = get_font(24)
+                self.font_small_bold.set_bold(True)
+            except Exception:
+                # Fallback to non-bold if creation fails
+                self.font_large_bold = self.font_large
+                self.font_subtitle_bold = self.font_subtitle
+                self.font_medium_bold = self.font_medium
+                self.font_small_bold = self.font_small
 
         # Debug: store and print resolved font path (if any)
         try:
@@ -92,6 +147,11 @@ class Meun:
             self.background = None
         # Background scroll speed multiplier (pixels per tick factor)
         self.bg_scroll_speed = 0.02
+
+        # Cache for resized frame surface to avoid repeated Pillow work each frame
+        self._cached_frame_path = None
+        self._cached_frame_surf = None
+        self._cached_frame_size = (0, 0)
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -262,31 +322,98 @@ class Meun:
                 os.path.join('combine', 'docs', frame_filename),
             ]
 
-            frame_img = None
+            # Prefer to keep the path to the frame image and defer actual loading
+            # to Pillow so we can resize using nearest-neighbour for pixel art.
+            frame_path = None
             for p in candidates:
                 if os.path.exists(p):
-                    try:
-                        frame_img = pygame.image.load(p).convert_alpha()
-                        break
-                    except Exception:
-                        frame_img = None
+                    frame_path = p
+                    break
 
-            if frame_img is not None:
+            # If the frame wasn't found in the common locations, search assets/ recursively
+            if frame_path is None:
+                assets_dir = os.path.join('assets')
+                if os.path.exists(assets_dir):
+                    for root, dirs, files in os.walk(assets_dir):
+                        for fname in files:
+                            if fname.lower() == frame_filename.lower():
+                                candidate = os.path.join(root, fname)
+                                frame_path = candidate
+                                break
+                        if frame_path is not None:
+                            break
+            if frame_path is not None:
                 try:
-                    # Scale the frame to the overlay rect while preserving aspect via smoothscale
-                    frame_scaled = pygame.transform.smoothscale(frame_img, (rect.width, rect.height))
-                    self.screen.blit(frame_scaled, rect.topleft)
+                    # Fit the frame into the rect while preserving aspect ratio and leave padding
+                    padding = 20
+                    max_w = max(1, rect.width - padding * 2)
+                    max_h = max(1, rect.height - padding * 2)
+
+                    # Load with Pillow so we can resize using nearest-neighbour to keep pixel art crisp.
+                    pil_img = Image.open(frame_path).convert('RGBA')
+                    fw, fh = pil_img.size
+                    scale = min(max_w / fw, max_h / fh)
+                    new_w = max(1, int(fw * scale))
+                    new_h = max(1, int(fh * scale))
+
+                    # Source - https://stackoverflow.com/a
+                    # Posted by ToddMcCullough
+                    # Retrieved 2025-11-10, License - CC BY-SA 4.0
+                    #
+                    # Use nearest-neighbour resampling to preserve pixel art
+                    pil_resized = pil_img.resize((new_w, new_h), resample=Image.NEAREST)
+
+                    # Slight hue shift towards purple so the tutorial window has a subtle purple tint.
+                    # Convert to HSV, shift the H channel, then convert back.
+                    hsv = pil_resized.convert('HSV')
+                    h, s, v = hsv.split()
+                    # Small positive shift (0-255 range). Tweak this value for stronger tint.
+                    hue_shift = 12
+                    h = h.point(lambda p: (p + hue_shift) % 256)
+                    hsv_shifted = Image.merge('HSV', (h, s, v))
+                    pil_shifted = hsv_shifted.convert('RGBA')
+
+                    # Convert back to a pygame.Surface
+                    mode = pil_shifted.mode
+                    data = pil_shifted.tobytes()
+                    frame_scaled = pygame.image.fromstring(data, (new_w, new_h), mode).convert_alpha()
+
+                    # Center the scaled frame inside the overlay rect
+                    frame_x = rect.left + (rect.width - new_w) // 2
+                    frame_y = rect.top + (rect.height - new_h) // 2
+                    self.screen.blit(frame_scaled, (frame_x, frame_y))
+
+                    # Compute an inner rect for text and draw a semi-opaque purple panel so the text
+                    # sits on a surface (not 'floating'). This also respects the padding inside the frame.
+                    inner_left = frame_x + padding
+                    inner_top = frame_y + padding
+                    inner_w = max(1, new_w - padding * 2)
+                    inner_h = max(1, new_h - padding * 2)
+                    # Move text inward so it doesn't touch the frame edge; 24px inset looks better
+                    text_origin_x = inner_left + 24
+                    text_origin_y = inner_top + 24
+
+                    panel = pygame.Surface((inner_w, inner_h), pygame.SRCALPHA)
+                    # Slight purple with alpha
+                    panel.fill((120, 80, 160, 160))
+                    self.screen.blit(panel, (inner_left, inner_top))
                 except Exception:
                     # Fall back to filled overlay on error
                     overlay = pygame.Surface((rect.width, rect.height))
                     overlay.fill((40, 40, 60))
                     overlay.set_alpha(230)
                     self.screen.blit(overlay, rect.topleft)
+                    # Fallback inset when frame scaling fails
+                    text_origin_x = rect.left + 40
+                    text_origin_y = rect.top + 40
             else:
                 overlay = pygame.Surface((rect.width, rect.height))
                 overlay.fill((40, 40, 60))
                 overlay.set_alpha(230)
                 self.screen.blit(overlay, rect.topleft)
+                # Ensure text origin exists even when frame image is not available
+                text_origin_x = rect.left + 40
+                text_origin_y = rect.top + 40
 
             instr_lines = [
                 "Controls:",
@@ -294,12 +421,43 @@ class Meun:
                 "  Mouse: Aim and interact",
                 "  ESC: Back / Quit",
                 "",
-                "Press Enter/Space to close this screen."
+                "Press Enter/Space",
+                "to close this screen."
             ]
 
-            for idx, line in enumerate(instr_lines):
-                draw_text(self.screen, self.font_small_bold, line, self.text_color,
-                          (rect.left + 20, rect.top + 20 + idx * 28), spacing=self.letter_spacing, align='topleft')
+            # Draw instruction lines starting from the computed text origin so they don't overlap the frame.
+            # Ensure the final instruction line (e.g. "Press Enter/Space to close this screen.")
+            # is always visible by anchoring it to the bottom of the inner panel if needed.
+            line_h = self.font_small_bold.get_linesize()
+            spacing_v = line_h + 6
+
+            # Determine inner bottom (where text can end). If we created an inner panel use its bounds,
+            # otherwise fall back to the overlay rect bottom with a small margin.
+            if 'inner_top' in locals() and 'inner_h' in locals():
+                inner_bottom = inner_top + inner_h
+            else:
+                inner_bottom = rect.top + rect.height - 24
+
+            available_h = inner_bottom - text_origin_y
+            # How many lines fit in available space
+            max_lines = max(1, available_h // spacing_v)
+
+            if len(instr_lines) <= max_lines:
+                for idx, line in enumerate(instr_lines):
+                    draw_text(self.screen, self.font_small_bold, line, self.text_color,
+                              (text_origin_x, text_origin_y + idx * spacing_v), spacing=self.letter_spacing, align='topleft')
+            else:
+                # Draw as many top lines as fit minus one (reserve space for anchored last line)
+                top_count = max(0, int(max_lines) - 1)
+                for idx in range(top_count):
+                    draw_text(self.screen, self.font_small_bold, instr_lines[idx], self.text_color,
+                              (text_origin_x, text_origin_y + idx * spacing_v), spacing=self.letter_spacing, align='topleft')
+
+                # Anchor the last instructional line to the bottom of the inner area
+                last_line = instr_lines[-1]
+                last_y = inner_bottom - line_h - 8
+                draw_text(self.screen, self.font_small_bold, last_line, self.text_color,
+                          (text_origin_x, last_y), spacing=self.letter_spacing, align='topleft')
 
         # Footer instruction
         draw_text(self.screen, self.font_small_bold,
