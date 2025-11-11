@@ -409,6 +409,22 @@ def run(screen, inventory=None):
 		if now - last_teleport > teleport_cooldown:
 			for d in door_rects:
 				if player.rect.colliderect(d):
+					# If the player is carrying the special 'hourglass', send them to boss1
+					try:
+						if inventory and inventory.has_item('hourglass'):
+							print('[map01_scene DEBUG] player has hourglass - launching boss1')
+							# import here to avoid circular imports at module load time
+							try:
+								import main as main_mod
+								# call the main-run helper to start the boss test (perfectionist)
+								main_mod.run_boss_test('perfectionist')
+							except Exception as e:
+								print('[map01_scene DEBUG] failed to launch boss:', e)
+							running = False
+							break
+					except Exception:
+						# ignore and continue with normal door behaviour
+						pass
 					# find opposite side candidate with same row (ty)
 					ty = d.top // (tile_h * scale_int)
 					left = d.left < (map_pixel_w // 2)
