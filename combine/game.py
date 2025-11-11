@@ -34,14 +34,10 @@ def main():
 			# prefer map01 scene when present
 			from src.scenes.map01_scene import run as run_map01
 			run_map01(screen, inventory=inv)
-		except Exception:
-			try:
-				from src.scenes.newmap_scene import run as run_newmap
-				run_newmap(screen)
-			except Exception as e:
-				print('Failed to import any map scene:', e)
-				pygame.quit()
-				return
+		except Exception as e:
+			print('Failed to import or run map01 scene:', e)
+			pygame.quit()
+			return
 
 	pygame.quit()
 

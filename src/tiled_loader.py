@@ -45,6 +45,8 @@ def load_map(map_json_path):
     # Build tiles_by_gid and tileset metadata
     tiles_by_gid = {}
     tileset_meta = {}
+    map_tile_w = m.get("tilewidth", 16)
+    map_tile_h = m.get("tileheight", 16)
 
     for ts in m.get("tilesets", []):
         firstgid = ts.get("firstgid")
@@ -115,6 +117,12 @@ def load_map(map_json_path):
                     # create placeholder if slicing fails
                     sub = pygame.Surface((tilewidth, tileheight), pygame.SRCALPHA)
                     sub.fill((255, 0, 255, 255))
+                # If tileset tile size differs from map tile size, scale to map grid
+                if (tilewidth, tileheight) != (map_tile_w, map_tile_h):
+                    try:
+                        sub = pygame.transform.scale(sub, (map_tile_w, map_tile_h))
+                    except Exception:
+                        pass
                 tiles_by_gid[firstgid + i] = sub
         else:
             # No single-image tileset; try to load individual tile images (tile elements)
@@ -126,6 +134,12 @@ def load_map(map_json_path):
                     # create placeholder
                     surf = pygame.Surface((tilewidth, tileheight), pygame.SRCALPHA)
                     surf.fill((255, 0, 255, 255))
+                    # scale placeholder to map tile size if needed
+                    if (tilewidth, tileheight) != (map_tile_w, map_tile_h):
+                        try:
+                            surf = pygame.transform.scale(surf, (map_tile_w, map_tile_h))
+                        except Exception:
+                            pass
                     tiles_by_gid[firstgid + id_attr] = surf
                     continue
                 img_src2 = image.attrib.get("source")
@@ -139,6 +153,12 @@ def load_map(map_json_path):
                 else:
                     surf = pygame.Surface((tilewidth, tileheight), pygame.SRCALPHA)
                     surf.fill((255, 0, 255, 255))
+                # Ensure individual tile images match the map grid size
+                if (tilewidth, tileheight) != (map_tile_w, map_tile_h):
+                    try:
+                        surf = pygame.transform.scale(surf, (map_tile_w, map_tile_h))
+                    except Exception:
+                        pass
                 tiles_by_gid[firstgid + id_attr] = surf
 
     return m, tiles_by_gid, tileset_meta
@@ -153,7 +173,7 @@ def get_tileset_for_gid(tileset_meta, gid):
     return None, None
 
 
-def extract_collision_rects(m, tileset_meta, collidable_gids=None, scale=1):
+def extract_collision_rects(m, tileset_meta, collidable_gids=None, scale=1, authoritative_layer_name=None, shift_tiles=0):
     """Return a list of pygame.Rect for tiles whose gid is in collidable_gids.
 
     If collidable_gids is None, returns empty list.
@@ -172,17 +192,33 @@ def extract_collision_rects(m, tileset_meta, collidable_gids=None, scale=1):
     for layer in m.get("layers", []):
         if layer.get("type") != "tilelayer":
             continue
+        # If an authoritative_layer_name is provided, skip other layers.
+        if authoritative_layer_name:
+            lname_check = (layer.get('name') or '').lower()
+            if lname_check != authoritative_layer_name.lower():
+                continue
         data = layer.get("data", [])
+        # support Tiled layer offsetx/offsety (pixels)
+        layer_off_x = int(layer.get("offsetx", 0) or 0)
+        layer_off_y = int(layer.get("offsety", 0) or 0)
         for idx, raw_gid in enumerate(data):
             gid = raw_gid & 0x1FFFFFFF
             if gid == 0:
                 continue
-            if gid in collidable_gids:
+            if collidable_gids is None:
+                match = True
+            else:
+                match = gid in collidable_gids
+            if match:
                 tx = idx % width
                 ty = idx // width
-                px = tx * tile_w * scale
-                py = ty * tile_h * scale
-                rects.append(pygame.Rect(px, py, tile_w * scale, tile_h * scale))
+                # apply an optional tile shift for this authoritative layer
+                if shift_tiles and authoritative_layer_name:
+                    tx = tx + int(shift_tiles)
+                # apply layer offset (scaled) and round to integers to match rendering
+                px = int(round(tx * tile_w * scale + layer_off_x * scale))
+                py = int(round(ty * tile_h * scale + layer_off_y * scale))
+                rects.append(pygame.Rect(px, py, int(round(tile_w * scale)), int(round(tile_h * scale))))
     return rects
 
 
@@ -243,6 +279,9 @@ def draw_map(surface, m, tiles_by_gid, camera_rect=None, scale=1):
             continue
         if layer.get("type") != "tilelayer":
             continue
+        # per-layer pixel offsets from Tiled
+        layer_off_x = float(layer.get("offsetx", 0) or 0)
+        layer_off_y = float(layer.get("offsety", 0) or 0)
         data = layer.get("data", [])
         for idx, raw_gid in enumerate(data):
             # Mask out flip bits (Tiled uses high bits for flipping)
@@ -272,9 +311,14 @@ def draw_map(surface, m, tiles_by_gid, camera_rect=None, scale=1):
             px = tx * tile_w * scale
             py = ty * tile_h * scale
             if camera_rect:
-                if not camera_rect.colliderect(pygame.Rect(px, py, tile_w * scale, tile_h * scale)):
+                # include layer offsets when testing against camera and when blitting
+                rect_px = px + layer_off_x * scale
+                rect_py = py + layer_off_y * scale
+                tile_rect = pygame.Rect(int(round(rect_px)), int(round(rect_py)), int(round(tile_w * scale)), int(round(tile_h * scale)))
+                if not camera_rect.colliderect(tile_rect):
                     continue
-                surface.blit(img2, (px - camera_rect.x, py - camera_rect.y))
+                surface.blit(img2, (int(round(rect_px - camera_rect.x)), int(round(rect_py - camera_rect.y))))
             else:
-                surface.blit(img2, (px, py))
+                # include layer offset when drawing at full surface
+                surface.blit(img2, (int(round(px + layer_off_x * scale)), int(round(py + layer_off_y * scale))))
 

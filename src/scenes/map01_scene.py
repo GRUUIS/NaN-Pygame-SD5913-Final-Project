@@ -49,6 +49,8 @@ def run(screen, inventory=None):
 
 	# identify collidable gids from a layer named 'collusion' (authoritative)
 	collidable_gids = set()
+	# collect layer names for debug
+	layer_names = [((layer.get('name') or '').strip(), layer.get('type')) for layer in m.get('layers', [])]
 	for layer in m.get('layers', []):
 		name = (layer.get('name') or '').lower()
 		if name == 'collusion':
@@ -58,7 +60,19 @@ def run(screen, inventory=None):
 					collidable_gids.add(g)
 
 	# build platforms from collidable gids (pixel rects)
-	platforms = extract_collision_rects(m, tileset_meta, collidable_gids=collidable_gids, scale=scale_int)
+	# Extract platforms only from the authoritative 'collusion' layer and
+	# apply a +1 tile horizontal shift so collision matches tile visuals.
+	platforms = extract_collision_rects(m, tileset_meta, collidable_gids=collidable_gids, scale=scale_int, authoritative_layer_name='collusion', shift_tiles=1)
+
+	# DEBUG: print layer and collision info to help diagnose missing collisions
+	try:
+		print('[map01_scene DEBUG] layers:', layer_names)
+		print('[map01_scene DEBUG] collidable_gids count:', len(collidable_gids), 'sample:', list(sorted(collidable_gids))[:10])
+		print('[map01_scene DEBUG] platforms (before door filter):', len(platforms))
+		for i, p in enumerate(platforms[:30]):
+			print(f"[map01_scene DEBUG] platform[{i}] = {p} -> tiles (tx,ty)=({p.x//tile_w},{p.y//tile_h})")
+	except Exception:
+		pass
 
 	# Build door candidate rects: only the outer 1 column on left and right
 	door_rects = []
@@ -138,7 +152,8 @@ def run(screen, inventory=None):
 						dest = candidates[0]
 						# move player to dest center
 						player.x = dest.left + 4
-						player.y = dest.top - player.h
+						# use player's collision height (ch) rather than undefined 'h'
+						player.y = dest.top - getattr(player, 'ch', getattr(player, 'h', 0))
 						player.vx = 0
 						player.vy = 0
 						last_teleport = now
