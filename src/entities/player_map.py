@@ -231,14 +231,88 @@ class MapPlayer:
 				self.facing = 'right'
 				self._ase_frame_size = ase_anim.animation_frames[0].get_size() if ase_anim.animation_frames else (int(self.w), int(self.h))
 				# scale frames to player size
+				def _process_frame(frame_surf):
+					# Ensure we have per-pixel alpha. If the source has no alpha, use the top-left pixel as background
+					try:
+						# If frame already has alpha channel and corner is transparent, keep as-is
+						corner = frame_surf.get_at((0, 0))
+					except Exception:
+						corner = None
+					fs = frame_surf
+					# convert to alpha-capable surface
+					try:
+						fs = frame_surf.convert_alpha()
+					except Exception:
+						fs = frame_surf.copy()
+					# if corner pixel is transparent we keep per-pixel alpha; otherwise attempt to remove solid bg
+					bg = None
+					try:
+						bg = frame_surf.get_at((0, 0))
+					except Exception:
+						bg = None
+					# If the frame already has per-pixel alpha and corner is transparent, we keep it as-is
+					if bg is not None and getattr(bg, 'a', None) == 0:
+						pass
+					else:
+						# If frame has no alpha or corner was opaque, try to remove exact background color
+						# Create an alpha-capable surface to copy into
+						try:
+							w0, h0 = fs.get_size()
+							clean = pygame.Surface((w0, h0), pygame.SRCALPHA)
+							# If we have a bg candidate, make pixels matching that RGB fully transparent
+							if bg is not None:
+								bg_rgb = (bg.r, bg.g, bg.b) if getattr(bg, 'r', None) is not None else (bg[0], bg[1], bg[2])
+								for yy in range(h0):
+									for xx in range(w0):
+										col = fs.get_at((xx, yy))
+										try:
+											pix_rgb = (col.r, col.g, col.b) if getattr(col, 'r', None) is not None else (col[0], col[1], col[2])
+										except Exception:
+											pix_rgb = (col[0], col[1], col[2])
+										if pix_rgb == bg_rgb:
+											# leave transparent
+											continue
+										else:
+											clean.set_at((xx, yy), col)
+							else:
+								# No bg candidate: just copy (we already have alpha via convert_alpha)
+								clean.blit(fs, (0, 0))
+							fs = clean
+						except Exception:
+							# on any failure, leave fs as-is
+							pass
+
+					# preserve aspect ratio when fitting into player rect
+					fw, fh = fs.get_size()
+					if fw == 0 or fh == 0:
+						# empty frame, return blank
+						return pygame.Surface((int(self.w), int(self.h)), pygame.SRCALPHA)
+					scale = min(float(self.w) / fw, float(self.h) / fh)
+					new_w = max(1, int(fw * scale))
+					new_h = max(1, int(fh * scale))
+					try:
+						scaled = pygame.transform.scale(fs, (new_w, new_h))
+					except Exception:
+						scaled = pygame.Surface((new_w, new_h), pygame.SRCALPHA)
+					# blit into a target surface of exact player size, align bottom (feet on floor)
+					target = pygame.Surface((int(self.w), int(self.h)), pygame.SRCALPHA)
+					tx = (int(self.w) - new_w) // 2
+					# place the scaled image so its bottom aligns with the player's bottom
+					ty = max(0, int(self.h) - new_h)
+					try:
+						target.blit(scaled, (tx, ty))
+					except Exception:
+						pass
+					return target
+
 				for a in self.animations.values():
 					scaled = []
 					for f in a['frames']:
 						try:
-							s = pygame.transform.scale(f, (int(self.w), int(self.h)))
+							proc = _process_frame(f)
 						except Exception:
-							s = pygame.Surface((int(self.w), int(self.h)), pygame.SRCALPHA)
-						scaled.append(s)
+							proc = pygame.Surface((int(self.w), int(self.h)), pygame.SRCALPHA)
+						scaled.append(proc)
 					a['frames'] = scaled
 				# mark loaded so we don't reparse every frame
 				self._loaded = True
@@ -256,10 +330,14 @@ class MapPlayer:
 		for p in candidates:
 			if os.path.exists(p):
 				try:
-					surf = pygame.image.load(p).convert_alpha()
-					surf = pygame.transform.scale(surf, (int(self.w), int(self.h)))
+					surf = pygame.image.load(p)
+					# process the loaded surface the same way as ase frames
+					try:
+						proc = _process_frame(surf)
+					except Exception:
+						proc = pygame.Surface((int(self.w), int(self.h)), pygame.SRCALPHA)
 					# store as single-frame idle animation
-					self.animations = {'idle': {'frames': [surf], 'durations': [200]}}
+					self.animations = {'idle': {'frames': [proc], 'durations': [200]}}
 					self.cur_anim = 'idle'
 					self.anim_frame = 0
 					self.anim_time = 0.0
