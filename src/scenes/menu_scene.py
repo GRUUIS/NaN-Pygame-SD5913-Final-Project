@@ -81,9 +81,15 @@ class MenuScene(BaseScene):
             text_surface = self.font_medium.render(option, True, color)
             text_rect = text_surface.get_rect(center=(screen_width // 2, start_y + i * 60))
             screen.blit(text_surface, text_rect)
-        
-        # Draw instructions
-        instruction_text = "Use W/S or Arrow Keys to navigate, Enter/Space to select"
-        instruction_surface = pygame.font.Font(None, 24).render(instruction_text, True, self.text_color)
-        instruction_rect = instruction_surface.get_rect(center=(screen_width // 2, screen_height - 50))
+
+        # Draw instructions (include in-game pickup hint)
+        instruction_text = "Use W/S or Arrow Keys to navigate, Enter/Space to select."
+        instruction_surface = pygame.font.Font(None, 20).render(instruction_text, True, self.text_color)
+        instruction_rect = instruction_surface.get_rect(center=(screen_width // 2, screen_height - 66))
         screen.blit(instruction_surface, instruction_rect)
+
+        # control legend (separate line)
+        control_text = "C: collect items    (RMB: collect)"
+        control_surface = pygame.font.Font(None, 18).render(control_text, True, self.text_color)
+        control_rect = control_surface.get_rect(center=(screen_width // 2, screen_height - 40))
+        screen.blit(control_surface, control_rect)

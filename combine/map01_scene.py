@@ -80,12 +80,6 @@ def run(screen, inventory=None):
 	edge_cols = 1
 	map_pixel_w = tile_w * width * scale_int
 	map_pixel_h = tile_h * height * scale_int
-
-	# Build a map of outer-column tile rows (tx -> set of ty values) so we
-	# can collapse contiguous vertical runs and limit each run to at most 5
-	# tiles (keep the center-most 5). This prevents very tall door holes
-	# at the map edges which can let the player drop out unexpectedly.
-	edge_tiles = {}
 	for layer in m.get('layers', []):
 		if layer.get('type') != 'tilelayer':
 			continue
@@ -97,50 +91,8 @@ def run(screen, inventory=None):
 			tx = idx % width
 			ty = idx // width
 			if tx < edge_cols or tx >= (width - edge_cols):
-				edge_tiles.setdefault(tx, set()).add(ty)
-
-	def _limit_segment(tys, max_len=6):
-		"""Given a sorted list of contiguous ty values, return at most
-		`max_len` ty values centered within the segment."""
-		L = len(tys)
-		if L <= max_len:
-			return tys
-		# choose center-most window of length max_len
-		start_idx = (L - max_len) // 2
-		return tys[start_idx:start_idx + max_len]
-
-	# convert limited ty lists into door rects
-	# Apply a vertical shift so doors are moved down by a few tiles if desired.
-	# Use 5 to move doors down by five tiles as requested.
-	door_vertical_shift = 5
-	for tx, tys in edge_tiles.items():
-		if not tys:
-			continue
-		sorted_tys = sorted(tys)
-		# find contiguous segments
-		seg_start = sorted_tys[0]
-		seg_prev = seg_start
-		cur_seg = [seg_start]
-		segments = []
-		for ty in sorted_tys[1:]:
-			if ty == seg_prev + 1:
-				cur_seg.append(ty)
-			else:
-				segments.append(cur_seg)
-				cur_seg = [ty]
-			seg_prev = ty
-		segments.append(cur_seg)
-
-		# limit each segment to max 6 tiles and add rects
-		for seg in segments:
-			kept = _limit_segment(seg, max_len=6)
-			for ty in kept:
-				new_ty = ty + door_vertical_shift
-				# skip if shifted tile outside vertical map bounds
-				if new_ty < 0 or new_ty >= height:
-					continue
 				px = tx * tile_w * scale_int
-				py = new_ty * tile_h * scale_int
+				py = ty * tile_h * scale_int
 				door_rects.append(pygame.Rect(px, py, tile_w * scale_int, tile_h * scale_int))
 
 	# Remove any platform that overlaps a door so doors are passable
@@ -286,13 +238,6 @@ def run(screen, inventory=None):
 	last_teleport = -1.0
 	teleport_cooldown = 0.35
 
-	# track if player is stuck above the top of the map
-	stuck_above_time = 0.0
-	# how many seconds player must remain above the top before we force-respawn
-	stuck_above_timeout = 1.5
-	# how far above the top counts as 'stuck' (pixels)
-	stuck_above_limit = tile_h * 2 * scale_int
-
 	# debug font for on-screen state
 	try:
 		debug_font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 14)
@@ -361,49 +306,6 @@ def run(screen, inventory=None):
 		# update
 		player.update(dt, platforms)
 
-		# respawn player if they fall out of the map (below the visible map area)
-		try:
-			# use player's rect top/left; if the player y is beyond map height, respawn
-			if getattr(player, 'y', None) is not None:
-				if player.y > map_pixel_h + (tile_h * 4):
-					print('[map01_scene DEBUG] player fell out of map, respawning')
-					player.x = spawn_x
-					player.y = spawn_y
-					player.vx = 0
-					player.vy = 0
-					# reset on_ground state if present
-					try:
-						player.on_ground = False
-					except Exception:
-						pass
-		except Exception:
-			pass
-
-		# detect if the player is stuck above the top of the map and cannot get down
-		# accumulate time spent above a small negative threshold; if it exceeds
-		# stuck_above_timeout, force a respawn to the spawn point.
-		try:
-			if getattr(player, 'y', None) is not None:
-				if player.y < -stuck_above_limit:
-					stuck_above_time += dt
-				else:
-					stuck_above_time = 0.0
-				# if stuck too long, teleport back to spawn
-				if stuck_above_time > stuck_above_timeout:
-					print('[map01_scene DEBUG] player stuck above map, respawning')
-					player.x = spawn_x
-					player.y = spawn_y
-					player.vx = 0
-					player.vy = 0
-					stuck_above_time = 0.0
-					try:
-						player.on_ground = False
-					except Exception:
-						pass
-		except Exception:
-			# swallow any errors here to avoid crashing the scene
-			pass
-
 		# door handling: if player overlaps any door rect, teleport to opposite side
 		now = time.time()
 		if now - last_teleport > teleport_cooldown:
@@ -455,8 +357,14 @@ def run(screen, inventory=None):
 		except Exception:
 			pass
 
-		# instruction overlay removed from map scene per UI change; instructions
-		# (including pickup hint) are now shown in the main menu.
+		# instruction overlay: show pickup key hint
+		try:
+			hint = "Press C to pick up items (or RMB)"
+			h_surf = debug_font.render(hint, True, (255, 255, 255))
+			# draw near bottom-left
+			screen.blit(h_surf, (8, screen.get_height() - h_surf.get_height() - 8))
+		except Exception:
+			pass
 
 		if inventory:
 			inventory.draw(screen)
