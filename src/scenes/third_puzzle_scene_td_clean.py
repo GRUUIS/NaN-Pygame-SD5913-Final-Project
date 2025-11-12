@@ -68,9 +68,13 @@ class ThirdPuzzleScene:
         self.camera_x = 0
         self.collision_rects: List[pygame.Rect] = []
         self.interactables: List[dict] = []
+        # currently hovered/nearby interactable (used to show "check" and enable clicks)
+        self._hover_interactable: Optional[dict] = None
+        # distance in pixels (screen-space) for proximity checks
+        self._hover_distance: int = 120
 
-    # Procedurally generate a full puzzle room (ignore external assets)
-    # We'll create a room sized to ACTIVITY_H height and make it slightly wider than the screen
+        # Procedurally generate a full puzzle room (ignore external assets)
+        # We'll create a room sized to ACTIVITY_H height and make it slightly wider than the screen
         self.draw_scale = 1
         map_px_h = ACTIVITY_H
         # shorten horizontal length so player can't move indefinitely
@@ -198,10 +202,203 @@ class ThirdPuzzleScene:
         self.player_min_x = 16
         self.player_max_x = map_px_w - 16
 
+        # If a Tiled map (tmj) exists in assets/tilemaps, load it and override the
+        # procedural room. This lets you design the room in Tiled and have the
+        # scene pick up collision and interactable object layers.
+        try:
+            tmj_path = os.path.join('assets', 'tilemaps', 'test puzzle scene.tmj')
+        except Exception:
+            tmj_path = None
+
+        if tmj_path and load_map and draw_map and os.path.exists(tmj_path):
+            try:
+                m, tiles_by_gid, tileset_meta = load_map(tmj_path)
+                # build map surface from tiled map
+                tile_w = m.get('tilewidth', 16)
+                tile_h = m.get('tileheight', 16)
+                map_px_w = m.get('width', 0) * tile_w
+                map_px_h = m.get('height', 0) * tile_h
+                # scale map so its pixel height matches ACTIVITY_H (letterboxed)
+                if map_px_h > 0:
+                    desired_scale = ACTIVITY_H / float(map_px_h)
+                    # clamp to reasonable range
+                    self.draw_scale = max(0.1, min(2.0, desired_scale))
+                # If you exported a full-map PNG (rendered map) place it at
+                # assets/tilemaps/test scene2.png and we'll use it directly so
+                # tileset lookup is not required. Otherwise fall back to drawing
+                # from tiles_by_gid (may produce placeholders if tilesets missing).
+                fullmap_png = os.path.join('assets', 'tilemaps', 'test scene2.png')
+                if os.path.exists(fullmap_png):
+                    try:
+                        img = pygame.image.load(fullmap_png).convert_alpha()
+                        if img.get_width() == map_px_w and img.get_height() == map_px_h:
+                            self.map_surface = img.copy()
+                        else:
+                            # scale to map size (best effort)
+                            try:
+                                # scale the fullmap to the raw tiled pixel size, then scale later by draw_scale
+                                raw = pygame.transform.smoothscale(img, (map_px_w, map_px_h))
+                                sw = int(map_px_w * self.draw_scale)
+                                sh = int(map_px_h * self.draw_scale)
+                                self.map_surface = pygame.transform.smoothscale(raw, (sw, sh)).convert_alpha()
+                            except Exception:
+                                self.map_surface = img.copy()
+                    except Exception:
+                        # loading failed; fall back to tile rendering
+                        # render from tiles at scaled size
+                        sw = int(map_px_w * self.draw_scale)
+                        sh = int(map_px_h * self.draw_scale)
+                        self.map_surface = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                        draw_map(self.map_surface, m, tiles_by_gid, camera_rect=None, scale=self.draw_scale)
+                else:
+                    sw = int(map_px_w * self.draw_scale)
+                    sh = int(map_px_h * self.draw_scale)
+                    self.map_surface = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                    draw_map(self.map_surface, m, tiles_by_gid, camera_rect=None, scale=self.draw_scale)
+
+                # center the map horizontally if it's narrower than the screen
+                try:
+                    if self.map_surface.get_width() < SCREEN_W:
+                        self.map_offset = ((SCREEN_W - self.map_surface.get_width()) // 2, LETTERBOX_TOP)
+                    else:
+                        self.map_offset = (0, LETTERBOX_TOP)
+                except Exception:
+                    # fallback to previous offset
+                    self.map_offset = (0, LETTERBOX_TOP)
+
+                # reset collision/interactables and repopulate from object layers
+                self.collision_rects = []
+                self.interactables = []
+
+                # helper to read properties list into dict
+                def _props_to_dict(plist):
+                    out = {}
+                    for p in plist or []:
+                        out[p.get('name')] = p.get('value')
+                    return out
+
+                player_start_found = False
+                for layer in m.get('layers', []):
+                    if layer.get('type') != 'objectgroup':
+                        continue
+                    lname = (layer.get('name') or '').lower()
+                    for obj in layer.get('objects', []):
+                        # object coordinates in TMJ are raw pixels; keep raw values for logical map coords
+                        ox_raw = int(obj.get('x', 0))
+                        oy_raw = int(obj.get('y', 0))
+                        ow_raw = int(obj.get('width', 0))
+                        oh_raw = int(obj.get('height', 0))
+                        gid = obj.get('gid')
+                        props = _props_to_dict(obj.get('properties'))
+
+                        # tile-objects in Tiled often store y at bottom (raw coords)
+                        top_raw = oy_raw - oh_raw if gid else oy_raw
+                        if ow_raw == 0 or oh_raw == 0:
+                            ow_raw = ow_raw or tile_w
+                            oh_raw = oh_raw or tile_h
+                        # compute screen-space rect (scaled) for collisions and drawing
+                        ox = int(ox_raw * self.draw_scale)
+                        top = int(top_raw * self.draw_scale)
+                        ow = int(ow_raw * self.draw_scale)
+                        oh = int(oh_raw * self.draw_scale)
+                        rect = pygame.Rect(ox, top, ow, oh)
+
+                        # collision if layer is named collision or prop blocking
+                        blocking = False
+                        if lname in ('collision', 'block', 'blocking'):
+                            blocking = True
+                        if props.get('blocking') in (True, 'true', 'True', 1, '1'):
+                            blocking = True
+                        if blocking:
+                            self.collision_rects.append(rect)
+
+                        # create sprite: prefer gid tile image, else sample map_surface
+                        sprite = None
+                        if gid and gid in tiles_by_gid:
+                            try:
+                                # scale tile sprite to match draw_scale
+                                base = tiles_by_gid[gid]
+                                if self.draw_scale != 1.0:
+                                    try:
+                                        sprite = pygame.transform.smoothscale(base, (int(base.get_width() * self.draw_scale), int(base.get_height() * self.draw_scale))).convert_alpha()
+                                    except Exception:
+                                        sprite = base.copy()
+                                else:
+                                    sprite = base.copy()
+                            except Exception:
+                                sprite = None
+                        if sprite is None:
+                            try:
+                                sprite = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                                # sample from scaled map_surface using scaled area
+                                sprite.blit(self.map_surface, (0, 0), area=rect)
+                            except Exception:
+                                sprite = None
+
+                        # register interactable if properties indicate or object has a type/name
+                        obj_type = obj.get('type') or props.get('type') or ''
+                        if obj_type or props.get('interactable') or props.get('action') or props.get('dialog'):
+                            it = {
+                                'id': props.get('id') or obj.get('name') or f"obj_{len(self.interactables)}",
+                                'type': obj_type or 'interactable',
+                                'rect': rect,
+                                'props': props,
+                                'sprite': sprite,
+                            }
+                            self.interactables.append(it)
+
+                        # player start (store in RAW map pixels, not scaled)
+                        if (obj.get('name') or '').lower() in ('player', 'player_start') or props.get('player_start'):
+                            try:
+                                ph = getattr(self.player, 'h', 40)
+                            except Exception:
+                                ph = 40
+                            # keep logical player coords in raw map pixels so update() multiplies by draw_scale once
+                            self.player.x = ox_raw + (ow_raw // 2)
+                            self.player.y = top_raw
+                            player_start_found = True
+
+                # set map bounds/clamps
+                self.map_width = map_px_w
+                self.map_height = map_px_h
+                self.player_min_x = 16
+                self.player_max_x = max(16, map_px_w - 16)
+
+                # keep references
+                self.map = m
+                self.tiles_by_gid = tiles_by_gid
+                self.tileset_meta = tileset_meta
+            except Exception:
+                # if anything fails, keep procedural map as fallback
+                pass
+
+                # initialize font and sfx for interact prompts
+                try:
+                    pygame.font.init()
+                    self._ui_font = pygame.font.SysFont(None, 18)
+                except Exception:
+                    self._ui_font = None
+                # load click sound if available
+                self._click_sound = None
+                try:
+                    sfx_path = os.path.join('assets', 'sfx', 'click.wav')
+                    if os.path.exists(sfx_path):
+                        try:
+                            pygame.mixer.init()
+                        except Exception:
+                            pass
+                        try:
+                            self._click_sound = pygame.mixer.Sound(sfx_path)
+                        except Exception:
+                            self._click_sound = None
+                except Exception:
+                    self._click_sound = None
+
     def handle_event(self, event: pygame.event.EventType):
         if event.type == pygame.QUIT:
             pygame.quit()
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            # right-click: if clicking a nearby interactable, trigger its action and play click sound
             sx, sy = event.pos
             for it in list(self.interactables):
                 obj_screen = it['rect'].move(-self.camera_x + self.map_offset[0], self.map_offset[1])
@@ -209,7 +406,14 @@ class ThirdPuzzleScene:
                     px = int(self.player.x * self.draw_scale) - self.camera_x + self.map_offset[0]
                     py = int(self.player.y * self.draw_scale) + self.map_offset[1]
                     dist = math.hypot(px - obj_screen.centerx, py - obj_screen.centery)
-                    if dist < 180:
+                    if dist < self._hover_distance:
+                        # play click sound if available
+                        if getattr(self, '_click_sound', None):
+                            try:
+                                self._click_sound.play()
+                            except Exception:
+                                pass
+                        # simple feedback popup; real action hooks can be added later
                         self.ui.add(TextPopup(f"Interacted: {it.get('type')}", lambda: (obj_screen.x, obj_screen.y), duration=1.0))
                         return
 
@@ -244,6 +448,23 @@ class ThirdPuzzleScene:
 
         self.ui.update(dt)
         self.update_camera()
+
+        # determine nearest interactable within hover distance (screen-space)
+        self._hover_interactable = None
+        try:
+            px = int(self.player.x * self.draw_scale) - self.camera_x + self.map_offset[0]
+            py = int(self.player.y * self.draw_scale) + self.map_offset[1]
+            nearest = None
+            nd = float('inf')
+            for it in self.interactables:
+                obj_screen = it['rect'].move(-self.camera_x + self.map_offset[0], self.map_offset[1])
+                d = math.hypot(px - obj_screen.centerx, py - obj_screen.centery)
+                if d < self._hover_distance and d < nd:
+                    nd = d
+                    nearest = it
+            self._hover_interactable = nearest
+        except Exception:
+            self._hover_interactable = None
 
     def update_camera(self):
         if not self.map_surface:
@@ -288,5 +509,21 @@ class ThirdPuzzleScene:
             screen_x = int(it.x * self.draw_scale) - self.camera_x + self.map_offset[0]
             screen_y = int(it.y * self.draw_scale) + self.map_offset[1]
             pygame.draw.rect(screen, (200, 180, 60), (screen_x, screen_y, int(it.w * self.draw_scale), int(it.h * self.draw_scale)))
+
+        # show "check" tooltip when player is near an interactable
+        try:
+            if self._hover_interactable and self._ui_font:
+                it = self._hover_interactable
+                screen_rect = it['rect'].move(-self.camera_x + self.map_offset[0], self.map_offset[1])
+                txt = "check"
+                txt_surf = self._ui_font.render(txt, True, (255, 255, 255))
+                tw, th = txt_surf.get_size()
+                tx = screen_rect.centerx - tw // 2
+                ty = screen_rect.top - th - 8
+                # small backdrop
+                pygame.draw.rect(screen, (0, 0, 0), (tx - 4, ty - 4, tw + 8, th + 8))
+                screen.blit(txt_surf, (tx, ty))
+        except Exception:
+            pass
 
         self.ui.draw(screen)
