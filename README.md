@@ -195,6 +195,9 @@ Idle penalty (anti-camping) in boss battles:
 - UI / Book styles: Complete UI Book Styles Pack — downloaded from itch.io
    - Pack page: https://crusenho.itch.io/complete-ui-book-styles-pack
 
+- Music pack: Essential Game Music Pack — Bell Kalengar — downloaded from itch.io
+   - Pack page: https://bellkalengar.itch.io/essential-game-music-pack
+
 Please check the asset pages for licensing and attribution requirements before redistributing. If you want, I can add a copy of the license(s) or a short usage note for these assets in `assets/` or `docs/`.
 
 ## Game Design Document

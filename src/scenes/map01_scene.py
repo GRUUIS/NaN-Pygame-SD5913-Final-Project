@@ -446,13 +446,8 @@ def run(screen, inventory=None):
 		# draw
 		draw_map(screen, m, tiles_by_gid, scale=scale_int)
 
-		# optionally draw platforms (debug)
-		for p in platforms:
-			pygame.draw.rect(screen, (255, 0, 255, 40), p, 1)
-
-		# draw doors (invisible in final but drawn faintly for debugging)
-		for d in door_rects:
-			pygame.draw.rect(screen, (0, 255, 0), d, 1)
+		# debug overlays removed so collision tiles are visible
+		# (platform and door debug rectangles were here and have been disabled)
 
 		# draw items
 		for it in items:
