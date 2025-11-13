@@ -131,22 +131,22 @@
  </tile>
  <tile id="237">
   <properties>
-     <property name="collidable" type="bool" value="false"/>
-   <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
-   <property name="interactive" type="bool" value="true"/>
-   <property name="prompt" value="&quot;check&quot;"/>
-   <property name="type" value="&quot;item&quot;"/>
-  </properties>
- </tile>
- <tile id="238">
-  <properties>
-     <property name="collidable" type="bool" value="false"/>
-   <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
-   <property name="interactive" type="bool" value="true"/>
-   <property name="prompt" value="&quot;check&quot;"/>
-   <property name="type" value="&quot;item&quot;"/>
-  </properties>
- </tile>
+   <property name="collidable" type="bool" value="true"/>
+    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
+    <property name="interactive" type="bool" value="true"/>
+    <property name="prompt" value="&quot;check&quot;"/>
+    <property name="type" value="&quot;item&quot;"/>
+   </properties>
+  </tile>
+  <tile id="238">
+   <properties>
+   <property name="collidable" type="bool" value="true"/>
+    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
+    <property name="interactive" type="bool" value="true"/>
+    <property name="prompt" value="&quot;check&quot;"/>
+    <property name="type" value="&quot;item&quot;"/>
+   </properties>
+  </tile>
  <tile id="246">
   <properties>
    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
@@ -165,20 +165,20 @@
  </tile>
  <tile id="264">
   <properties>
-     <property name="collidable" type="bool" value="false"/>
-   <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
-   <property name="interactive" type="bool" value="true"/>
-   <property name="prompt" value="&quot;check&quot;"/>
-   <property name="type" value="&quot;item&quot;"/>
-  </properties>
- </tile>
- <tile id="265">
-  <properties>
-     <property name="collidable" type="bool" value="false"/>
-   <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
-   <property name="interactive" type="bool" value="true"/>
-   <property name="prompt" value="&quot;check&quot;"/>
-   <property name="type" value="&quot;item&quot;"/>
-  </properties>
- </tile>
+   <property name="collidable" type="bool" value="true"/>
+    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
+    <property name="interactive" type="bool" value="true"/>
+    <property name="prompt" value="&quot;check&quot;"/>
+    <property name="type" value="&quot;item&quot;"/>
+   </properties>
+  </tile>
+  <tile id="265">
+   <properties>
+   <property name="collidable" type="bool" value="true"/>
+    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
+    <property name="interactive" type="bool" value="true"/>
+    <property name="prompt" value="&quot;check&quot;"/>
+    <property name="type" value="&quot;item&quot;"/>
+   </properties>
+  </tile>
 </tileset>

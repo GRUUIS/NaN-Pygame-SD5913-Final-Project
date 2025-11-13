@@ -28,7 +28,7 @@
  </tile>
  <tile id="544">
   <properties>
-   <property name="collidable" type="bool" value="false"/>
+     <property name="collidable" type="bool" value="true"/>
   </properties>
  </tile>
 </tileset>
