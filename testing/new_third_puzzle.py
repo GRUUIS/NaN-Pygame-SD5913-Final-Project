@@ -81,12 +81,8 @@ if not getattr(args, 'dry_run', False):
         print(f"警告：未找到 {FONT_PATH}，使用系统默认字体")
         game_font = pygame.font.SysFont(["SimHei", "WenQuanYi Micro Hei", "Heiti TC"], 16)
 
-    # 加载角色（绿色方块，可替换为图片）
-    # 玩家尺寸随缩放调整，取整
-    player_w = tile_draw_size
-    player_h = tile_draw_size
-    player_img = pygame.Surface((player_w, player_h), pygame.SRCALPHA)
-    player_img.fill((0, 255, 0))  # 绿色代表角色
+    # 加载角色外观（稍后会根据 player_draw_w 创建，如果已定义）
+    pass
 else:
     # dry-run 时不创建 pygame 资源，设置占位变量
     game_font = None
@@ -246,8 +242,11 @@ if bed_spawn:
             sy = int(args.spawn_y)
             print(f"使用命令行提供的出生格: ({sx},{sy})")
         else:
-            # pass width and collidable_gids to find_spawn_near (new signature)
-            sx, sy = find_spawn_near(bed_spawn[0], bed_spawn[1], width, collidable_gids)
+            # 使用用户指定的默认出生点（由用户提供的红圈坐标）
+            # 你给出的坐标：16,15
+            USER_DEFAULT_SPAWN = (16, 15)
+            sx, sy = USER_DEFAULT_SPAWN
+            print(f"使用用户默认出生格: ({sx},{sy})")
         player_x = sx * TILE_SIZE
         player_y = sy * TILE_SIZE
 
@@ -260,12 +259,34 @@ if bed_spawn:
 # movement: pixels per second
 player_speed_pixels = 140
 
-# 碰撞盒收缩（像素）：宽高各减少 shrink_pixels，碰撞框位于角色底部
-shrink_pixels = 4
-player_bbox_w = max(1, TILE_SIZE - shrink_pixels)
-player_bbox_h = max(1, TILE_SIZE - shrink_pixels)
+# 玩家视觉与碰撞尺寸（以地图像素为单位，TILE_SIZE 是地图上每瓦片的逻辑像素）
+# 让角色比瓦片小一些，这样更易通过家具间隙。可用比例调整（0.5-0.8 常见）
+player_scale_on_tile = 0.6
+player_map_w = max(1, int(round(TILE_SIZE * player_scale_on_tile)))
+player_map_h = max(1, int(round(TILE_SIZE * player_scale_on_tile)))
+# 碰撞框（map-pixel），使用角色尺寸，并将其水平居中、底部与瓦片底对齐
+player_bbox_w = player_map_w
+player_bbox_h = player_map_h
 player_bbox_xoff = (TILE_SIZE - player_bbox_w) // 2
 player_bbox_yoff = (TILE_SIZE - player_bbox_h)
+
+# 屏幕绘制时的视觉尺寸（以像素为单位，依赖于 tile_draw_size 与 scale）
+player_draw_w = int(round(player_map_w * scale))
+player_draw_h = int(round(player_map_h * scale))
+player_draw_xoff = (tile_draw_size - player_draw_w) // 2
+player_draw_yoff = (tile_draw_size - player_draw_h) // 2
+
+# 创建 player_img 仍在后面仅在非 dry-run 时创建；其它代码应使用 player_draw_* 来绘制
+if not getattr(args, 'dry_run', False):
+    # 创建 player_img（使用计算好的 player_draw_w/player_draw_h）
+    try:
+        player_img = pygame.Surface((player_draw_w, player_draw_h), pygame.SRCALPHA)
+        player_img.fill((0, 255, 0))
+    except Exception:
+        # 如果此处发生错误（极少见），回退为占位 1x1
+        player_img = pygame.Surface((1, 1))
+else:
+    player_img = None
 
 # 相机与活动区设置
 ACTIVITY_H = 400  # 活动区高度（像素）
@@ -363,7 +384,14 @@ while running:
     # 3. 绘制玩家（在背景与前景之间）
     screen_x = int(round(player_x * scale)) + offset_x - int(round(camera_x))
     screen_y = int(round(player_y * scale)) + offset_y
-    screen.blit(player_img, (screen_x, screen_y))
+    # 视觉绘制：把小角色居中到瓦片内
+    if player_img:
+        draw_x = screen_x + player_draw_xoff
+        draw_y = screen_y + player_draw_yoff
+        screen.blit(player_img, (draw_x, draw_y))
+    else:
+        # 备用：如果 player_img 不可用，画一个小方块
+        pygame.draw.rect(screen, (0,255,0), (screen_x + player_draw_xoff, screen_y + player_draw_yoff, player_draw_w, player_draw_h))
 
     # 4. 绘制前景遮挡家具（如果存在）
     # 4. 绘制前景遮挡家具（如果存在），作为覆盖层
@@ -383,7 +411,9 @@ while running:
             pass
     
     # 5. 检测并显示交互提示
-    player_rect = pygame.Rect(player_x, player_y, TILE_SIZE, TILE_SIZE)
+    # 使用碰撞箱（map-pixel）判断是否靠近交互物体
+    player_bbox_rect = pygame.Rect(int(player_x + player_bbox_xoff), int(player_y + player_bbox_yoff), player_bbox_w, player_bbox_h)
+    player_rect = player_bbox_rect
     current_interactive = None
     for obj in interactive_objects:
         if player_rect.colliderect(obj["rect"].inflate(10, 10)):  # 扩大检测范围
@@ -400,14 +430,36 @@ while running:
         # 右键点击交互
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
             if current_interactive:
-                # 播放音效
-                sound_path = current_interactive["sound_path"]
+                # 播放音效（解析相对路径到 assets）
+                sound_path = current_interactive.get("sound_path")
+                resolved = None
                 if sound_path:
+                    if os.path.isabs(sound_path) and os.path.exists(sound_path):
+                        resolved = sound_path
+                    else:
+                        # 尝试 assets 根下查找
+                        cand = ASSETS_PATH / sound_path
+                        if cand.exists():
+                            resolved = str(cand)
+                        else:
+                            # 常见放置目录 assets/sounds
+                            cand2 = ASSETS_PATH / 'sounds' / sound_path
+                            if cand2.exists():
+                                resolved = str(cand2)
+                if resolved:
                     try:
-                        pygame.mixer.Sound(sound_path).play()
+                        pygame.mixer.Sound(resolved).play()
                     except Exception as e:
                         print(f"音效播放失败：{e}")
-                
+                else:
+                    # 若无音效路径，播放默认 click.wav（如果存在）
+                    default_click = ASSETS_PATH / 'sounds' / 'click.wav'
+                    if default_click.exists():
+                        try:
+                            pygame.mixer.Sound(str(default_click)).play()
+                        except Exception as e:
+                            print(f"音效播放失败（默认）：{e}")
+
                 # 输出交互信息
                 print(f"与【{current_interactive['name']}】交互")
     
