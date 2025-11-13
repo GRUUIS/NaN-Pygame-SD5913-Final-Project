@@ -191,8 +191,12 @@ class ThirdPuzzleScene:
         pygame.draw.rect(self.map_surface, (200,180,150), (table_x, table_y, table_w, table_h))
         add_interactable_px(table_x, table_y, table_w, table_h, 'table')
 
-        # map offset so the map is vertically letterboxed
-        self.map_offset = (0, LETTERBOX_TOP)
+        # map offset so the map is vertically centered within screen
+        try:
+            ph = self.map_surface.get_height()
+            self.map_offset = ((SCREEN_W - self.map_surface.get_width()) // 2, (SCREEN_H - ph) // 2)
+        except Exception:
+            self.map_offset = (0, LETTERBOX_TOP)
 
         # initial player pos in map pixels (center-left)
         self.player.x = map_px_w//3
@@ -262,8 +266,10 @@ class ThirdPuzzleScene:
                 # the map is wider than the screen.
                 try:
                     map_w = self.map_surface.get_width()
-                    self.map_offset = ((SCREEN_W - map_w) // 2, LETTERBOX_TOP)
-                    # initial camera shows center of map by default
+                    map_h = self.map_surface.get_height()
+                    # center horizontally and vertically so artist margins are visible
+                    self.map_offset = ((SCREEN_W - map_w) // 2, (SCREEN_H - map_h) // 2)
+                    # initial camera shows center of map horizontally
                     self.camera_x = max(0, (map_w - SCREEN_W) // 2)
                 except Exception:
                     self.map_offset = (0, LETTERBOX_TOP)
