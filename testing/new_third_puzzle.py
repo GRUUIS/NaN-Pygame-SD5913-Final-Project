@@ -16,6 +16,7 @@ parser.add_argument('--spawn-x', type=int, help='手动设置玩家出生格的 
 parser.add_argument('--spawn-y', type=int, help='手动设置玩家出生格的 tile y 坐标（以 tile 为单位）')
 parser.add_argument('--tile-draw-size', type=int, help='强制每个瓦片在屏幕上的像素尺寸（例如 64）')
 parser.add_argument('--dry-run', action='store_true', help='只计算并打印出生格/缩放信息，然后退出（不打开窗口）')
+parser.add_argument('--debug', action='store_true', help='在窗口中绘制碰撞矩形与玩家碰撞盒以便调试')
 args = parser.parse_args()
 
 # 初始化 pygame（如果不是 dry-run）
@@ -92,6 +93,7 @@ else:
 background_layers = []
 foreground_layer = None
 interactive_objects = []
+# collision_tiles will store tuples (tx, ty, rect) so we can filter by tile coords later
 collision_tiles = []
 
 # 构建 gid -> 属性 的映射（来自 tilesets[].tiles[].properties）
@@ -176,7 +178,7 @@ for layer in m.get('layers', []):
                 'type': props.get('type', '')
             })
         if is_truthy(props.get('collidable')):
-            collision_tiles.append(pygame.Rect(tx * TILE_SIZE + layer_off_x, ty * TILE_SIZE + layer_off_y, TILE_SIZE, TILE_SIZE))
+            collision_tiles.append((tx, ty, pygame.Rect(tx * TILE_SIZE + layer_off_x, ty * TILE_SIZE + layer_off_y, TILE_SIZE, TILE_SIZE)))
         # 记录 bed 图层的第一个非零瓦片作为床位置（用于出生点）
         if lname == 'bed' and bed_spawn is None:
             # find first tile in this layer that is non-zero
@@ -186,6 +188,23 @@ for layer in m.get('layers', []):
                     by = jdx // width
                     bed_spawn = (bx, by)
                     break
+# --- 手动覆盖：把指定格子设为不可碰撞（以 tile 坐标表示）
+# 我们使用代码级覆盖来使特定格子可通行而不影响整个 tileset 的属性。
+# 你要求 15,14 - 16,14 - 17,14 可进入（非碰撞）
+OVERRIDE_NON_COLLIDABLE = {(15, 14), (16, 14), (17, 14)}
+
+# 从 collision_tiles 中移除被覆盖为不可碰撞的格子
+if collision_tiles:
+    filtered = []
+    for tx, ty, rect in collision_tiles:
+        if (tx, ty) in OVERRIDE_NON_COLLIDABLE:
+            # 跳过：将其视为不可碰撞
+            continue
+        filtered.append((tx, ty, rect))
+    collision_tiles = filtered
+
+# 构建 blocked_coords 以便后续 spawn 搜索使用（基于最终的 collision_tiles）
+blocked_coords = {(tx, ty) for tx, ty, _r in collision_tiles}
 # 玩家初始位置（可调整）
 # 如果找到了床 (bed_spawn)，出生在床右侧（或最近的空位）
 def find_spawn_near(bx, by, width, collidable_gids):
@@ -211,17 +230,22 @@ def find_spawn_near(bx, by, width, collidable_gids):
         idx = sy * width + sx
         # check every tilelayer at this index; if any layer places a collidable gid here, it's not a valid spawn
         blocked = False
-        for L in m.get('layers', []):
-            if L.get('type') != 'tilelayer':
-                continue
-            data = L.get('data', [])
-            raw = data[idx]
-            gid = raw & 0x1FFFFFFF
-            if gid == 0:
-                continue
-            if gid in collidable_gids:
-                blocked = True
-                break
+        # Use final blocked_coords which reflect OVERRIDE_NON_COLLIDABLE filtering
+        if (sx, sy) in blocked_coords:
+            blocked = True
+        else:
+            for L in m.get('layers', []):
+                if L.get('type') != 'tilelayer':
+                    continue
+                data = L.get('data', [])
+                raw = data[idx]
+                gid = raw & 0x1FFFFFFF
+                if gid == 0:
+                    continue
+                # if this gid is a collidable gid (from tileset props), consider blocked
+                if gid in collidable_gids:
+                    blocked = True
+                    break
         if not blocked:
             return sx, sy
     # fallback: return original bed tile (will overlap but prevents None)
@@ -296,12 +320,47 @@ activity_rect = pygame.Rect(0, activity_top, SCREEN_WIDTH, ACTIVITY_H)
 camera_x = 0
 max_scroll = max(0, target_w - SCREEN_WIDTH)
 
+# 调试绘制开关
+DEBUG_DRAW = getattr(args, 'debug', False)
+
 # 碰撞检测函数
 def check_collision(new_x, new_y):
     # new_x, new_y are map-pixel coordinates (top-left of tile).
     # use a smaller bbox aligned to player's feet for collisions
     pr = pygame.Rect(int(new_x + player_bbox_xoff), int(new_y + player_bbox_yoff), player_bbox_w, player_bbox_h)
-    for tile_rect in collision_tiles:
+
+    # 1) 如果玩家的碰撞框覆盖到任何“没有贴图”的瓦片格（所有图层在该格皆为 gid==0 或超出地图），
+    #    则视为阻挡（玩家不能进入没有贴图的黑色区域）。
+    left = pr.left
+    right = pr.right - 1
+    top = pr.top
+    bottom = pr.bottom - 1
+    min_tx = left // TILE_SIZE
+    max_tx = right // TILE_SIZE
+    min_ty = top // TILE_SIZE
+    max_ty = bottom // TILE_SIZE
+    map_h = m.get('height', 0)
+    for ty in range(min_ty, max_ty + 1):
+        for tx in range(min_tx, max_tx + 1):
+            # out of bounds -> 当作阻挡
+            if tx < 0 or ty < 0 or tx >= width or ty >= map_h:
+                return True
+            idx = ty * width + tx
+            tile_has = False
+            for L in m.get('layers', []):
+                if L.get('type') != 'tilelayer':
+                    continue
+                data = L.get('data', [])
+                raw = data[idx]
+                gid = raw & 0x1FFFFFFF
+                if gid != 0:
+                    tile_has = True
+                    break
+            if not tile_has:
+                return True
+
+    # 2) 再检查显式标记为 collidable 的瓦片矩形
+    for tx, ty, tile_rect in collision_tiles:
         if pr.colliderect(tile_rect):
             return True
     return False
@@ -407,6 +466,25 @@ while running:
             off_fg = pygame.Surface((target_w, target_h), pygame.SRCALPHA)
             draw_map(off_fg, m_fg, tiles_by_gid, scale=scale)
             screen.blit(off_fg, (offset_x - int(round(camera_x)), offset_y))
+        except Exception:
+            pass
+    # Debug: 绘制 collision rects（红色轮廓）和玩家碰撞框（蓝色轮廓）
+    if DEBUG_DRAW:
+        try:
+            for tx, ty, crect in collision_tiles:
+                sx = int(round(crect.x * scale)) + offset_x - int(round(camera_x))
+                sy = int(round(crect.y * scale)) + offset_y
+                sw = int(round(crect.width * scale))
+                sh = int(round(crect.height * scale))
+                pygame.draw.rect(screen, (255, 0, 0), (sx, sy, sw, sh), 2)
+
+            # draw player bbox
+            pr = pygame.Rect(int(player_x + player_bbox_xoff), int(player_y + player_bbox_yoff), player_bbox_w, player_bbox_h)
+            psx = int(round(pr.x * scale)) + offset_x - int(round(camera_x))
+            psy = int(round(pr.y * scale)) + offset_y
+            pw = int(round(pr.width * scale))
+            ph = int(round(pr.height * scale))
+            pygame.draw.rect(screen, (0, 128, 255), (psx, psy, pw, ph), 2)
         except Exception:
             pass
     
