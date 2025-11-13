@@ -131,6 +131,7 @@
  </tile>
  <tile id="237">
   <properties>
+     <property name="collidable" type="bool" value="false"/>
    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
    <property name="interactive" type="bool" value="true"/>
    <property name="prompt" value="&quot;check&quot;"/>
@@ -139,6 +140,7 @@
  </tile>
  <tile id="238">
   <properties>
+     <property name="collidable" type="bool" value="false"/>
    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
    <property name="interactive" type="bool" value="true"/>
    <property name="prompt" value="&quot;check&quot;"/>
@@ -163,6 +165,7 @@
  </tile>
  <tile id="264">
   <properties>
+     <property name="collidable" type="bool" value="false"/>
    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
    <property name="interactive" type="bool" value="true"/>
    <property name="prompt" value="&quot;check&quot;"/>
@@ -171,6 +174,7 @@
  </tile>
  <tile id="265">
   <properties>
+     <property name="collidable" type="bool" value="false"/>
    <property name="click_sound" type="file" value="&quot;sounds/click.wav&quot;"/>
    <property name="interactive" type="bool" value="true"/>
    <property name="prompt" value="&quot;check&quot;"/>
