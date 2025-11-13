@@ -43,6 +43,11 @@ class CrawlState(SlothState):
         self.pick_target()
         self.attack_cd = self._cooldown()
         self.say_timer = 0.0
+        self.retarget_timer = 0.0  # how often we re-aim at player's x
+        # Advanced pattern timers
+        self.dash_cd = getattr(g, 'BOSS2_DASH_COOLDOWN', 6.5)
+        self.spore_cd = getattr(g, 'BOSS2_SPORE_COOLDOWN', 7.5)
+        self.eruption_t = getattr(g, 'BOSS2_ERUPTION_INTERVAL', 9.0)
     def _cooldown(self):
         return g.BOSS2_SLIME_COOLDOWN if self.boss.phase == 1 else g.BOSS2_SLIME_COOLDOWN_P2
     def pick_target(self):
@@ -54,9 +59,28 @@ class CrawlState(SlothState):
         # Phase transition
         if self.boss.phase == 1 and self.boss.health <= self.boss.max_health * g.BOSS2_PHASE2_HP_RATIO:
             self.boss.phase = 2
+        # Enrage check
+        if not getattr(self.boss, 'enraged', False) and self.boss.health <= self.boss.max_health * getattr(g, 'BOSS2_ENRAGE_HP_RATIO', 0.35):
+            self.boss.enraged = True
+            # shorten timers immediately
+            self.dash_cd *= 0.5
+            self.spore_cd *= 0.6
+            self.attack_cd *= 0.6
         # Horizontal ground movement
         speed = g.BOSS2_MOVE_SPEED * (1.2 if self.boss.phase==2 else 1.0)
+        if getattr(self.boss, 'enraged', False):
+            speed *= 1.25
         center_x = self.boss.x + self.boss.width/2
+        # Periodically retarget towards player's current x (seeking behavior)
+        self.retarget_timer -= dt
+        if self.retarget_timer <= 0:
+            px = player.x + player.width/2
+            # Apply a small lead when player is moving
+            px += (player.vx * 0.25)
+            # Keep inside screen padding
+            px = max(60, min(g.SCREENWIDTH-60, px))
+            self.target_x = px
+            self.retarget_timer = 0.5 if self.boss.phase==1 else 0.35
         dx = self.target_x - center_x
         if abs(dx) < 10:
             self.pick_target()
@@ -69,6 +93,33 @@ class CrawlState(SlothState):
         if self.attack_cd <= 0:
             self.boss.change_state('slime_attack')
             return
+        # Advanced timers (skip if about to fade)
+        if self.boss.health > 0:
+            self.dash_cd -= dt
+            self.spore_cd -= dt
+            self.eruption_t -= dt
+            # Priority order: dash -> spore -> eruption
+            if self.dash_cd <= 0:
+                # reset cooldown (phase/enrage scaling)
+                base = getattr(g, 'BOSS2_DASH_COOLDOWN_P2', 5.5) if self.boss.phase==2 else getattr(g, 'BOSS2_DASH_COOLDOWN', 6.5)
+                if getattr(self.boss, 'enraged', False): base *= 0.6
+                self.dash_cd = base
+                self.boss.change_state('dash')
+                return
+            if self.spore_cd <= 0:
+                base = getattr(g, 'BOSS2_SPORE_COOLDOWN', 7.5)
+                if self.boss.phase==2: base *= 0.85
+                if getattr(self.boss, 'enraged', False): base *= 0.6
+                self.spore_cd = base
+                self.boss.change_state('spore_attack')
+                return
+            if self.eruption_t <= 0:
+                base = getattr(g, 'BOSS2_ERUPTION_INTERVAL', 9.0)
+                if self.boss.phase==2: base *= 0.85
+                if getattr(self.boss, 'enraged', False): base *= 0.7
+                self.eruption_t = base
+                self.boss.change_state('eruption')
+                return
         # Dialog timer
         self.say_timer += dt
         interval = 6.0 if self.boss.phase==1 else 4.5
@@ -92,7 +143,7 @@ class SlimeAttackState(SlothState):
     def _fire(self, player, bullet_manager):
         origin_x = self.boss.x + self.boss.width/2
         origin_y = self.boss.y + self.boss.height*0.25
-        n = 5 if self.boss.phase==1 else 8
+        n = 6 if self.boss.phase==1 else 10
         spread = 1.05 if self.boss.phase==2 else 0.85
         for i in range(n):
             ratio = (i/(n-1)) if n>1 else 0.5
@@ -103,6 +154,79 @@ class SlimeAttackState(SlothState):
             vx = math.cos(ang)*speed
             vy = math.sin(ang)*speed
             bullet_manager.add_bullet(origin_x, origin_y, vx, vy, 'slime', 'boss')
+
+
+class DashState(SlothState):
+    def enter(self):
+        self.timer = 0.0
+        self.duration = getattr(g, 'BOSS2_DASH_DURATION', 0.9)
+        # Determine direction toward player at enter
+        self.dash_speed = getattr(g, 'BOSS2_DASH_SPEED', 250)
+        self.hit = False
+    def update(self, dt, player, bullet_manager):
+        self.timer += dt
+        # Move horizontally toward player center
+        center_x = self.boss.x + self.boss.width/2
+        target_x = player.x + player.width/2
+        dir = 1 if target_x > center_x else -1
+        self.boss.x += dir * self.dash_speed * dt
+        # Drop trail faster due to rapid movement
+        self.boss._maybe_drop_trail(self.boss.x + self.boss.width/2, dt)
+        # Contact damage once
+        if not self.hit:
+            brect = pygame.Rect(self.boss.x, self.boss.y, self.boss.width, self.boss.height)
+            prect = pygame.Rect(player.x, player.y, player.width, player.height)
+            if brect.colliderect(prect):
+                dmg = getattr(g, 'BOSS2_ERUPTION_BURST_DAMAGE', 22) * 0.5
+                player.take_damage(dmg)
+                self.hit = True
+        if self.timer >= self.duration:
+            self.boss.change_state('crawl')
+
+
+class SporeAttackState(SlothState):
+    def enter(self):
+        self.telegraph = 0.7
+        self.fired = False
+    def update(self, dt, player, bullet_manager):
+        self.telegraph -= dt
+        if self.telegraph <= 0 and not self.fired:
+            self.fired = True
+            self._fire(player, bullet_manager)
+            self.boss.change_state('crawl')
+    def _fire(self, player, bullet_manager):
+        origin_x = self.boss.x + self.boss.width/2
+        origin_y = self.boss.y + self.boss.height*0.25
+        # count varies by phase & enrage
+        if getattr(self.boss, 'enraged', False):
+            n = getattr(g, 'BOSS2_SPORE_COUNT_ENRAGE', 7)
+        else:
+            n = getattr(g, 'BOSS2_SPORE_COUNT_P2', 5) if self.boss.phase==2 else getattr(g, 'BOSS2_SPORE_COUNT_P1', 3)
+        for i in range(n):
+            vx = random.uniform(-60, 60)
+            vy = random.uniform(-55, -35)  # upward
+            bullet_manager.add_bullet(origin_x, origin_y, vx, vy, 'slime_spore', 'boss')
+
+
+class EruptionState(SlothState):
+    def enter(self):
+        # Immediate effect then return; collect segments for burst damage
+        self.done = False
+    def update(self, dt, player, bullet_manager):
+        if self.done:
+            self.boss.change_state('crawl')
+            return
+        prect = pygame.Rect(player.x, player.y, player.width, player.height)
+        # Choose recent segments (last 6) for burst
+        segs = self.boss.trail_segments[-6:]
+        burst_dmg = getattr(g, 'BOSS2_ERUPTION_BURST_DAMAGE', 28)
+        for seg in segs:
+            # visual flash handled in draw via age manipulation (optional: reduce age to keep alive)
+            if prect.colliderect(seg['rect']):
+                player.take_damage(burst_dmg)
+            # accelerate aging so they vanish sooner post-eruption
+            seg['age'] += 0.6
+        self.done = True
 
 
 class FadingState(SlothState):
@@ -144,6 +268,9 @@ class TheSloth:
             'intro': IntroState(self),
             'crawl': CrawlState(self),
             'slime_attack': SlimeAttackState(self),
+            'dash': DashState(self),
+            'spore_attack': SporeAttackState(self),
+            'eruption': EruptionState(self),
             'fading': FadingState(self)
         }
         self.current_state = self.states['intro']
@@ -157,6 +284,7 @@ class TheSloth:
         # Slime trail system
         self.trail_segments = []  # list of dict {rect, age}
         self._trail_last_x = self.x
+        self.enraged = False
 
     # Dialogue helpers
     def say_once(self, text: str):
@@ -298,6 +426,8 @@ class TheSloth:
                 if player_rect.colliderect(seg['rect']) and self.state_name != 'fading':
                     moving = abs(player.vx) > 25
                     dps = g.BOSS2_SLIME_TRAIL_DPS * (1.0 if moving else g.BOSS2_SLIME_TRAIL_IDLE_MULT)
+                    if getattr(self, 'enraged', False):
+                        dps *= 1.3
                     player.take_damage(dps * dt)
                     # apply slow only while inside
                     player.vx *= g.BOSS2_SLIME_TRAIL_SLOW

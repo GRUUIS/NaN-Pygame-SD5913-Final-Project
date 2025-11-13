@@ -82,6 +82,9 @@ class DriftState(BossState):
         a_dead = getattr(g, 'BOSS3_APPROACH_DEADLINE', 0.38)
         a_stress = getattr(g, 'BOSS3_APPROACH_STRESS', 0.18)
         approach = max(a_min, min(a_max, a_base + a_phase * phase_norm + a_dead * (1.0 - r) + a_stress * s))
+        # Optional direct chase: bias center heavily toward player to "seek" them
+        if getattr(g, 'BOSS3_DIRECT_CHASE_ENABLE', False):
+            approach = max(approach, getattr(g, 'BOSS3_DIRECT_CHASE_MIN_APPROACH', 0.88))
 
         pcx = player.x + player.width / 2
         pcy = player.y + player.height / 2
@@ -89,7 +92,7 @@ class DriftState(BossState):
         base_cy = getattr(g, 'BOSS3_BASE_CY', 120.0)
         desired_cx = base_cx * (1.0 - approach) + pcx * approach
         desired_cy = base_cy * (1.0 - approach) + (pcy - 80) * approach
-        chase_rate = getattr(g, 'BOSS3_CHASE_RATE', 3.0)
+        chase_rate = getattr(g, 'BOSS3_DIRECT_CHASE_RATE', None) or getattr(g, 'BOSS3_CHASE_RATE', 3.0)
         self.cx += (desired_cx - self.cx) * min(1.0, chase_rate * dt)
         self.cy += (desired_cy - self.cy) * min(1.0, chase_rate * dt)
 
@@ -126,6 +129,9 @@ class DriftState(BossState):
             - getattr(g, 'BOSS3_MIN_SEP_STRESS', 80.0) * s
         )
         min_sep = max(getattr(g, 'BOSS3_MIN_SEP_MIN', 80.0), min(getattr(g, 'BOSS3_MIN_SEP_MAX', 260.0), min_sep))
+        # When direct chase is enabled, allow a closer minimum separation
+        if getattr(g, 'BOSS3_DIRECT_CHASE_ENABLE', False):
+            min_sep = min(min_sep, getattr(g, 'BOSS3_DIRECT_CHASE_MIN_SEP', 120.0))
         if dist < min_sep and dist > 1e-3:
             scale = min_sep / dist
             x_try = pcx + dx * scale

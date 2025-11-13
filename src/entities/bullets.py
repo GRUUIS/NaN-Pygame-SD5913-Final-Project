@@ -35,6 +35,13 @@ class Bullet:
             self.size = 12
             self.lifetime = g.BOSS2_SLIME_POOL_LIFETIME
             self.pool = False  # becomes True after vertical speed small / touches ground heuristic
+        elif self.type == 'slime_spore':
+            # Floating spore that ascends briefly, then drops and creates a larger toxic puddle
+            self.size = 10
+            self.float_time = getattr(g, 'BOSS2_SPORE_FLOAT_TIME', 1.3)
+            self.lifetime = self.float_time + g.BOSS2_SLIME_POOL_LIFETIME
+            self.ascending = True
+            self.pool = False
         else:
             self.pool = False
         
@@ -78,6 +85,26 @@ class Bullet:
         # Simple gravity for slime lob to fall
         if self.type == 'slime' and not self.pool:
             self.vy += 250 * dt  # light gravity
+        if self.type == 'slime_spore':
+            if self.ascending:
+                # slow upward drift
+                self.vy -= 90 * dt
+                self.vx *= 0.98
+                self.float_time -= dt
+                if self.float_time <= 0:
+                    # begin drop
+                    self.ascending = False
+                    self.vy = 240  # start falling
+            else:
+                # falling like slime
+                self.vy += 220 * dt
+            # transform to pool when landed / slowed
+            if not self.pool and not self.ascending and (abs(self.vy) < 40 or self.y > g.SCREENHEIGHT - 140):
+                self.vx = 0
+                self.vy = 0
+                self.pool = True
+                # enlarge puddle
+                self.size = 16
         # Update position
         self.x += self.vx * dt
         self.y += self.vy * dt
@@ -148,6 +175,21 @@ class Bullet:
             else:
                 pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
                 draw_glow(int(self.size*1.6), color, 45)
+        elif self.type == 'slime_spore':
+            if self.pool:
+                puddle_w = self.size * 3 + 12
+                puddle_h = int(self.size * 1.4)
+                rect = pygame.Rect(int(self.x - puddle_w/2), int(self.y - puddle_h/2), puddle_w, puddle_h)
+                surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+                t = pygame.time.get_ticks()*0.004
+                pygame.draw.ellipse(surf, (color[0], color[1], color[2], 180), surf.get_rect())
+                rim_alpha = int(120 + 40*math.sin(t))
+                pygame.draw.ellipse(surf, (30,80,40,rim_alpha), surf.get_rect().inflate(-10,-8), 2)
+                screen.blit(surf, rect.topleft)
+            else:
+                # floating spore orb with pulsing aura
+                pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
+                draw_glow(int(self.size*1.9), color, 60)
         else:
             # Generic player / normal bullet with outline + glow
             pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
@@ -200,6 +242,11 @@ class BulletManager:
                             bullet.tick_timer = 0.0
                             player.take_damage(g.BOSS2_SLIME_TICK_DAMAGE)
                         # do not remove pool here
+                    elif bullet.type == 'slime_spore' and getattr(bullet, 'pool', False):
+                        bullet.tick_timer += 1/ g.FPS
+                        if bullet.tick_timer >= max(0.4, g.BOSS2_SLIME_TICK_INTERVAL * 0.75):
+                            bullet.tick_timer = 0.0
+                            player.take_damage(g.BOSS2_SLIME_TICK_DAMAGE * 1.25)
                     else:
                         player.take_damage(bullet.damage)
                         # remove non-pool bullet
