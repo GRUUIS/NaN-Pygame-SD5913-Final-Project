@@ -56,6 +56,9 @@ class ThirdPuzzleScene:
         self.screen = screen
         self.ui = UIManager()
         self.player = TopDownPlayer(200, 200)
+        # UI font and click sfx defaults to avoid attribute errors later
+        self._ui_font = None
+        self._click_sound = None
         self.platforms = [Platform(0, g.SCREENHEIGHT - 50, g.SCREENWIDTH, 50)]
         self.items = [Item('battery_1', 'battery', (220, g.SCREENHEIGHT - 140)), Item('bulb_1', 'bulb', (420, g.SCREENHEIGHT - 140))]
 

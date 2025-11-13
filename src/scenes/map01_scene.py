@@ -416,8 +416,8 @@ def run(screen, inventory=None):
 							# import here to avoid circular imports at module load time
 							try:
 								import main as main_mod
-								# call the main-run helper to start the boss test (perfectionist)
-								main_mod.run_boss_test('perfectionist')
+								# call the main-run helper to start the boss test (boss2/3 hence the first one is deleted)
+								main_mod.run_boss_test('hollow')
 							except Exception as e:
 								print('[map01_scene DEBUG] failed to launch boss:', e)
 							running = False

@@ -11,7 +11,7 @@ Usage:
     python main.py                              # Normal game mode
     python main.py boss [perfectionist|sloth|hollow]  # Boss battle test mode (default: perfectionist)
     python main.py test [perfectionist|sloth|hollow]  # Same as boss mode
-    python main.py boss1                          # Shortcut: Perfectionist boss test
+    XXXpython main.py boss1                          # Shortcut: Perfectionist boss test
     python main.py boss2                          # Shortcut: The Sloth boss test
     python main.py boss3                          # Shortcut: The Hollow boss test
 """
@@ -39,10 +39,10 @@ def main():
         if len(sys.argv) > 1:
             mode = sys.argv[1].lower()
             
-            if mode in ['boss1', 'perfectionist']:
-                print("Starting Boss Battle Test Mode... (Perfectionist)")
-                run_boss_test('perfectionist')
-                return
+            # if mode in ['boss1', 'perfectionist']:
+            #     print("Starting Boss Battle Test Mode... (Perfectionist)")
+            #     run_boss_test('perfectionist')
+            #     return
             if mode in ['boss2', 'sloth', 'the_sloth', 'b0ss', 'snail']:
                 print("Starting Boss Battle Test Mode... (The Sloth)")
                 run_boss_test('sloth')
@@ -332,7 +332,7 @@ def show_help():
     print("  python main.py                              - Start normal game")
     print("  python main.py boss [perfectionist|sloth|hollow]  - Boss battle test mode (default: perfectionist)")
     print("  python main.py test [perfectionist|sloth|hollow]  - Same as boss mode") 
-    print("  python main.py boss1                            - Shortcut: Perfectionist boss test")
+    print("  XXXpython main.py boss1                            - Shortcut: Perfectionist boss test")
     print("  python main.py boss2                            - Shortcut: The Sloth boss test")
     print("  python main.py boss3                            - Shortcut: The Hollow boss test")
     print("  python main.py help   - Show this help")
