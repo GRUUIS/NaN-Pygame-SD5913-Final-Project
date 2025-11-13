@@ -14,6 +14,7 @@ import os
 from .player import Player
 from .boss import Perfectionist
 from .boss_the_hollow import TheHollow
+from .boss_sloth import TheSloth
 from .bullets import BulletManager
 from .platform import Platform
 from ..systems.ui import UIManager, TextPopup, Announcement
@@ -77,6 +78,11 @@ class BossBattleScene:
     def _create_boss(self):
         x = g.SCREENWIDTH // 2
         y = 100
+        if self._boss_type in ('sloth','the_sloth','boss2','b0ss','snail'):
+            b = TheSloth(x, y)
+            # inject ui reference for dialogue popups
+            b.ui = getattr(self, 'ui', None)
+            return b
         if self._boss_type in ('procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
             return TheHollow(x, y)
         # default
@@ -101,7 +107,7 @@ class BossBattleScene:
                 # Anchor popup near boss
                 def boss_anchor():
                     return (self.boss.x + self.boss.width/2, self.boss.y)
-                self.ui.add(TextPopup(getattr(self.boss, 'entry_line', "You think words can scare me away?"), boss_anchor, duration=3.0, bg=(10,10,10)))
+                self.ui.add(TextPopup(getattr(self.boss, 'entry_line', "You think words can scare me away?"), boss_anchor, duration=3.2, bg=(10,10,10)))
             
             # Handle player shooting
             if self.player.mouse_pressed and self.player.can_shoot():

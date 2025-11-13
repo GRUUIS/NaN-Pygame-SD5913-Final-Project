@@ -9,10 +9,11 @@ Course: Creative Programming SD5913
 
 Usage:
     python main.py                              # Normal game mode
-    python main.py boss [perfectionist|hollow]  # Boss battle test mode (default: perfectionist)
-    python main.py test [perfectionist|hollow]  # Same as boss mode
-    python main.py boss1                        # Shortcut: Perfectionist boss test
-    python main.py boss3                        # Shortcut: The Hollow boss test
+    python main.py boss [perfectionist|sloth|hollow]  # Boss battle test mode (default: perfectionist)
+    python main.py test [perfectionist|sloth|hollow]  # Same as boss mode
+    python main.py boss1                          # Shortcut: Perfectionist boss test
+    python main.py boss2                          # Shortcut: The Sloth boss test
+    python main.py boss3                          # Shortcut: The Hollow boss test
 """
 
 import pygame
@@ -42,7 +43,11 @@ def main():
                 print("Starting Boss Battle Test Mode... (Perfectionist)")
                 run_boss_test('perfectionist')
                 return
-            if mode in ['boss2', 'procrastinator', 'procrastination', 'boss3', 'hollow', 'the_hollow', 'nihilism']:
+            if mode in ['boss2', 'sloth', 'the_sloth', 'b0ss', 'snail']:
+                print("Starting Boss Battle Test Mode... (The Sloth)")
+                run_boss_test('sloth')
+                return
+            if mode in ['boss3', 'hollow', 'the_hollow', 'nihilism', 'procrastinator', 'procrastination']:
                 print("Starting Boss Battle Test Mode... (The Hollow)")
                 run_boss_test('hollow')
                 return
@@ -51,9 +56,14 @@ def main():
                 boss_type = 'perfectionist'
                 if len(sys.argv) > 2:
                     arg = (sys.argv[2] or '').lower()
-                    if arg in ('perfectionist', 'procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
-                        boss_type = 'hollow' if (arg in ('hollow','the_hollow','nihilism') or arg.startswith('procrast')) else 'perfectionist'
-                display_name = 'The Hollow' if boss_type == 'hollow' else 'Perfectionist'
+                    if arg in ('perfectionist', 'sloth', 'the_sloth', 'b0ss', 'snail', 'procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
+                        if arg in ('sloth','the_sloth','b0ss','snail'):
+                            boss_type = 'sloth'
+                        elif arg in ('hollow','the_hollow','nihilism','procrastinator','procrastination'):
+                            boss_type = 'hollow'
+                        else:
+                            boss_type = 'perfectionist'
+                display_name = 'The Sloth' if boss_type == 'sloth' else ('The Hollow' if boss_type == 'hollow' else 'Perfectionist')
                 print(f"Starting Boss Battle Test Mode... ({display_name})")
                 run_boss_test(boss_type)
                 return
@@ -92,12 +102,18 @@ def run_boss_test(boss_type: str = 'perfectionist'):
     screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
     # Title mapping: show The Hollow when using the new boss aliases or legacy procrastinator alias
     bt = (boss_type or 'perfectionist').lower()
-    title = "The Hollow" if bt in ('hollow','the_hollow','nihilism','procrastinator','procrastination') else "Perfectionist"
+    title = ("The Sloth" if bt in ('sloth','the_sloth','b0ss','snail') else
+             ("The Hollow" if bt in ('hollow','the_hollow','nihilism','procrastinator','procrastination') else
+              "Perfectionist"))
     pygame.display.set_caption(f"Boss Battle Test - {title}")
     clock = pygame.time.Clock()
     
     # Initialize boss battle scene
-    boss_scene = BossBattleScene(boss_type=boss_type)
+    if bt in ('sloth','the_sloth','b0ss','snail'):
+        from src.entities.sloth_battle_scene import SlothBattleScene
+        boss_scene = SlothBattleScene()
+    else:
+        boss_scene = BossBattleScene(boss_type=boss_type)
     
     print("Boss Battle Controls:")
     print("  WASD: Move")
@@ -314,10 +330,11 @@ def show_help():
     """Show help information"""
     print("\nMind's Maze - Game Modes:")
     print("  python main.py                              - Start normal game")
-    print("  python main.py boss [perfectionist|hollow]  - Boss battle test mode (default: perfectionist)")
-    print("  python main.py test [perfectionist|hollow]  - Same as boss mode") 
-    print("  python main.py boss1                        - Shortcut: Perfectionist boss test")
-    print("  python main.py boss3                        - Shortcut: The Hollow boss test")
+    print("  python main.py boss [perfectionist|sloth|hollow]  - Boss battle test mode (default: perfectionist)")
+    print("  python main.py test [perfectionist|sloth|hollow]  - Same as boss mode") 
+    print("  python main.py boss1                            - Shortcut: Perfectionist boss test")
+    print("  python main.py boss2                            - Shortcut: The Sloth boss test")
+    print("  python main.py boss3                            - Shortcut: The Hollow boss test")
     print("  python main.py help   - Show this help")
     print("\nBoss Battle Controls:")
     print("  WASD: Move player")

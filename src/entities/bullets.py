@@ -25,8 +25,18 @@ class Bullet:
         self.type = bullet_type
         self.source = source  # 'player' or 'boss'
         self.damage = g.BULLET_DAMAGE[bullet_type]
+        # Base lifetime; some types override
         self.lifetime = 5.0
         self.homing_target = None
+        # For lingering slime pools (do not delete on first hit)
+        self.tick_timer = 0.0
+        if self.type == 'slime':
+            # Slime projectile will travel, then when velocity nearly zero (or hits ground handled elsewhere) we treat as pool.
+            self.size = 12
+            self.lifetime = g.BOSS2_SLIME_POOL_LIFETIME
+            self.pool = False  # becomes True after vertical speed small / touches ground heuristic
+        else:
+            self.pool = False
         
         # Visual properties
         if bullet_type == 'laser':
@@ -35,6 +45,9 @@ class Bullet:
             self.size = 6
         elif bullet_type == 'voidfire':
             self.size = 5
+        elif bullet_type == 'slime':
+            # size already set above (12)
+            pass
         else:
             self.size = 4
         
@@ -62,15 +75,24 @@ class Bullet:
                     self.vx = (self.vx / speed) * max_speed
                     self.vy = (self.vy / speed) * max_speed
         
+        # Simple gravity for slime lob to fall
+        if self.type == 'slime' and not self.pool:
+            self.vy += 250 * dt  # light gravity
         # Update position
         self.x += self.vx * dt
         self.y += self.vy * dt
+        # Heuristic: slime becomes pool when vertical speed small and near ground (bottom 140px)
+        if self.type == 'slime' and not self.pool:
+            if abs(self.vy) < 30 or self.y > g.SCREENHEIGHT - 140:
+                self.vx = 0
+                self.vy = 0
+                self.pool = True
     
     def is_expired(self) -> bool:
         """Check if bullet should be removed"""
         return (self.lifetime <= 0 or 
                 self.x < -50 or self.x > g.SCREENWIDTH + 50 or
-                self.y < -50 or self.y > g.SCREENHEIGHT + 50)
+                (self.y < -50) or (self.y > g.SCREENHEIGHT + 50 and not self.pool))
     
     def get_rect(self) -> pygame.Rect:
         """Get collision rectangle"""
@@ -82,27 +104,55 @@ class Bullet:
         color_key = f'bullet_{self.type}'
         color = g.COLORS.get(color_key, g.COLORS['bullet_normal'])
         
-        # Draw bullet based on type
+        # Helper: radial gradient circle
+        def draw_glow(radius, inner_color, outer_alpha=55):
+            surf = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
+            for r in range(radius, 0, -1):
+                a = int(outer_alpha * (r/ radius)**2)
+                c = (*inner_color, a)
+                pygame.draw.circle(surf, c, (radius, radius), r)
+            screen.blit(surf, (int(self.x - radius), int(self.y - radius)))
+
+        # Draw bullet based on type with improved visuals
         if self.type == 'laser':
-            # Elongated shape for laser
-            pygame.draw.ellipse(screen, color, 
-                              (self.x - self.size, self.y - self.size//2, 
-                               self.size*2, self.size))
+            body_rect = (self.x - self.size, self.y - self.size*0.35, self.size*2, self.size*0.7)
+            pygame.draw.ellipse(screen, color, body_rect)
+            draw_glow(int(self.size*1.4), color, 35)
         elif self.type == 'void_shard':
-            # Black square shard
-            size = self.size
-            rect = pygame.Rect(int(self.x - size/2), int(self.y - size/2), size, size)
-            pygame.draw.rect(screen, color, rect)
+            # Diamond shape
+            s = self.size
+            pts = [
+                (int(self.x), int(self.y - s)),
+                (int(self.x + s), int(self.y)),
+                (int(self.x), int(self.y + s)),
+                (int(self.x - s), int(self.y))
+            ]
+            pygame.draw.polygon(screen, color, pts)
+            pygame.draw.polygon(screen, (0,0,0), pts, 1)
         elif self.type == 'voidfire':
-            # Fiery orb
             pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
-            # small aura
-            aura = pygame.Surface((self.size*4, self.size*4), pygame.SRCALPHA)
-            pygame.draw.circle(aura, (*color, 60), (self.size*2, self.size*2), self.size*2)
-            screen.blit(aura, (int(self.x - self.size*2), int(self.y - self.size*2)))
+            draw_glow(self.size*2, color, 65)
+        elif self.type == 'slime':
+            if self.pool:
+                # Pulsating toxic puddle with rim
+                puddle_w = self.size * 3
+                puddle_h = int(self.size * 1.3)
+                rect = pygame.Rect(int(self.x - puddle_w/2), int(self.y - puddle_h/2), puddle_w, puddle_h)
+                surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+                t = pygame.time.get_ticks()*0.003
+                base_col = (color[0], color[1], color[2])
+                pygame.draw.ellipse(surf, (*base_col, 150), surf.get_rect())
+                rim_alpha = int(90 + 40*math.sin(t))
+                pygame.draw.ellipse(surf, (30,60,30,rim_alpha), surf.get_rect().inflate(-8,-6), 2)
+                screen.blit(surf, rect.topleft)
+            else:
+                pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
+                draw_glow(int(self.size*1.6), color, 45)
         else:
-            # Circular bullets
+            # Generic player / normal bullet with outline + glow
             pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
+            pygame.draw.circle(screen, (0,0,0), (int(self.x), int(self.y)), self.size, 1)
+            draw_glow(int(self.size*1.4), color, 40)
         
         # Draw collision box in debug mode
         if g.SHOW_COLLISION_BOXES:
@@ -143,8 +193,18 @@ class BulletManager:
             if bullet.source == 'boss':
                 player_rect = pygame.Rect(player.x, player.y, player.width, player.height)
                 if bullet_rect.colliderect(player_rect):
-                    player.take_damage(bullet.damage)
-                    self.bullets.remove(bullet)
+                    if bullet.type == 'slime' and getattr(bullet, 'pool', False):
+                        # Damage over time; use tick timer
+                        bullet.tick_timer += 1/ g.FPS  # approximate frame dt for tick gating
+                        if bullet.tick_timer >= g.BOSS2_SLIME_TICK_INTERVAL:
+                            bullet.tick_timer = 0.0
+                            player.take_damage(g.BOSS2_SLIME_TICK_DAMAGE)
+                        # do not remove pool here
+                    else:
+                        player.take_damage(bullet.damage)
+                        # remove non-pool bullet
+                        if bullet in self.bullets:
+                            self.bullets.remove(bullet)
             
             # Player bullets hitting boss
             elif bullet.source == 'player':
