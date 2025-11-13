@@ -23,7 +23,7 @@ def run(screen, inventory=None):
 	import pygame
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
-	from src.ui.dialog_box import DialogBox
+	from src.ui.dialog_box import SpeechBubble
 
 	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 	# find Room1.tmj first, fallback to any Room1.tmx if necessary
@@ -213,29 +213,23 @@ def run(screen, inventory=None):
 	except Exception:
 		pass
 
-	# Create a dialog box at the top-right corner. Size chosen to be readable
-	# and not overlap the HUD. We open it on scene start with the greeting.
+	# Create a static dialog in the top-right corner (doesn't follow player)
 	try:
 		screen_w, screen_h = screen.get_size()
-		box_w = min(420, screen_w // 3)
-		box_h = max(48, int(box_w * 0.25))
-		# base margin from the screen edges
-		box_x = screen_w - box_w - 12
-		box_y = 12
-		# shift the dialog one tile to the right and one tile down so it
-		# aligns visually with the tile grid
-		try:
-			shift_x = tile_w * scale_int
-			shift_y = tile_h * scale_int
-			box_x += shift_x
-			box_y += shift_y
-		except Exception:
-			# if tile sizes are not available, skip the shift
-			pass
-		dialog = DialogBox((box_x, box_y), (box_w, box_h), image_name='UI_Flat_InputField01a.png', scale=2)
-		dialog.set_text('hi~')
-		# make dialog text black for readability per request
-		dialog.text_color = (0, 0, 0)
+		box_w = min(280, max(120, screen_w // 6))
+		box_h = max(28, int(box_w * 0.20))
+		margin = 12
+		box_x = (screen_w - box_w) // 2
+		box_y = margin
+
+		def _anchor_static_combo():
+			try:
+				return pygame.Rect(box_x, box_y, box_w, box_h)
+			except Exception:
+				return None
+
+		dialog = SpeechBubble(_anchor_static_combo, size=(box_w, box_h), draw_background=False, face_offset=0.0, y_overlap=0, font_scale=0.72)
+		dialog.set_text('Hi~')
 		dialog.open()
 	except Exception:
 		dialog = None
@@ -274,11 +268,6 @@ def run(screen, inventory=None):
 						if picked or not inventory:
 							items.remove(it)
 							print('Picked up', it.get('id'))
-							try:
-								if dialog:
-									dialog.set_text(f"Picked up {it.get('id')}")
-							except Exception:
-								pass
 							break
 			# forward to inventory
 			if inventory:
@@ -302,12 +291,6 @@ def run(screen, inventory=None):
 								if picked or not inventory:
 									items.remove(it)
 									print('Picked up', it.get('id'))
-									# update dialog if present
-									try:
-										if dialog:
-											dialog.set_text(f"Picked up {it.get('id')}")
-									except Exception:
-										pass
 							break
 
 		# update
@@ -376,12 +359,7 @@ def run(screen, inventory=None):
 		if inventory:
 			inventory.draw(screen)
 
-		# draw dialog if present
-		try:
-			if dialog:
-				dialog.draw(screen)
-		except Exception:
-			pass
+		# dialog system removed: nothing to draw here
 
 		pygame.display.flip()
 

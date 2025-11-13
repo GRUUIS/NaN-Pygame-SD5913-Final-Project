@@ -1,167 +1,137 @@
-"""Simple dialogue box UI component.
+"""Small speech-bubble UI anchored to a target rect.
 
-Provides a pixel-art-friendly dialog box that uses a UI image if available
-and scales it using nearest-neighbour (integer scaling) to avoid blur.
+This module provides a compact `SpeechBubble` class which can be given an
+`anchor_getter` callable returning a `pygame.Rect` in screen coordinates.
+The bubble will position itself relative to the returned rect and draw a
+short text string. It's intentionally small and dependency-light for use
+in the map viewer.
 
 API:
-    DialogBox(pos, size, image_name=None, scale=2)
-    .set_text(text)
-    .open()/close()/toggle()
-    .draw(surface)
-
-The module prefers `Silver.ttf` for the font via src.utils.font.get_font.
-If the requested UI image is not found, a rounded rect fallback is drawn.
+	SpeechBubble(anchor_getter, size=(w,h), draw_background=False)
+	.set_text(text)
+	.open()/close()/toggle()
+	.draw(surface)
 """
+
 from __future__ import annotations
 
 import os
 import pygame
-from typing import Optional, Tuple
-
-from src.utils.font import get_font
+from typing import Callable, Optional, Tuple
 
 
-class DialogBox:
-    def __init__(self, pos: Tuple[int, int], size: Tuple[int, int], image_name: Optional[str] = None, scale: int = 2):
-        """Create a dialog box.
+class SpeechBubble:
+	def __init__(self, anchor_getter: Callable[[], Optional[pygame.Rect]], size: Tuple[int, int] = (160, 40), draw_background: bool = False, padding: int = 6, face_offset: float = 0.35, y_overlap: int = -6, font_scale: float = 0.65):
+		"""Create a SpeechBubble.
 
-        Args:
-            pos: top-left position (x,y) on screen
-            size: (width, height) target size in pixels
-            image_name: filename to search for in assets (optional)
-            scale: integer scale to apply to the source image (nearest neighbour)
-        """
-        self.x, self.y = pos
-        self.w, self.h = size
-        self.visible = False
-        self.text = ""
-        self.padding = 8
-        self.scale = max(1, int(scale))
+		Args:
+			anchor_getter: callable returning either a `pygame.Rect` or a
+				`(rect, facing)` tuple where `facing` is 'left' or 'right'.
+			size: (w,h) pixel size for the bubble box.
+			draw_background: whether to draw a translucent backdrop.
+			padding: text padding inside the box.
+			face_offset: fraction of target width to offset the bubble toward
+				the facing direction (positive floats). Smaller => closer to center.
+			y_overlap: extra vertical offset (px) to move bubble closer to/overlap head.
+			font_scale: relative font size (fraction of box height).
+		"""
+		self._anchor = anchor_getter
+		self.w, self.h = int(size[0]), int(size[1])
+		self.padding = int(padding)
+		self.visible = False
+		self.text = ""
+		self.draw_background = bool(draw_background)
+		self.face_offset = float(face_offset)
+		self.y_overlap = int(y_overlap)
+		self.font_scale = float(font_scale)
 
-        self._bg_surf: Optional[pygame.Surface] = None
-        self._load_background(image_name)
+		# Try to pick a readable font from assets first; increase size for readability
+		try:
+			root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+			path = os.path.join(root, 'assets', 'Silver.ttf')
+			fsize = max(12, int(self.h * self.font_scale))
+			if os.path.exists(path):
+				self.font = pygame.font.Font(path, fsize)
+			else:
+				self.font = pygame.font.SysFont(None, fsize)
+		except Exception:
+			self.font = pygame.font.SysFont(None, max(12, int(self.h * self.font_scale)))
 
-        # default font size: make it readable relative to box height
-        font_size = max(12, int(self.h * 0.18))
-        try:
-            self.font = get_font(font_size)
-        except Exception:
-            self.font = pygame.font.Font(None, font_size)
+		# internal position state
+		self.x = 0
+		self.y = 0
 
-        # text color as RGB tuple
-        self.text_color: Tuple[int, int, int] = (255, 255, 255)
+	def set_text(self, text: str):
+		self.text = str(text)
 
-    def _find_image_path(self, image_name: Optional[str]) -> Optional[str]:
-        if not image_name:
-            return None
-        candidates = [
-            os.path.join('assets', image_name),
-            os.path.join('assets', 'ui', image_name),
-            os.path.join('assets', 'art', image_name),
-            os.path.join('assets', 'sprites', 'ui', image_name),
-            os.path.join('assets', 'sprites', image_name),
-            os.path.join('combine', 'docs', image_name),
-        ]
-        for p in candidates:
-            if os.path.exists(p):
-                return p
+	def open(self):
+		self.visible = True
 
-        # recursive search fallback
-        assets_dir = 'assets'
-        if os.path.exists(assets_dir):
-            for root, dirs, files in os.walk(assets_dir):
-                for fname in files:
-                    if fname.lower() == image_name.lower():
-                        return os.path.join(root, fname)
-        return None
+	def close(self):
+		self.visible = False
 
-    def _load_background(self, image_name: Optional[str]):
-        path = self._find_image_path(image_name)
-        if path is None:
-            # fallback: create translucent dark rounded rect
-            surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
-            surf.fill((0, 0, 0, 160))
-            self._bg_surf = surf
-            return
+	def toggle(self):
+		self.visible = not self.visible
 
-        try:
-            img = pygame.image.load(path).convert_alpha()
-        except Exception:
-            # fallback to rect
-            surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
-            surf.fill((0, 0, 0, 160))
-            self._bg_surf = surf
-            return
+	def draw(self, surface: pygame.Surface):
+		if not self.visible:
+			return
+		try:
+			targ = self._anchor() if self._anchor else None
+			if targ is None:
+				return
+			# anchor_getter may return either a Rect or (Rect, facing)
+			facing = None
+			if isinstance(targ, (tuple, list)) and len(targ) >= 1:
+				rect = targ[0]
+				if len(targ) >= 2:
+					facing = targ[1]
+			else:
+				rect = targ
 
-        iw, ih = img.get_size()
-        # Prefer integer scaling factors to preserve pixel-art crispness
-        scale_x = max(1, self.w // iw)
-        scale_y = max(1, self.h // ih)
-        scale = min(scale_x, scale_y)
-        new_w = iw * scale
-        new_h = ih * scale
-        try:
-            img2 = pygame.transform.scale(img, (new_w, new_h))
-        except Exception:
-            img2 = img
+			# Base x: center horizontally on target
+			base_x = int(rect.centerx - (self.w // 2))
+			# If facing is provided, offset bubble toward that side so it follows
+			# the visible head direction. Positive face_offset moves bubble to the right
+			# when facing 'right' and left when facing 'left'. Use target width to
+			# compute a pixel offset.
+			x_offset = 0
+			try:
+				if facing in ('left', 'right'):
+					dir_sign = 1 if facing == 'right' else -1
+					x_offset = int(dir_sign * max(0, rect.width * self.face_offset))
+			except Exception:
+				x_offset = 0
+			self.x = base_x + x_offset
 
-        # center the bg image inside the requested box
-        surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
-        ox = (self.w - new_w) // 2
-        oy = (self.h - new_h) // 2
-        surf.blit(img2, (ox, oy))
-        self._bg_surf = surf
+			# Place bubble slightly above the visual rect top (closer to head)
+			self.y = int(rect.top - (self.h // 2) + self.y_overlap)
 
-    def set_text(self, text: str):
-        self.text = str(text)
+			# clamp to surface bounds
+			sw, sh = surface.get_size()
+			self.x = max(0, min(self.x, max(0, sw - self.w)))
+			self.y = max(0, min(self.y, max(0, sh - self.h)))
+		except Exception:
+			return
 
-    def open(self):
-        self.visible = True
+		# Background (optional)
+		if self.draw_background:
+			try:
+				s = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+				s.fill((0, 0, 0, 180))
+				pygame.draw.rect(s, (255, 255, 255), s.get_rect(), 1, border_radius=6)
+				surface.blit(s, (self.x, self.y))
+			except Exception:
+				pygame.draw.rect(surface, (0, 0, 0), (self.x, self.y, self.w, self.h))
 
-    def close(self):
-        self.visible = False
+		# Render text centered
+		if not self.text:
+			return
+		try:
+			txt_s = self.font.render(self.text, True, (0, 0, 0))
+		except Exception:
+			txt_s = self.font.render(self.text, True, (255, 255, 255))
+		tx = self.x + max(0, (self.w - txt_s.get_width()) // 2)
+		ty = self.y + max(0, (self.h - txt_s.get_height()) // 2)
+		surface.blit(txt_s, (tx, ty))
 
-    def toggle(self):
-        self.visible = not self.visible
-
-    def draw(self, surface: pygame.Surface):
-        if not self.visible:
-            return
-        # draw background
-        if self._bg_surf:
-            surface.blit(self._bg_surf, (self.x, self.y))
-        else:
-            # fallback box
-            rect = pygame.Rect(self.x, self.y, self.w, self.h)
-            pygame.draw.rect(surface, (0, 0, 0, 200), rect)
-            pygame.draw.rect(surface, (255, 255, 255), rect, 2)
-
-        # text wrap simple: split on spaces to fill lines
-        if not self.text:
-            return
-        max_w = self.w - self.padding * 2
-        words = self.text.split(' ')
-        lines = []
-        cur = ''
-        for w in words:
-            test = (cur + ' ' + w).strip() if cur else w
-            tw = self.font.size(test)[0]
-            if tw <= max_w or not cur:
-                cur = test
-            else:
-                lines.append(cur)
-                cur = w
-        if cur:
-            lines.append(cur)
-
-        # draw lines centered horizontally and vertically within the box
-        max_lines = 10
-        lines = lines[:max_lines]
-        line_h = self.font.get_height()
-        total_h = line_h * len(lines)
-        start_y = self.y + self.padding + max(0, (self.h - self.padding * 2 - total_h) // 2)
-        for i, line in enumerate(lines):
-            rendered = self.font.render(line, True, self.text_color)
-            tx = self.x + max(0, (self.w - rendered.get_width()) // 2)
-            ty = start_y + i * line_h
-            surface.blit(rendered, (tx, ty))

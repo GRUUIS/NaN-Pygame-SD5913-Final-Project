@@ -510,3 +510,61 @@ class MapPlayer:
 				surface.blit(self._sprite, (draw_x, draw_y))
 		else:
 			pygame.draw.rect(surface, (200, 80, 80), self.rect)
+
+	def get_visual_rect(self):
+		"""Return the pygame.Rect where the visual sprite is drawn on the surface.
+		This mirrors the positioning logic used in `draw()` so callers (UI, dialog)
+		can anchor to the visible animation frame/pivot rather than the collision box.
+		Returns None on failure.
+		"""
+		try:
+			if not getattr(self, '_loaded', False):
+				self._load_sprite()
+
+			# prefer playing animations if available
+			if hasattr(self, 'animations') and getattr(self, 'cur_anim', None) in getattr(self, 'animations', {}):
+				key = self.cur_anim
+				# if generic key, prefer direction-specific
+				if not (key.endswith('_left') or key.endswith('_right')):
+					candidate = f"{key}_{self.facing}"
+					if candidate in self.animations:
+						key = candidate
+				anim = self.animations.get(key, self.animations.get(self.cur_anim, {}))
+				frames = anim.get('frames', [])
+				if frames:
+					idx = getattr(self, 'anim_frame', 0) % len(frames)
+					frame = frames[idx]
+					frame_w = frame.get_width()
+					# determine pivot_used as in draw()
+					is_left = key.endswith('_left')
+					base_name = key.rsplit('_', 1)[0] if '_' in key else key
+					right_key = f"{base_name}_right"
+					if is_left and right_key in self.animations and 'pivots' in self.animations[right_key]:
+						pivots = self.animations[right_key].get('pivots', [])
+						pivot_used = pivots[idx] if len(pivots) > idx else (frame_w // 2, frame.get_height() - 1)
+					elif 'pivots' in anim and len(anim.get('pivots', [])) > idx:
+						pivot_used = anim['pivots'][idx]
+					else:
+						pivot_used = (frame_w // 2, frame.get_height() - 1)
+					vis_w = int(getattr(self, 'w_vis', frame.get_width()))
+					vis_h = int(getattr(self, 'h_vis', frame.get_height()))
+					cw = int(getattr(self, 'cw', vis_w))
+					# compute draw_x_base and draw_y like draw()
+					draw_x_base = int(self.x + (cw - vis_w) // 2)
+					draw_y = int(self.y + (self.ch - vis_h))
+					correction = frame_w - 2 * pivot_used[0]
+					if is_left:
+						draw_x = draw_x_base - int(round(correction))
+					else:
+						draw_x = draw_x_base
+					return pygame.Rect(draw_x, draw_y, vis_w, vis_h)
+
+		# fallback: use visual sizes and align bottoms over collision box
+			vis_w = int(getattr(self, 'w_vis', self.cw))
+			vis_h = int(getattr(self, 'h_vis', self.ch))
+			cw = int(getattr(self, 'cw', vis_w))
+			draw_x = int(self.x + (cw - vis_w) // 2)
+			draw_y = int(self.y + (self.ch - vis_h))
+			return pygame.Rect(draw_x, draw_y, vis_w, vis_h)
+		except Exception:
+			return None
