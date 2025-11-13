@@ -256,15 +256,18 @@ class ThirdPuzzleScene:
                     self.map_surface = pygame.Surface((sw, sh), pygame.SRCALPHA)
                     draw_map(self.map_surface, m, tiles_by_gid, camera_rect=None, scale=self.draw_scale)
 
-                # center the map horizontally if it's narrower than the screen
+                # center the map horizontally (respect artist margins). We set
+                # map_offset so the full map is centered; also set an initial
+                # camera_x so the visible window shows the map center when
+                # the map is wider than the screen.
                 try:
-                    if self.map_surface.get_width() < SCREEN_W:
-                        self.map_offset = ((SCREEN_W - self.map_surface.get_width()) // 2, LETTERBOX_TOP)
-                    else:
-                        self.map_offset = (0, LETTERBOX_TOP)
+                    map_w = self.map_surface.get_width()
+                    self.map_offset = ((SCREEN_W - map_w) // 2, LETTERBOX_TOP)
+                    # initial camera shows center of map by default
+                    self.camera_x = max(0, (map_w - SCREEN_W) // 2)
                 except Exception:
-                    # fallback to previous offset
                     self.map_offset = (0, LETTERBOX_TOP)
+                    self.camera_x = 0
 
                 # reset collision/interactables and repopulate from object layers
                 self.collision_rects = []
@@ -363,6 +366,15 @@ class ThirdPuzzleScene:
                 self.map_height = map_px_h
                 self.player_min_x = 16
                 self.player_max_x = max(16, map_px_w - 16)
+
+                # if no explicit player_start object was found, place player in map center
+                if not player_start_found:
+                    try:
+                        self.player.x = map_px_w // 2
+                        # place vertically near mid/lower area (best-effort)
+                        self.player.y = int(map_px_h * 0.55)
+                    except Exception:
+                        pass
 
                 # keep references
                 self.map = m
