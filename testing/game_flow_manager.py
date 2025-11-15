@@ -1,13 +1,14 @@
 """
 游戏流程管理器
-整合游戏的多个场景：初始菜单 -> 解谜场景 -> 第二场景
+整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境过渡 -> 战斗场景
 
 场景流程：
 1. combine/game.py 的菜单界面（初始界面）
 2. testing/new_third_puzzle.py 的解谜场景
-3. combine/game.py 的 map01 场景（第二界面）
+3. testing/dream_transition_scene.py 的梦境过渡场景（剧情衔接）
+4. combine/game.py 的 map01 场景（战斗场景）
 
-在解谜场景中，玩家走到门前（坐标 21,12 和 21,13）右键点击可跳转到下一场景。
+在解谜场景中，玩家走到门前（坐标 21,12 和 21,13）右键点击可跳转到梦境场景。
 """
 
 import pygame
@@ -175,21 +176,68 @@ def run_puzzle_scene(screen):
     
     # 玩家参数
     player_speed_pixels = 140
-    player_scale_on_tile = 0.6
-    player_map_w = max(1, int(round(TILE_SIZE * player_scale_on_tile)))
+    # 角色精灵是 23×36，瓦片是 32×32
+    # 让角色高度约等于瓦片大小，宽度按比例
+    player_scale_on_tile = 1.1  # 角色稍微比瓦片高一点（36/32 ≈ 1.125）
     player_map_h = max(1, int(round(TILE_SIZE * player_scale_on_tile)))
-    player_bbox_w = player_map_w
-    player_bbox_h = player_map_h
-    player_bbox_xoff = (TILE_SIZE - player_bbox_w) // 2
-    player_bbox_yoff = (TILE_SIZE - player_bbox_h)
+    player_map_w = max(1, int(round(player_map_h * (23.0 / 36.0))))  # 保持 23:36 比例
+    player_bbox_w = int(player_map_w * 0.7)  # 碰撞盒稍小一些，避免卡墙
+    player_bbox_h = int(player_map_h * 0.5)  # 碰撞盒在下半部分
+    player_bbox_xoff = (player_map_w - player_bbox_w) // 2
+    player_bbox_yoff = player_map_h - player_bbox_h
     
-    player_draw_w = int(round(player_map_w * scale))
+    # 保持精灵宽高比 23:36
+    SPRITE_ASPECT = 23.0 / 36.0
     player_draw_h = int(round(player_map_h * scale))
+    player_draw_w = int(round(player_draw_h * SPRITE_ASPECT))
     player_draw_xoff = (tile_draw_size - player_draw_w) // 2
     player_draw_yoff = (tile_draw_size - player_draw_h) // 2
     
-    player_img = pygame.Surface((player_draw_w, player_draw_h), pygame.SRCALPHA)
-    player_img.fill((0, 255, 0))
+    # 加载角色精灵图动画系统
+    sprite_path = ASSETS_PATH / "8Direction_TopDown_Character Sprites_ByBossNelNel" / "SpriteSheet.png"
+    player_animations = {}  # 存储所有方向的动画帧
+    SPRITE_W, SPRITE_H = 23, 36
+    
+    try:
+        sprite_sheet = pygame.image.load(str(sprite_path)).convert_alpha()
+        # 8个方向：下、左下、左、左上、上、右上、右、右下
+        directions = ['down', 'down_left', 'left', 'up_left', 'up', 'up_right', 'right', 'down_right']
+        
+        for row, direction in enumerate(directions):
+            player_animations[direction] = {
+                'idle': None,
+                'walk': []
+            }
+            # 第一列是idle
+            idle_sprite = sprite_sheet.subsurface(pygame.Rect(0, row * SPRITE_H, SPRITE_W, SPRITE_H))
+            # 右侧方向需要水平翻转
+            if 'right' in direction:
+                idle_sprite = pygame.transform.flip(idle_sprite, True, False)
+            player_animations[direction]['idle'] = pygame.transform.scale(idle_sprite, (player_draw_w, player_draw_h))
+            
+            # 第2-9列是行走动画（8帧）
+            for col in range(1, 9):
+                walk_sprite = sprite_sheet.subsurface(pygame.Rect(col * SPRITE_W, row * SPRITE_H, SPRITE_W, SPRITE_H))
+                # 右侧方向需要水平翻转
+                if 'right' in direction:
+                    walk_sprite = pygame.transform.flip(walk_sprite, True, False)
+                scaled_sprite = pygame.transform.scale(walk_sprite, (player_draw_w, player_draw_h))
+                player_animations[direction]['walk'].append(scaled_sprite)
+        
+        player_img = player_animations['down']['idle']  # 默认朝下静止
+    except Exception as e:
+        print(f"无法加载角色精灵图: {e}，使用默认方块")
+        player_img = pygame.Surface((player_draw_w, player_draw_h), pygame.SRCALPHA)
+        player_img.fill((0, 255, 0))
+        player_animations = None
+    
+    # 动画状态
+    player_direction = 'down'  # 当前朝向
+    player_moving = False  # 是否在移动
+    anim_frame = 0  # 当前动画帧
+    anim_timer = 0  # 动画计时器
+    ANIM_FPS = 8  # 每秒8帧
+    FRAME_DURATION = 1.0 / ANIM_FPS
     
     # 相机设置
     ACTIVITY_H = 400
@@ -275,14 +323,55 @@ def run_puzzle_scene(screen):
         new_x, new_y = player_x, player_y
         move_delta = player_speed_pixels * dt
         
+        # 检测移动方向
+        dx, dy = 0, 0
         if keys[pygame.K_w] or keys[pygame.K_UP]:
             new_y -= move_delta
+            dy = -1
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
             new_y += move_delta
+            dy = 1
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             new_x -= move_delta
+            dx = -1
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             new_x += move_delta
+            dx = 1
+        
+        # 判断是否在移动
+        player_moving = (dx != 0 or dy != 0)
+        
+        # 根据移动方向确定朝向
+        if player_moving and player_animations:
+            if dy < 0 and dx == 0:
+                player_direction = 'up'
+            elif dy > 0 and dx == 0:
+                player_direction = 'down'
+            elif dx < 0 and dy == 0:
+                player_direction = 'left'
+            elif dx > 0 and dy == 0:
+                player_direction = 'right'
+            elif dy < 0 and dx < 0:
+                player_direction = 'up_left'
+            elif dy < 0 and dx > 0:
+                player_direction = 'up_right'
+            elif dy > 0 and dx < 0:
+                player_direction = 'down_left'
+            elif dy > 0 and dx > 0:
+                player_direction = 'down_right'
+        
+        # 更新动画
+        if player_animations:
+            if player_moving:
+                anim_timer += dt
+                if anim_timer >= FRAME_DURATION:
+                    anim_frame = (anim_frame + 1) % 8
+                    anim_timer = 0
+                player_img = player_animations[player_direction]['walk'][anim_frame]
+            else:
+                anim_frame = 0
+                anim_timer = 0
+                player_img = player_animations[player_direction]['idle']
         
         if not check_collision(new_x, new_y):
             player_x, player_y = new_x, new_y
@@ -414,9 +503,23 @@ def main():
         pygame.quit()
         return
     
-    # 第三阶段：跳转到第二场景（map01）
+    # 第三阶段：梦境过渡场景
     if puzzle_result == 'next':
-        print("解谜完成，进入第二场景...")
+        print("解谜完成，进入梦境过渡...")
+        try:
+            from testing.dream_transition_scene import run_dream_transition
+            dream_result = run_dream_transition(screen)
+            
+            if dream_result == 'quit':
+                pygame.quit()
+                return
+        except Exception as e:
+            print(f'梦境场景加载失败: {e}')
+            dream_result = 'next'  # 失败则跳过梦境场景
+    
+    # 第四阶段：跳转到战斗场景（map01）
+    if puzzle_result == 'next':
+        print("进入战斗场景...")
         try:
             from src.systems.inventory import Inventory
             inv = Inventory()
