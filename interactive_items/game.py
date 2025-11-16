@@ -27,7 +27,7 @@ def main():
             inv = None
 
         try:
-            from src.scenes.map01_scene import run as run_map01
+            from interactive_items.map01_scene_withscreenprojection import run as run_map01
             run_map01(screen, inventory=inv)
         except Exception as e:
             print('Failed to import or run map01 scene:', e)
