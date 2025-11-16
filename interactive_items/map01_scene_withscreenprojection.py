@@ -289,6 +289,27 @@ def run(screen, inventory=None):
 			projected_imgs.append(None)
 	current_img_idx = 0
 
+	# 新增：沙漏拾取后只显示group.png
+	group_img = None
+	try:
+		group_img = pygame.image.load(os.path.join('assets', 'group.png')).convert_alpha()
+		group_img = pygame.transform.smoothscale(group_img, (200, 200))
+	except Exception:
+		group_img = None
+
+
+	show_only_group_img = False
+	group_img_show_timer = 0.0  # 计时器，记录group.png和文字显示时长
+	group_img_fadeout = False   # 是否进入淡出阶段
+	group_img_fadeout_time = 1.5  # 淡出动画时长（秒）
+	group_img_fadeout_progress = 0.0  # 当前淡出进度（秒）
+
+
+	# 图片淡入相关变量
+	image_fadein = False  # 是否开始淡入
+	image_alpha = 0       # 当前alpha值（0-255）
+	image_fadein_speed = 180  # 每秒alpha增加量，可调整
+
 	clock = pygame.time.Clock()
 	running = True
 	last_teleport = -1.0
@@ -334,6 +355,14 @@ def run(screen, inventory=None):
 							if picked or not inventory:
 								items.remove(it)
 								print('Picked up', it.get('id'))
+								# 如果拾取的是hourglass，启动图片淡入，并只显示group.png
+								if it.get('id') == 'hourglass':
+									image_fadein = True
+									image_alpha = 0
+									show_only_group_img = True
+									group_img_show_timer = 0.0
+									group_img_fadeout = False
+									group_img_fadeout_progress = 0.0
 								break
 			# forward to inventory
 			if inventory:
@@ -444,8 +473,8 @@ def run(screen, inventory=None):
 						last_teleport = now
 					break
 
-		# draw
 
+		# draw
 		draw_map(screen, m, tiles_by_gid, scale=scale_int)
 
 		# 画面中央的半透明白色屏幕
@@ -459,16 +488,63 @@ def run(screen, inventory=None):
 		overlay.fill((255, 255, 255, 180))  # 180为透明度，可调整
 
 
-		# 如果有图片，绘制到overlay中央（支持多图）
-		img = projected_imgs[current_img_idx] if 0 <= current_img_idx < len(projected_imgs) else None
+
+		# group.png和文字淡入/淡出控制
+		group_img_alpha = image_alpha
+		if show_only_group_img:
+			group_img_show_timer += dt
+			# 5秒后进入淡出
+			if not group_img_fadeout and group_img_show_timer >= 5.0:
+				group_img_fadeout = True
+				group_img_fadeout_progress = 0.0
+			# 淡出阶段，alpha逐渐减小
+			if group_img_fadeout:
+				group_img_fadeout_progress += dt
+				fade = max(0.0, 1.0 - group_img_fadeout_progress / group_img_fadeout_time)
+				group_img_alpha = int(image_alpha * fade)
+				if group_img_fadeout_progress >= group_img_fadeout_time:
+					group_img_alpha = 0
+					show_only_group_img = False  # 完全消失后关闭group.png和文字
+
+		# 只显示group.png图片，不再切换
+		if show_only_group_img:
+			img = group_img
+		else:
+			img = projected_imgs[current_img_idx] if 0 <= current_img_idx < len(projected_imgs) else None
+
 		if img:
 			img_w, img_h = img.get_size()
 			img_x = (rect_w - img_w) // 2
 			img_y = (rect_h - img_h) // 2
-			overlay.blit(img, (img_x, img_y))
+			# 创建带alpha的副本
+			img_copy = img.copy()
+			# group.png淡出时用group_img_alpha，否则用image_alpha
+			img_copy.set_alpha(group_img_alpha if show_only_group_img else image_alpha)
+			overlay.blit(img_copy, (img_x, img_y))
+
+		# 沙漏拾取后禁用T键切换
+		if show_only_group_img:
+			current_img_idx = img_names.index('group.png') if 'group.png' in img_names else 0
+
 
 		# 把overlay贴到主屏幕中央
 		screen.blit(overlay, (rect_x, rect_y))
+
+		# 沙漏拾取后，在幕布下方显示指定文字，并支持淡出
+		if show_only_group_img:
+			font = None
+			try:
+				font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 20)
+			except Exception:
+				font = pygame.font.SysFont('consolas', 20)
+			text = "Listen, touch, think, and you will gain feelings."
+			text_surf = font.render(text, True, (40, 40, 40))
+			# 创建带alpha的副本
+			text_surf_alpha = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
+			text_surf_alpha.blit(text_surf, (0, 0))
+			text_surf_alpha.set_alpha(group_img_alpha if show_only_group_img else 255)
+			text_rect = text_surf.get_rect(center=(screen_w // 2, rect_y + rect_h + 32))
+			screen.blit(text_surf_alpha, text_rect)
 
 		# debug overlays removed so collision tiles are visible
 		# (platform and door debug rectangles were here and have been disabled)
