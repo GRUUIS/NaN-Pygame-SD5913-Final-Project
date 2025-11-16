@@ -198,7 +198,12 @@ Idle penalty (anti-camping) in boss battles:
 - Music pack: Essential Game Music Pack — Bell Kalengar — downloaded from itch.io
    - Pack page: https://bellkalengar.itch.io/essential-game-music-pack
 
-Please check the asset pages for licensing and attribution requirements before redistributing. If you want, I can add a copy of the license(s) or a short usage note for these assets in `assets/` or `docs/`.
+- Boss related sound - OpenGameArt.org
+   - Source page: https://opengameart.org/content/space-shoot-sounds
+   - Source page: https://opengameart.org/content/spiritwatcher
+   - Source page: https://opengameart.org/content/lurid-delusion
+
+
 
 ## Game Design Document
 
@@ -218,15 +223,14 @@ Please check the asset pages for licensing and attribution requirements before r
 **Phase 1: Foundation** (Weeks 1-2)
 - [x] Project structure setup
 - [ ] Core game engine implementation
-- [ ] Basic player movement and controls
+- [x] Basic player movement and controls
 
 **Phase 2: Core Systems** (Weeks 3-4)  
-- [ ] Boss battle framework
+- [x] Boss battle framework
 - [ ] Combat and puzzle mechanics
-- [ ] Asset integration pipeline
+- [x] Asset integration pipeline
 
 **Phase 3: Content & Polish** (Weeks 5-6)
-- [ ] Level design and balancing
-- [ ] Audio implementation
+- [x] Audio implementation
 - [ ] Testing and bug fixes
 
