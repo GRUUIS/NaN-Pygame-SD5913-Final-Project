@@ -17,6 +17,7 @@ import pygame
 import globals as g
 
 from .bullets import BulletManager
+from ..systems.ui import TextPopup
 #endregion Imports
 
 
@@ -198,6 +199,7 @@ class DistractionFieldState(BossState):
         k = int(expected)
         self.spawn_carry = expected - k
         if k > 0:
+            if self.boss.sfx_shoot: self.boss.sfx_shoot.play()
             pcx = player.x + player.width / 2
             pcy = player.y + player.height / 2
             for _ in range(k):
@@ -255,6 +257,7 @@ class PredictiveBarrageState(BossState):
         base_to_fire = 2 + min(3, int(self.boss.stress // 20))
         self.to_fire = base_to_fire + extra
         if self.fire_timer >= interval and self.shots_done < self.to_fire:
+            if self.boss.sfx_shoot: self.boss.sfx_shoot.play()
             self.fire_timer = 0.0
             self.shots_done += 1
             speed = self.boss.homing_speed()
@@ -343,6 +346,7 @@ class LogSpiralBurstState(BossState):
         base = g.BULLET_SPEEDS['normal'] * getattr(g, 'BOSS3_SPIRAL_BASE_SPEED_MULT', 0.55)
         spawn_dt = getattr(g, 'BOSS3_SPIRAL_SPAWN_INTERVAL', 0.05)
         while self.spawn_timer >= spawn_dt:
+            if self.boss.sfx_shoot: self.boss.sfx_shoot.play()
             self.spawn_timer -= spawn_dt
             speed = base * math.exp(k * (self.theta % (2 * math.pi)))
             vx = math.cos(self.theta) * speed
@@ -371,6 +375,7 @@ class VoidShardRainState(BossState):
         self.spawn_carry = 0.0
 
     def enter(self):
+        if self.boss.sfx_rain: self.boss.sfx_rain.play()
         self.telegraph = max(0.2, self.boss.telegraph_time() * 0.7)
         self.boss.telegraph_timer = self.telegraph
         self.time = 0.0
@@ -393,6 +398,7 @@ class VoidShardRainState(BossState):
         expected = lam * dt + self.spawn_carry
         k = int(expected)
         self.spawn_carry = expected - k
+        if k > 0 and self.boss.sfx_teleport: self.boss.sfx_teleport.play()
         px = player.x + player.width / 2
         for _ in range(k):
             if random.random() < getattr(g, 'BOSS3_RAIN_BIAS_PLAYER_MIX', 0.6):
@@ -412,13 +418,26 @@ class VoidShardRainState(BossState):
 #endregion VoidShardRainState
 
 
+#region FadingState
+class FadingState(BossState):
+    def enter(self):
+        self.timer = 0.0
+        self.duration = 4.0
+        self.boss.say_once(self.boss.defeat_line)
+    def update(self, dt, player, bullet_manager):
+        self.timer += dt
+        if self.timer >= self.duration:
+            self.boss.fully_defeated = True
+#endregion FadingState
+
+
 #region The Hollow Boss
 class TheHollow:
     width = 48
     height = 64
 
-    entry_line = "You think words can scare me away?"
-    defeat_line = "This is not a threat-it's my process"
+    entry_line = "Everying is meaningless."
+    defeat_line = "..."
 
     def __init__(self, x, y):
         self.x = x
@@ -431,6 +450,7 @@ class TheHollow:
         self.move_speed = getattr(g, 'BOSS3_MOVE_SPEED', 110)
         self.max_stress = 100
         self.stress = 10
+        self.fully_defeated = False
         self.deadline_total = getattr(g, 'DEADLINE_SECONDS', 120)
         self.deadline_left = float(self.deadline_total)
         self.states = {
@@ -439,6 +459,7 @@ class TheHollow:
             'predictive_barrage': PredictiveBarrageState(self),
             'log_spiral_burst': LogSpiralBurstState(self),
             'void_shard_rain': VoidShardRainState(self),
+            'fading': FadingState(self),
         }
         self.current_state = self.states['drift']
         self.current_state.enter()
@@ -447,6 +468,22 @@ class TheHollow:
         self.backlog_boost_timer = 0.0
         self.checkpoint_stage = 0
         self.drop_impulse = 0.0
+
+        # SFX Loading
+        self.sfx_shoot = None
+        self.sfx_teleport = None
+        self.sfx_rain = None
+        try:
+            sfx_path = os.path.join('assets', 'sfx')
+            self.sfx_shoot = pygame.mixer.Sound(os.path.join(sfx_path, 'hollow_shoot.wav'))
+            self.sfx_teleport = pygame.mixer.Sound(os.path.join(sfx_path, 'hollow_teleport.wav'))
+            self.sfx_rain = pygame.mixer.Sound(os.path.join(sfx_path, 'hollow_rain.wav'))
+            # Set volumes
+            if self.sfx_shoot: self.sfx_shoot.set_volume(0.4)
+            if self.sfx_teleport: self.sfx_teleport.set_volume(0.3)
+            if self.sfx_rain: self.sfx_rain.set_volume(0.5)
+        except Exception as e:
+            print(f"SFX Load Error (Hollow): {e}")
 
         # Animation state
         self.anim_timer = 0.0
@@ -460,6 +497,12 @@ class TheHollow:
         return (getattr(g, 'BOSS3_BACKLOG_BOOST_MULT', 1.5) if self.backlog_boost_timer > 0.0 else 1.0)
 
     # Helpers
+    def say_once(self, text: str):
+        if not text: return
+        def anchor(): return (self.x + self.width/2, self.y)
+        if hasattr(self, 'ui') and self.ui:
+            self.ui.add(TextPopup(text, anchor, duration=3.0, bg=(15,15,15)))
+
     def add_stress(self, delta):
         self.stress = max(0, min(self.max_stress, self.stress + delta))
 
@@ -506,6 +549,9 @@ class TheHollow:
 
     # Update
     def update(self, dt, player, bullet_manager: BulletManager):
+        if self.health <= 0 and not isinstance(self.current_state, FadingState):
+            self.change_state('fading')
+
         # Phase transitions by HP ratio (configurable in globals.py)
         p2_ratio = getattr(g, 'HOLLOW_PHASE2_HP_RATIO', 0.7)
         p3_ratio = getattr(g, 'HOLLOW_PHASE3_HP_RATIO', 0.35)
@@ -562,7 +608,61 @@ class TheHollow:
 
     # Render
     def draw(self, screen: pygame.Surface):
-        # Sprite-based draw if frames loaded; fallback to silhouette rect
+        # Glitch/Implosion death animation
+        if isinstance(self.current_state, FadingState):
+            prog = min(1.0, self.current_state.timer / self.current_state.duration)
+            
+            # 1. Glitch flicker (random visibility)
+            if random.random() < 0.1 + 0.5 * prog:
+                # Don't draw main body sometimes
+                pass
+            else:
+                # Draw distorted body
+                frames = self.animations.get(self.anim_name) if self.animations else None
+                if frames:
+                    frame = frames[self.anim_index]
+                    if not self.facing_right:
+                        frame = pygame.transform.flip(frame, True, False)
+                    
+                    # Scale down (implode)
+                    scale = max(0.01, 1.0 - prog)
+                    w = int(self.width * scale)
+                    h = int(self.height * scale)
+                    if w > 0 and h > 0:
+                        scaled = pygame.transform.scale(frame, (w, h))
+                        # Jitter position
+                        jx = self.x + (self.width - w)/2 + random.uniform(-5, 5) * prog * 10
+                        jy = self.y + (self.height - h)/2 + random.uniform(-5, 5) * prog * 10
+                        screen.blit(scaled, (int(jx), int(jy)))
+                else:
+                    # Fallback rect implosion
+                    scale = max(0.01, 1.0 - prog)
+                    w = int(self.width * scale)
+                    h = int(self.height * scale)
+                    jx = self.x + (self.width - w)/2 + random.uniform(-5, 5) * prog * 10
+                    jy = self.y + (self.height - h)/2 + random.uniform(-5, 5) * prog * 10
+                    pygame.draw.rect(screen, (10, 10, 10), (int(jx), int(jy), w, h))
+
+            # 2. Void Shards (Black squares) drifting away
+            # Generate deterministic random shards based on time to look like they are flying apart
+            random.seed(int(self.current_state.timer * 10)) 
+            for _ in range(int(10 * prog)):
+                sx = self.x + self.width/2 + random.uniform(-50, 50) * prog * 5
+                sy = self.y + self.height/2 + random.uniform(-50, 50) * prog * 5
+                size = random.randint(4, 12)
+                pygame.draw.rect(screen, (0, 0, 0), (int(sx), int(sy), size, size))
+            random.seed() # Reset seed
+
+            # 3. Static/Noise lines (Horizontal glitches)
+            if random.random() < 0.3 * prog:
+                ly = self.y + random.random() * self.height
+                lw = self.width * random.uniform(1.2, 2.0)
+                lx = self.x + (self.width - lw)/2
+                pygame.draw.rect(screen, (20, 20, 20), (int(lx), int(ly), int(lw), 2))
+
+            return
+
+        # Normal Sprite-based draw if frames loaded; fallback to silhouette rect
         frames = self.animations.get(self.anim_name) if self.animations else None
         if frames:
             frame = frames[self.anim_index]
