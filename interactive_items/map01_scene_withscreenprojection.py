@@ -16,9 +16,9 @@ def run(screen, inventory=None):
 	import pygame
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
-	from src.ui.dialog_box import SpeechBubble
+	from src.ui.dialog_box_notusing import SpeechBubble
 
-	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 	# find Room1.tmj first, fallback to any Room1.tmx if necessary
 	map_path = None
 	for p in glob.iglob(os.path.join(ROOT, 'assets', 'map01', 'Room1.*')):
@@ -235,6 +235,23 @@ def run(screen, inventory=None):
 			items.append({'id': 'hourglass', 'rect': pygame.Rect(item_x, item_y, item_w, item_h), 'sprite': surf})
 			print('[map01_scene DEBUG] placed hourglass at', item_x, item_y, 'platform top', top_plat.top)
 
+			# Place lamp.png on the same platform, twice the size, and keep it away from the hourglass
+			try:
+				lamp_img_path = _find_asset('lamp.png')
+				if lamp_img_path:
+					lamp_img = pygame.image.load(lamp_img_path).convert_alpha()
+					lamp_w, lamp_h = item_w * 2, item_h * 2
+					lamp_img_scaled = pygame.transform.smoothscale(lamp_img, (lamp_w, lamp_h))
+					lamp_surf = pygame.Surface((lamp_w, lamp_h), pygame.SRCALPHA)
+					lamp_surf.blit(lamp_img_scaled, (0, 0))
+					# Place lamp 120 pixels to the right of the hourglass, but still on the same platform
+					lamp_x = min(item_x + item_w + 120, map_pixel_w - lamp_w)
+					lamp_y = item_y + item_h - lamp_h  # align bottom with hourglass
+					items.append({'id': 'lamp', 'rect': pygame.Rect(lamp_x, lamp_y, lamp_w, lamp_h), 'sprite': lamp_surf})
+					print('[map01_scene DEBUG] placed lamp at', lamp_x, lamp_y, 'on same platform as hourglass')
+			except Exception as e:
+				print('[map01_scene DEBUG] failed to place lamp:', e)
+
 	except Exception:
 		items = []
 
@@ -270,9 +287,10 @@ def run(screen, inventory=None):
 			except Exception:
 				return None
 
-		dialog = SpeechBubble(_anchor_static, size=(box_w, box_h), draw_background=False, face_offset=0.0, y_overlap=0, font_scale=0.72)
-		dialog.set_text('Hi~')
-		dialog.open()
+		# dialog = SpeechBubble(_anchor_static, size=(box_w, box_h), draw_background=False, face_offset=0.0, y_overlap=0, font_scale=0.72)
+		# dialog.set_text('Hi~')
+		# dialog.open()
+		dialog = None
 	except Exception:
 		dialog = None
 
@@ -282,19 +300,21 @@ def run(screen, inventory=None):
 	img_names = ['brush.png', 'group.png', 'chain.png']
 	for name in img_names:
 		try:
-			img = pygame.image.load(os.path.join('assets', name)).convert_alpha()
+			img = pygame.image.load(os.path.join(ROOT, 'assets', name)).convert_alpha()
 			img = pygame.transform.smoothscale(img, (200, 200))
 			projected_imgs.append(img)
-		except Exception:
+		except Exception as e:
+			print(f"[map01_scene DEBUG] Failed to load {name}: {e}")
 			projected_imgs.append(None)
-	current_img_idx = 0
+	current_img_idx = -1  # Start with no image projected
 
 	# 新增：沙漏拾取后只显示group.png
 	group_img = None
 	try:
-		group_img = pygame.image.load(os.path.join('assets', 'group.png')).convert_alpha()
+		group_img = pygame.image.load(os.path.join(ROOT, 'assets', 'group.png')).convert_alpha()
 		group_img = pygame.transform.smoothscale(group_img, (200, 200))
-	except Exception:
+	except Exception as e:
+		print(f"[map01_scene DEBUG] Failed to load group.png: {e}")
 		group_img = None
 
 
@@ -303,6 +323,16 @@ def run(screen, inventory=None):
 	group_img_fadeout = False   # 是否进入淡出阶段
 	group_img_fadeout_time = 1.5  # 淡出动画时长（秒）
 	group_img_fadeout_progress = 0.0  # 当前淡出进度（秒）
+	
+	# Story text state
+	story_text_lines = [
+		"Against the sand of time,",
+		"we measure the weight of memory"
+	]
+	story_text_alpha = 0
+	story_text_fadein = False
+	story_text_fadeout = False
+	story_text_fully_visible = False
 
 
 	# 图片淡入相关变量
@@ -339,15 +369,20 @@ def run(screen, inventory=None):
 				elif ev.key == pygame.K_t:
 					# 按T键切换下一张图片
 					if projected_imgs:
-						current_img_idx = (current_img_idx + 1) % len(projected_imgs)
+						if current_img_idx == -1:
+							current_img_idx = 0
+						else:
+							current_img_idx = (current_img_idx + 1) % len(projected_imgs)
 				elif ev.key == pygame.K_c:
 					# compute player center in screen/map coords
 					px = int(player.x + player.cw // 2)
 					py = int(player.y + player.ch // 2)
 					from math import hypot
+					print(f"[map01_scene DEBUG] Trying to pick up. Player at ({px}, {py}). Items: {len(items)}")
 					for it in list(items):
 						r = it['rect']
 						dist = hypot(px - r.centerx, py - r.centery)
+						print(f"[map01_scene DEBUG] Item {it.get('id')} at ({r.centerx}, {r.centery}), dist={dist:.1f}")
 						if dist < max(tile_w * 6, 160):
 							picked = False
 							if inventory:
@@ -363,6 +398,9 @@ def run(screen, inventory=None):
 									group_img_show_timer = 0.0
 									group_img_fadeout = False
 									group_img_fadeout_progress = 0.0
+									story_text_fadein = True
+									story_text_alpha = 0
+									story_text_fully_visible = False
 								break
 			# forward to inventory
 			if inventory:
@@ -521,6 +559,9 @@ def run(screen, inventory=None):
 			# group.png淡出时用group_img_alpha，否则用image_alpha
 			img_copy.set_alpha(group_img_alpha if show_only_group_img else image_alpha)
 			overlay.blit(img_copy, (img_x, img_y))
+			
+			# Only draw the overlay if there is an image to show
+			screen.blit(overlay, (rect_x, rect_y))
 
 		# 沙漏拾取后禁用T键切换
 		if show_only_group_img:
@@ -528,23 +569,46 @@ def run(screen, inventory=None):
 
 
 		# 把overlay贴到主屏幕中央
-		screen.blit(overlay, (rect_x, rect_y))
+		# screen.blit(overlay, (rect_x, rect_y)) # Moved inside 'if img:' block
 
 		# 沙漏拾取后，在幕布下方显示指定文字，并支持淡出
 		if show_only_group_img:
 			font = None
 			try:
-				font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 20)
+				font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 22)
 			except Exception:
-				font = pygame.font.SysFont('consolas', 20)
-			text = "Listen, touch, think, and you will gain feelings."
-			text_surf = font.render(text, True, (40, 40, 40))
-			# 创建带alpha的副本
-			text_surf_alpha = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
-			text_surf_alpha.blit(text_surf, (0, 0))
-			text_surf_alpha.set_alpha(group_img_alpha if show_only_group_img else 255)
-			text_rect = text_surf.get_rect(center=(screen_w // 2, rect_y + rect_h + 32))
-			screen.blit(text_surf_alpha, text_rect)
+				font = pygame.font.SysFont('consolas', 22)
+			
+			# Update text alpha based on fadein/fadeout
+			if story_text_fadein and not story_text_fully_visible:
+				story_text_alpha += int(255 * dt / 1.2)
+				if story_text_alpha >= 255:
+					story_text_alpha = 255
+					story_text_fadein = False
+					story_text_fully_visible = True
+			
+			if group_img_fadeout:
+				story_text_alpha = group_img_alpha # Sync text fadeout with image
+			
+			if story_text_alpha > 0:
+				total_height = 0
+				text_surfs = []
+				for line in story_text_lines:
+					surf = font.render(line, True, (40, 40, 40))
+					# Create alpha surface
+					surf_alpha = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
+					surf_alpha.blit(surf, (0, 0))
+					surf_alpha.set_alpha(story_text_alpha)
+					text_surfs.append(surf_alpha)
+					total_height += surf.get_height()
+				
+				# Position: just below the white overlay
+				spacing = 6
+				y = rect_y + rect_h + 12
+				for surf in text_surfs:
+					x = (screen_w - surf.get_width()) // 2
+					screen.blit(surf, (x, y))
+					y += surf.get_height() + spacing
 
 		# debug overlays removed so collision tiles are visible
 		# (platform and door debug rectangles were here and have been disabled)

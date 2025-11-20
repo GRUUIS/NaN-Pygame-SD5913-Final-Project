@@ -23,7 +23,7 @@ def run(screen, inventory=None):
 	import pygame
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
-	from src.ui.dialog_box import SpeechBubble
+	from src.ui.dialog_box_notusing import SpeechBubble
 
 	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 	# find Room1.tmj first, fallback to any Room1.tmx if necessary
