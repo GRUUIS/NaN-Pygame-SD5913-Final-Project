@@ -73,6 +73,22 @@ class BossBattleScene:
             self.background = pygame.image.load(bg_path).convert()
         except Exception:
             self.background = None
+        
+        # BGM
+        try:
+            bgm_file = None
+            if self._boss_type in ('sloth','the_sloth','boss2','b0ss','snail'):
+                bgm_file = 'Boss_Sloth_Lurid_Delusion.mp3'
+            elif self._boss_type in ('procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
+                bgm_file = 'Boss_Hollow_Spiritwatcher.mp3'
+            
+            if bgm_file:
+                bgm_path = os.path.join('assets', 'sfx', bgm_file)
+                pygame.mixer.music.load(bgm_path)
+                pygame.mixer.music.set_volume(0.5)
+                pygame.mixer.music.play(-1)
+        except Exception as e:
+            print(f"Failed to load BGM: {e}")
         #endregion Initialization
 
     def _create_boss(self):

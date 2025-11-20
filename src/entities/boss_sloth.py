@@ -152,6 +152,7 @@ class SlimeAttackState(SlothState):
             self._fire(player, bullet_manager)
             self.boss.change_state('crawl')
     def _fire(self, player, bullet_manager):
+        if self.boss.sfx_slime: self.boss.sfx_slime.play()
         origin_x = self.boss.x + self.boss.width/2
         origin_y = self.boss.y + self.boss.height*0.25
         # Use tuned volley counts; enraged increases further
@@ -193,6 +194,7 @@ class SlimeAttackState(SlothState):
 
 class DashState(SlothState):
     def enter(self):
+        if self.boss.sfx_dash: self.boss.sfx_dash.play()
         self.timer = 0.0
         self.duration = getattr(g, 'BOSS2_DASH_DURATION', 0.9)
         # Determine direction toward player at enter
@@ -231,6 +233,7 @@ class SporeAttackState(SlothState):
             self._fire(player, bullet_manager)
             self.boss.change_state('crawl')
     def _fire(self, player, bullet_manager):
+        if self.boss.sfx_slime: self.boss.sfx_slime.play()
         origin_x = self.boss.x + self.boss.width/2
         origin_y = self.boss.y + self.boss.height*0.25
         # count varies by phase & enrage
@@ -277,6 +280,7 @@ class CrushState(SlothState):
     """Overhead lazy collapse: Sloth phases above player, drops with heavy impact,
     dealing large burst damage and leaving a toxic pressure pool."""
     def enter(self):
+        if self.boss.sfx_charge: self.boss.sfx_charge.play()
         self.telegraph = getattr(g, 'BOSS2_CRUSH_TELEGRAPH_TIME', 1.2)
         self.descending = False
         self.completed = False
@@ -314,6 +318,7 @@ class CrushState(SlothState):
             self.boss.y += drop_speed * dt
             if self.boss.y >= self.impact_y:
                 self.boss.y = self.impact_y
+                if self.boss.sfx_impact: self.boss.sfx_impact.play()
                 self._impact(player)
                 self.completed = True
                 self.boss.change_state('crawl')
@@ -395,6 +400,25 @@ class TheSloth:
         self.trail_segments = []  # list of dict {rect, age}
         self._trail_last_x = self.x
         self.enraged = False
+
+        # SFX Loading
+        self.sfx_slime = None
+        self.sfx_dash = None
+        self.sfx_charge = None
+        self.sfx_impact = None
+        try:
+            sfx_path = os.path.join('assets', 'sfx')
+            self.sfx_slime = pygame.mixer.Sound(os.path.join(sfx_path, 'sloth_slime.wav'))
+            self.sfx_dash = pygame.mixer.Sound(os.path.join(sfx_path, 'sloth_dash.wav'))
+            self.sfx_charge = pygame.mixer.Sound(os.path.join(sfx_path, 'sloth_charge.wav'))
+            self.sfx_impact = pygame.mixer.Sound(os.path.join(sfx_path, 'sloth_impact.wav'))
+            # Set volumes
+            if self.sfx_slime: self.sfx_slime.set_volume(0.5)
+            if self.sfx_dash: self.sfx_dash.set_volume(0.6)
+            if self.sfx_charge: self.sfx_charge.set_volume(0.4)
+            if self.sfx_impact: self.sfx_impact.set_volume(0.7)
+        except Exception as e:
+            print(f"SFX Load Error (Sloth): {e}")
 
     # Dialogue helpers
     def say_once(self, text: str):

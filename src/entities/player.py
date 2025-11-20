@@ -39,6 +39,16 @@ class Player:
         self.mouse_pos = (0, 0)
         self.mouse_pressed = False
         self.mouse_pressed_right = False
+
+        # SFX
+        try:
+            import os
+            sfx_path = os.path.join('assets', 'sfx', 'Attack_alienshoot1.wav')
+            self.shoot_sfx = pygame.mixer.Sound(sfx_path)
+            self.shoot_sfx.set_volume(0.4)
+        except Exception as e:
+            print(f"Failed to load player SFX: {e}")
+            self.shoot_sfx = None
         #endregion Init/State
     
     #region Update & Physics
@@ -131,6 +141,9 @@ class Player:
             
         self.attack_cooldown = g.PLAYER_ATTACK_COOLDOWN
         
+        if self.shoot_sfx:
+            self.shoot_sfx.play()
+
         # Calculate direction to mouse
         dx = self.mouse_pos[0] - (self.x + self.width/2)
         dy = self.mouse_pos[1] - (self.y + self.height/2)
@@ -153,6 +166,9 @@ class Player:
 
         # Slightly longer cooldown for voidfire for balance
         self.attack_cooldown = max(g.PLAYER_ATTACK_COOLDOWN, 0.6)
+
+        if self.shoot_sfx:
+            self.shoot_sfx.play()
 
         dx = self.mouse_pos[0] - (self.x + self.width/2)
         dy = self.mouse_pos[1] - (self.y + self.height/2)

@@ -47,6 +47,15 @@ class SlothBattleScene:
         # Background
         self.background = self._load_background()
 
+        # BGM
+        try:
+            bgm_path = os.path.join('assets', 'sfx', 'Boss_Sloth_Lurid_Delusion.mp3')
+            pygame.mixer.music.load(bgm_path)
+            pygame.mixer.music.set_volume(0.5)
+            pygame.mixer.music.play(-1) # Loop
+        except Exception as e:
+            print(f"Failed to load Sloth BGM: {e}")
+
     # --- Internal helpers ---
     def _load_background(self):
         path = os.path.join('assets','backgrounds','boss_sloth_forest.png')

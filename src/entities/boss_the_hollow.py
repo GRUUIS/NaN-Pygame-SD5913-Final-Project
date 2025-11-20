@@ -198,6 +198,7 @@ class DistractionFieldState(BossState):
         k = int(expected)
         self.spawn_carry = expected - k
         if k > 0:
+            if self.boss.sfx_shoot: self.boss.sfx_shoot.play()
             pcx = player.x + player.width / 2
             pcy = player.y + player.height / 2
             for _ in range(k):
@@ -255,6 +256,7 @@ class PredictiveBarrageState(BossState):
         base_to_fire = 2 + min(3, int(self.boss.stress // 20))
         self.to_fire = base_to_fire + extra
         if self.fire_timer >= interval and self.shots_done < self.to_fire:
+            if self.boss.sfx_shoot: self.boss.sfx_shoot.play()
             self.fire_timer = 0.0
             self.shots_done += 1
             speed = self.boss.homing_speed()
@@ -343,6 +345,7 @@ class LogSpiralBurstState(BossState):
         base = g.BULLET_SPEEDS['normal'] * getattr(g, 'BOSS3_SPIRAL_BASE_SPEED_MULT', 0.55)
         spawn_dt = getattr(g, 'BOSS3_SPIRAL_SPAWN_INTERVAL', 0.05)
         while self.spawn_timer >= spawn_dt:
+            if self.boss.sfx_shoot: self.boss.sfx_shoot.play()
             self.spawn_timer -= spawn_dt
             speed = base * math.exp(k * (self.theta % (2 * math.pi)))
             vx = math.cos(self.theta) * speed
@@ -371,6 +374,7 @@ class VoidShardRainState(BossState):
         self.spawn_carry = 0.0
 
     def enter(self):
+        if self.boss.sfx_rain: self.boss.sfx_rain.play()
         self.telegraph = max(0.2, self.boss.telegraph_time() * 0.7)
         self.boss.telegraph_timer = self.telegraph
         self.time = 0.0
@@ -393,6 +397,7 @@ class VoidShardRainState(BossState):
         expected = lam * dt + self.spawn_carry
         k = int(expected)
         self.spawn_carry = expected - k
+        if k > 0 and self.boss.sfx_teleport: self.boss.sfx_teleport.play()
         px = player.x + player.width / 2
         for _ in range(k):
             if random.random() < getattr(g, 'BOSS3_RAIN_BIAS_PLAYER_MIX', 0.6):
@@ -447,6 +452,22 @@ class TheHollow:
         self.backlog_boost_timer = 0.0
         self.checkpoint_stage = 0
         self.drop_impulse = 0.0
+
+        # SFX Loading
+        self.sfx_shoot = None
+        self.sfx_teleport = None
+        self.sfx_rain = None
+        try:
+            sfx_path = os.path.join('assets', 'sfx')
+            self.sfx_shoot = pygame.mixer.Sound(os.path.join(sfx_path, 'hollow_shoot.wav'))
+            self.sfx_teleport = pygame.mixer.Sound(os.path.join(sfx_path, 'hollow_teleport.wav'))
+            self.sfx_rain = pygame.mixer.Sound(os.path.join(sfx_path, 'hollow_rain.wav'))
+            # Set volumes
+            if self.sfx_shoot: self.sfx_shoot.set_volume(0.4)
+            if self.sfx_teleport: self.sfx_teleport.set_volume(0.3)
+            if self.sfx_rain: self.sfx_rain.set_volume(0.5)
+        except Exception as e:
+            print(f"SFX Load Error (Hollow): {e}")
 
         # Animation state
         self.anim_timer = 0.0
