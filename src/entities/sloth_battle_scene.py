@@ -40,8 +40,8 @@ class SlothBattleScene:
         # Platforms: restore elevated ledges for repositioning & trail management
         self.platforms = [
             Platform(0, ground_top, g.SCREENWIDTH, ground_h),
-            Platform(int(g.SCREENWIDTH*0.28), ground_top-60, 140, 18),
-            Platform(int(g.SCREENWIDTH*0.60), ground_top-72, 160, 20),
+            Platform(int(g.SCREENWIDTH*0.28), ground_top-100, 140, 18),
+            Platform(int(g.SCREENWIDTH*0.60), ground_top-120, 160, 20),
         ]
         # Snap boss to ground
         self.boss.set_ground(ground_top)
