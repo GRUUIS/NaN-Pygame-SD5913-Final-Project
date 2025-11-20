@@ -21,19 +21,10 @@ def main():
 	choice = meun.run()
 
 	if choice == 'start':
-		# Try to load the map scene (map01). If it's not available fall back
-		# to the older newmap scene. We also create an Inventory instance and
-		# pass it into the scene so inventory features are available.
-		try:
-			from src.systems.inventory import Inventory
-			inv = Inventory()
-		except Exception:
-			inv = None
-
 		try:
 			# prefer map01 scene when present
-			from src.scenes.map01_scene import run as run_map01
-			run_map01(screen, inventory=inv)
+			from testing.map01_final import run as run_map01
+			run_map01(screen)
 		except Exception as e:
 			print('Failed to import or run map01 scene:', e)
 			pygame.quit()
