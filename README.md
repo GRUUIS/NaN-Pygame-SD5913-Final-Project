@@ -35,6 +35,33 @@ Players control a puppet figure representing "neglected self-awareness" within a
    - Player uses “Voidfire” (purple flame) as the primary attack in this fight
    - Victory bubble: “This is not a threat-it's my process”
 
+### The Sloth (Boss #2) Difficulty Overhaul (v3)
+
+The Sloth now emphasizes relentless lateral zoning and punishment for hesitation.
+
+Key Changes:
+- Max HP: 1600 (longer sustain, extended trail management challenge)
+- Crawl Speed: 86 (with phase/enrage speed multipliers) for wider trail spread
+- Trail Segments: wider, taller, dropped more frequently; lifetime 18s (was 15s)
+- Trail DPS: 20 baseline; idle multiplier 3.4 (stronger anti‑camp); enrage +30% bonus
+- Slime Volleys: 7 / 11 / 15 (Phase1 / Phase2 / Enrage), higher projectile speed & spread
+- Spore Bursts: 4 / 6 / 9 spores; shorter float (1.1s) so toxic puddles form sooner
+- Dash: Speed 320, cooldowns 5.5 / 3.6 / 2.2 (P1 / P2 / Enrage) sustaining chase pressure
+- Eruption: Intervals 8.0 / 5.0 / 3.2 and burst damage 18 (punishes trail loitering)
+- Earlier Enrage at 35% HP for longer high‑intensity end phase
+- Background: Replaced with high‑velocity eerie forest (multi‑layer parallax, pulsing sky, drifting fog & silhouette flashes) matching aggressive pacing.
+
+Strategic Impact:
+- Idling or micro‑stutter movement rapidly drains HP due to high idle multiplier and longer trail persistence.
+- Player must commit to decisive reposition bursts; small lateral taps are insufficient to escape compounding hazards.
+- Earlier enrage and faster spore drops compress safe windows forcing proactive route planning.
+
+Balancing Notes:
+- If fight length feels excessive, reduce `BOSS2_MAX_HEALTH` or trail lifetime first.
+- If zoning overwhelms mobility, slightly raise player move speed or reduce `BOSS2_SLIME_TRAIL_IDLE_MULT`.
+
+All tunables located in `globals.py` under Sloth Difficulty Overhaul block.
+
 ### Technical Specifications
 
 - **Resolution:** 1280x720

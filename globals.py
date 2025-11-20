@@ -139,47 +139,74 @@ BOSS3_DIRECT_CHASE_RATE = 5.0           # how fast center tracks desired positio
 BOSS3_DIRECT_CHASE_MIN_SEP = 120.0      # clamp on closest allowed distance
 
 # Boss #2 (Sloth) – persistent ground zoning snail (balance pass v2, English comments)
-BOSS2_MAX_HEALTH = 1000            # Higher durability
-BOSS2_MOVE_SPEED = 70             # Slightly faster crawl
-BOSS2_SLIME_COOLDOWN = 2.0        # Slime lob cooldown phase 1
-BOSS2_SLIME_COOLDOWN_P2 = 1     # Faster in phase 2
-BOSS2_PHASE2_HP_RATIO = 0.55      # Transition threshold (<=55%)
-BOSS2_SLIME_POOL_LIFETIME = 11.0  # Pool persists longer
-BOSS2_SLIME_TICK_DAMAGE = 10       # Pool tick damage
-BOSS2_SLIME_TICK_INTERVAL = 0.45  # Pool tick interval
-BOSS2_BODY_W = 160                # Tight collision width (matches v2 sprite sheet)
+# --- Sloth Difficulty Overhaul (v3) ---
+# Increased durability & aggression
+BOSS2_MAX_HEALTH = 1800            # Much higher durability for extended pressure
+BOSS2_MOVE_SPEED = 60              # Faster crawl encourages wider trail coverage
+BOSS2_SLIME_COOLDOWN = 1         # Phase 1 base slime volley rate (was 2.0)
+BOSS2_SLIME_COOLDOWN_P2 = 0.85     # Phase 2 faster slime volley rate (was 1.0)
+BOSS2_PHASE2_HP_RATIO = 0.65       # Transition later to sustain P1 pressure longer (was 0.55)
+BOSS2_SLIME_POOL_LIFETIME = 13.0   # Pools persist longer (was 11.0)
+BOSS2_SLIME_TICK_DAMAGE = 80       # Pool tick damage increased (was 10)
+BOSS2_SLIME_TICK_INTERVAL = 0.1   # Slightly faster ticking (was 0.45)
+BOSS2_BODY_W = 160                 # Same sprite width
 BOSS2_BODY_H = 110
 
 # Sloth slime trail mechanics (forces constant player movement)
-BOSS2_SLIME_TRAIL_SEG_W = 48       # Segment width
-BOSS2_SLIME_TRAIL_SEG_H = 26       # Segment height (low profile)
-BOSS2_SLIME_TRAIL_DROP_DIST = 30   # Distance traveled before dropping next segment
-BOSS2_SLIME_TRAIL_LIFETIME = 15.0  # Segment lifetime (longer zoning)
-BOSS2_SLIME_TRAIL_DPS = 16.0       # Damage per second baseline (buffed)
-BOSS2_SLIME_TRAIL_IDLE_MULT = 2.8  # Multiplier if player is nearly stationary (strong punish)
-BOSS2_SLIME_TRAIL_SLOW = 0.35      # Movement speed multiplier while inside (<1 slows more)
+BOSS2_SLIME_TRAIL_SEG_W = 30       # Slightly wider segments for fewer safe gaps
+BOSS2_SLIME_TRAIL_SEG_H = 20       # Slightly taller for clearer hazard
+BOSS2_SLIME_TRAIL_DROP_DIST = 26   # Drops trail more frequently (was 30)
+BOSS2_SLIME_TRAIL_LIFETIME = 18.0  # Trail persists longer (was 15.0)
+BOSS2_SLIME_TRAIL_DPS = 20.0       # Baseline DPS up (was 16.0)
+BOSS2_SLIME_TRAIL_IDLE_MULT = 3.4  # Idle punish stronger (was 2.8)
+BOSS2_SLIME_TRAIL_SLOW = 0.30      # Slightly less slow so player can attempt escape (was 0.35)
 
 # Sloth advanced difficulty tuning
-BOSS2_ENRAGE_HP_RATIO = 0.25       # Enrage when health <= 25%
-BOSS2_DASH_SPEED = 260             # Horizontal dash speed in dash state
-BOSS2_DASH_DURATION = 0.55         # Dash lasts this many seconds
-BOSS2_DASH_COOLDOWN_P1 = 7.0       # Dash interval phase 1
-BOSS2_DASH_COOLDOWN_P2 = 4.2       # Dash interval phase 2
-BOSS2_DASH_COOLDOWN_ENRAGE = 2.8   # Dash interval enraged
-BOSS2_ERUPTION_INTERVAL_P1 = 9.0   # Trail eruption interval phase 1
-BOSS2_ERUPTION_INTERVAL_P2 = 6.0   # Trail eruption interval phase 2
-BOSS2_ERUPTION_INTERVAL_ENRAGE = 4.0
-BOSS2_SPORE_COOLDOWN_P1 = 8.0      # Spore attack phase 1
-BOSS2_SPORE_COOLDOWN_P2 = 5.5      # Spore attack phase 2
-BOSS2_SPORE_COOLDOWN_ENRAGE = 3.5
-BOSS2_SPORE_FLOAT_TIME = 1.3       # Time spores drift upward before dropping
-BOSS2_SPORE_COUNT_P1 = 3           # Number of spores phase 1
-BOSS2_SPORE_COUNT_P2 = 5           # Phase 2
-BOSS2_SPORE_COUNT_ENRAGE = 7       # Enrage burst
-BOSS2_ERUPTION_BURST_DAMAGE = 12   # Instant damage if player stands on erupting trail
-BOSS2_SLIME_VOLLEY_P1 = 6          # Base volley slime globs phase 1
-BOSS2_SLIME_VOLLEY_P2 = 9          # Phase 2
-BOSS2_SLIME_VOLLEY_ENRAGE = 12     # Enrage volley size
+BOSS2_ENRAGE_HP_RATIO = 0.5        # Enrage earlier (was 0.25) for longer high pressure end-phase
+BOSS2_DASH_SPEED = 320              # Faster horizontal dash (was 260)
+BOSS2_DASH_DURATION = 0.60          # Slightly longer dash presence (was 0.55)
+BOSS2_DASH_COOLDOWN_P1 = 5.5        # More frequent dash phase 1 (was 7.0)
+BOSS2_DASH_COOLDOWN_P2 = 3.6        # More frequent dash phase 2 (was 4.2)
+BOSS2_DASH_COOLDOWN_ENRAGE = 2.2    # Enrage cadence (was 2.8)
+BOSS2_ERUPTION_INTERVAL_P1 = 8.0    # Eruptions sooner (was 9.0)
+BOSS2_ERUPTION_INTERVAL_P2 = 5.0    # Phase 2 (was 6.0)
+BOSS2_ERUPTION_INTERVAL_ENRAGE = 3.2 # Enraged (was 4.0)
+BOSS2_SPORE_COOLDOWN_P1 = 7.0       # Spore faster P1 (was 8.0)
+BOSS2_SPORE_COOLDOWN_P2 = 4.6       # Phase 2 faster (was 5.5)
+BOSS2_SPORE_COOLDOWN_ENRAGE = 3.0   # Enrage faster (was 3.5)
+BOSS2_SPORE_FLOAT_TIME = 1.1        # Less hang time (was 1.3) to drop sooner
+BOSS2_SPORE_COUNT_P1 = 4            # More spores P1 (was 3)
+BOSS2_SPORE_COUNT_P2 = 6            # Phase 2 (was 5)
+BOSS2_SPORE_COUNT_ENRAGE = 9        # Enrage burst (was 7)
+BOSS2_ERUPTION_BURST_DAMAGE = 18    # Burst damage increased (was 12)
+BOSS2_SLIME_VOLLEY_P1 = 7           # Slime globs phase 1 (was 6)
+BOSS2_SLIME_VOLLEY_P2 = 11          # Phase 2 (was 9)
+BOSS2_SLIME_VOLLEY_ENRAGE = 15      # Enrage volley size (was 12)
+
+# Sloth per-attack fine tuning (extracted for data cleanliness)
+# Slime Volley
+BOSS2_SLIME_BASE_SPEED_P1 = 205      # Base horizontal projectile speed phase 1
+BOSS2_SLIME_BASE_SPEED_P2 = 230      # Base horizontal projectile speed phase 2
+BOSS2_SLIME_ENRAGE_SPEED_MULT = 1.12 # Multiplier when enraged
+BOSS2_SLIME_SPEED_JITTER_LOW = -28   # Random add low
+BOSS2_SLIME_SPEED_JITTER_HIGH = 42   # Random add high
+BOSS2_SLIME_SPREAD_P1 = 0.90         # Horizontal spread angle span phase 1
+BOSS2_SLIME_SPREAD_P2 = 1.10         # Spread angle span phase 2
+BOSS2_SLIME_BASE_ANGLE = -1.05       # Central firing angle (radians)
+
+# Dash
+BOSS2_DASH_ENRAGE_SPEED_MULT = 1.25  # Additional speed multiplier while enraged
+
+# Spore Attack
+BOSS2_SPORE_SPREAD_P1 = 60           # Horizontal velocity range half-span phase 1/2
+BOSS2_SPORE_SPREAD_ENRAGE = 80       # Wider spread when enraged
+BOSS2_SPORE_VX_SLOW_DECAY = 0.98     # Horizontal decay while ascending (see bullets logic)
+BOSS2_SPORE_VY_MIN = -65             # Upward velocity min
+BOSS2_SPORE_VY_MAX = -40             # Upward velocity max
+
+# Trail / Eruption & Enrage scaling
+BOSS2_TRAIL_ENRAGE_DPS_MULT = 1.30   # Trail DPS multiplier when enraged
+BOSS2_ERUPTION_TRAIL_AGE_ADD = 0.60  # Additional age added to segments on eruption burst
 
 # Boss #2 Sprite sheets (generated by generate_sloth_sprites_v2.py)
 BOSS2_SPRITE_WALK_PATH = 'assets/sprites/boss/boss_sloth_walk.png'

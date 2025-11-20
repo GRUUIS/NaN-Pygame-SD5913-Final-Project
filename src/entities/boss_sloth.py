@@ -143,14 +143,22 @@ class SlimeAttackState(SlothState):
     def _fire(self, player, bullet_manager):
         origin_x = self.boss.x + self.boss.width/2
         origin_y = self.boss.y + self.boss.height*0.25
-        n = 6 if self.boss.phase==1 else 10
-        spread = 1.05 if self.boss.phase==2 else 0.85
+        # Use tuned volley counts; enraged increases further
+        if getattr(self.boss, 'enraged', False):
+            n = getattr(g, 'BOSS2_SLIME_VOLLEY_ENRAGE', 12)
+        else:
+            n = getattr(g, 'BOSS2_SLIME_VOLLEY_P2', 9) if self.boss.phase==2 else getattr(g, 'BOSS2_SLIME_VOLLEY_P1', 6)
+        spread = getattr(g, 'BOSS2_SLIME_SPREAD_P2', 1.05) if self.boss.phase==2 else getattr(g, 'BOSS2_SLIME_SPREAD_P1', 0.85)
         for i in range(n):
             ratio = (i/(n-1)) if n>1 else 0.5
             offset = -spread/2 + spread * ratio
-            base_speed = 190 if self.boss.phase==1 else 210
-            speed = base_speed + random.uniform(-24,36)
-            ang = -1.05 + offset
+            base_speed = getattr(g, 'BOSS2_SLIME_BASE_SPEED_P1', 190) if self.boss.phase==1 else getattr(g, 'BOSS2_SLIME_BASE_SPEED_P2', 210)
+            if getattr(self.boss, 'enraged', False):
+                base_speed *= getattr(g, 'BOSS2_SLIME_ENRAGE_SPEED_MULT', 1.08)
+            jitter_low = getattr(g, 'BOSS2_SLIME_SPEED_JITTER_LOW', -24)
+            jitter_high = getattr(g, 'BOSS2_SLIME_SPEED_JITTER_HIGH', 36)
+            speed = base_speed + random.uniform(jitter_low, jitter_high)
+            ang = getattr(g, 'BOSS2_SLIME_BASE_ANGLE', -1.05) + offset
             vx = math.cos(ang)*speed
             vy = math.sin(ang)*speed
             bullet_manager.add_bullet(origin_x, origin_y, vx, vy, 'slime', 'boss')
@@ -169,7 +177,8 @@ class DashState(SlothState):
         center_x = self.boss.x + self.boss.width/2
         target_x = player.x + player.width/2
         dir = 1 if target_x > center_x else -1
-        self.boss.x += dir * self.dash_speed * dt
+        dash_speed = self.dash_speed * (getattr(g, 'BOSS2_DASH_ENRAGE_SPEED_MULT', 1.25) if getattr(self.boss, 'enraged', False) else 1.0)
+        self.boss.x += dir * dash_speed * dt
         # Drop trail faster due to rapid movement
         self.boss._maybe_drop_trail(self.boss.x + self.boss.width/2, dt)
         # Contact damage once
@@ -202,9 +211,12 @@ class SporeAttackState(SlothState):
             n = getattr(g, 'BOSS2_SPORE_COUNT_ENRAGE', 7)
         else:
             n = getattr(g, 'BOSS2_SPORE_COUNT_P2', 5) if self.boss.phase==2 else getattr(g, 'BOSS2_SPORE_COUNT_P1', 3)
+        spread = getattr(g, 'BOSS2_SPORE_SPREAD_ENRAGE', 80) if getattr(self.boss, 'enraged', False) else getattr(g, 'BOSS2_SPORE_SPREAD_P1', 60)
+        vy_min = getattr(g, 'BOSS2_SPORE_VY_MIN', -55)
+        vy_max = getattr(g, 'BOSS2_SPORE_VY_MAX', -35)
         for i in range(n):
-            vx = random.uniform(-60, 60)
-            vy = random.uniform(-55, -35)  # upward
+            vx = random.uniform(-spread, spread)
+            vy = random.uniform(vy_min, vy_max)
             bullet_manager.add_bullet(origin_x, origin_y, vx, vy, 'slime_spore', 'boss')
 
 
@@ -225,7 +237,7 @@ class EruptionState(SlothState):
             if prect.colliderect(seg['rect']):
                 player.take_damage(burst_dmg)
             # accelerate aging so they vanish sooner post-eruption
-            seg['age'] += 0.6
+            seg['age'] += getattr(g, 'BOSS2_ERUPTION_TRAIL_AGE_ADD', 0.6)
         self.done = True
 
 
@@ -427,7 +439,7 @@ class TheSloth:
                     moving = abs(player.vx) > 25
                     dps = g.BOSS2_SLIME_TRAIL_DPS * (1.0 if moving else g.BOSS2_SLIME_TRAIL_IDLE_MULT)
                     if getattr(self, 'enraged', False):
-                        dps *= 1.3
+                        dps *= getattr(g, 'BOSS2_TRAIL_ENRAGE_DPS_MULT', 1.3)
                     player.take_damage(dps * dt)
                     # apply slow only while inside
                     player.vx *= g.BOSS2_SLIME_TRAIL_SLOW

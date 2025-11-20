@@ -14,7 +14,7 @@ Assets expected (optional):
 If missing, a dark green-to-black vertical gradient is rendered.
 """
 from __future__ import annotations
-import pygame, os, random
+import pygame, os, random, math
 import globals as g
 from .player import Player
 from .boss_sloth import TheSloth
@@ -58,24 +58,32 @@ class SlothBattleScene:
         return None
 
     def _draw_background(self, screen: pygame.Surface):
-        """Render parallax eerie forest with layered silhouettes.
-        If a custom bitmap background exists it scrolls slowly; otherwise build layers procedurally:
-          - Sky gradient (dark mossy)
-          - Far tree silhouettes (low contrast)
-          - Mid tree trunks + sparse branches
-          - Foreground bush / thorn shapes
-        Layers scroll at different speeds for depth."""
-        if self.background:
-            t = pygame.time.get_ticks()*0.02
-            ox = int(t) % self.background.get_width()
-            screen.blit(self.background, (-ox,0))
-            screen.blit(self.background, (-ox + self.background.get_width(),0))
-            return
+        """High-velocity eerie forest: multi-layer parallax + drifting fog + color pulse.
+
+        Layers:
+          1. Pulsing gradient sky (slow hue shift)
+          2. Distant trees (fast horizontal drift)
+          3. Mid trees with branch silhouettes (accelerated parallax)
+          4. Foreground thorns/bushes (very fast scroll for speed sensation)
+          5. Multi band fog + occasional flash silhouettes
+        All procedural so it matches the Sloth's unsettling, fast crawl style.
+        """
         w,h = g.SCREENWIDTH, g.SCREENHEIGHT
-        # Sky gradient cache per frame (cheap enough once)
+        time_ms = pygame.time.get_ticks()
+        t = time_ms / 1000.0
+        # Sky gradient with subtle pulsating hue
         sky = pygame.Surface((w,h))
-        top_col = (8,18,12)
-        bot_col = (12,60,38)
+        pulse = (math.sin(t*0.6)+1)/2  # 0..1
+        top_col = (
+            int(6 + 12*pulse),
+            int(14 + 24*pulse),
+            int(10 + 18*pulse)
+        )
+        bot_col = (
+            int(16 + 30*pulse),
+            int(48 + 42*pulse),
+            int(36 + 34*pulse)
+        )
         for y in range(h):
             k = y / h
             col = (
@@ -85,47 +93,66 @@ class SlothBattleScene:
             )
             pygame.draw.line(sky, col, (0,y), (w,y))
         screen.blit(sky,(0,0))
-        rng = random.Random(0)  # deterministic layout each frame
-        t = pygame.time.get_ticks()/1000.0
-        # Far layer trees
+
+        rng = random.Random(0)  # deterministic layout base
+        # Parallax speed multipliers (higher than previous for "flying" feel)
+        far_speed = 110
+        mid_speed = 210
+        fg_speed = 360
+        # FAR layer (thin silhouettes)
         far = pygame.Surface((w,h), pygame.SRCALPHA)
-        for i in range(28):
-            base_x = (i * 140 + int(t*8)) % (w+140) - 70
-            trunk_h = rng.randint(int(h*0.45), int(h*0.7))
-            trunk_w = rng.randint(10,18)
-            alpha = 55
-            pygame.draw.rect(far, (20,40,28,alpha), (base_x, h-trunk_h, trunk_w, trunk_h))
+        for i in range(34):
+            base_x = (i * 150 - int(t*far_speed)) % (w+150) - 75
+            trunk_h = rng.randint(int(h*0.40), int(h*0.68))
+            trunk_w = rng.randint(8,16)
+            alpha = 50
+            pygame.draw.rect(far, (18,38,26,alpha), (base_x, h-trunk_h, trunk_w, trunk_h))
         screen.blit(far,(0,0))
-        # Mid layer
+        # MID layer (branchy)
         mid = pygame.Surface((w,h), pygame.SRCALPHA)
-        for i in range(18):
-            base_x = (i * 200 + int(t*24)) % (w+200) - 100
-            trunk_h = rng.randint(int(h*0.5), int(h*0.78))
-            trunk_w = rng.randint(26,38)
-            pygame.draw.rect(mid, (26,60,40,130), (base_x, h-trunk_h, trunk_w, trunk_h))
-            # Simple branch triangles
-            for b in range(3):
-                by = h-trunk_h + rng.randint(20, trunk_h-60)
+        for i in range(26):
+            base_x = (i * 180 - int(t*mid_speed)) % (w+180) - 90
+            trunk_h = rng.randint(int(h*0.50), int(h*0.78))
+            trunk_w = rng.randint(24,36)
+            color = (26,60,40,140)
+            pygame.draw.rect(mid, color, (base_x, h-trunk_h, trunk_w, trunk_h))
+            # Branch shards
+            branch_count = 4
+            for b in range(branch_count):
+                by = h-trunk_h + rng.randint(28, trunk_h-40)
                 dir = -1 if b%2==0 else 1
-                length = rng.randint(50,100)
-                pygame.draw.polygon(mid, (26,60,40,110), [
-                    (base_x + (trunk_w//2), by),
-                    (base_x + (trunk_w//2)+dir*length, by-12),
-                    (base_x + (trunk_w//2), by+10)
+                length = rng.randint(60,120)
+                pygame.draw.polygon(mid, (26,60,42,120), [
+                    (base_x + trunk_w//2, by),
+                    (base_x + trunk_w//2 + dir*length, by - rng.randint(8,18)),
+                    (base_x + trunk_w//2, by + rng.randint(6,14))
                 ])
         screen.blit(mid,(0,0))
-        # Foreground bushes
+        # FOREGROUND fast bushes / thorns
         fg = pygame.Surface((w,h), pygame.SRCALPHA)
-        for i in range(22):
-            bx = (i*120 + int(t*40)) % (w+120) - 60
-            by = h - 90 + rng.randint(-8,18)
-            rad = rng.randint(40,70)
-            pygame.draw.ellipse(fg, (14,50,30,200), (bx, by, rad*2, rad))
+        for i in range(40):
+            bx = (i*100 - int(t*fg_speed)) % (w+100) - 50
+            by = h - rng.randint(70,110)
+            rad_x = rng.randint(50,90)
+            rad_y = rng.randint(30,60)
+            pygame.draw.ellipse(fg, (16,46,32,210), (bx, by, rad_x*2, rad_y))
         screen.blit(fg,(0,0))
-        # Subtle fog overlay
+        # Layered fog bands drifting opposite direction for depth
         fog = pygame.Surface((w,h), pygame.SRCALPHA)
-        fog.fill((30,50,40,35))
+        for band in range(5):
+            band_h = h//6
+            y0 = band * band_h + int(math.sin(t*0.8 + band)*6)
+            fog_alpha = int(28 + 18*math.sin(t*1.2 + band*0.7))
+            pygame.draw.rect(fog, (40,60,50,fog_alpha), (0,y0, w, band_h))
         screen.blit(fog,(0,0))
+        # Flash silhouettes (rare): brief dark vertical streaks to add tension
+        if int(t*4) % 7 == 0:  # periodic condition
+            streaks = pygame.Surface((w,h), pygame.SRCALPHA)
+            for _ in range(6):
+                sx = random.randint(0,w)
+                sh = random.randint(int(h*0.3), int(h*0.7))
+                pygame.draw.rect(streaks, (10,20,14,90), (sx, h-sh, 6, sh))
+            screen.blit(streaks,(0,0))
 
     # --- Public API ---
     def update(self, dt: float):
