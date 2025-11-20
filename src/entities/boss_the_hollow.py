@@ -422,8 +422,8 @@ class TheHollow:
     width = 48
     height = 64
 
-    entry_line = "You think words can scare me away?"
-    defeat_line = "This is not a threat-it's my process"
+    entry_line = "Everying is meaningless."
+    defeat_line = "..."
 
     def __init__(self, x, y):
         self.x = x

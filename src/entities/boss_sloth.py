@@ -364,12 +364,12 @@ class TheSloth:
         self.health = self.max_health
         self.phase = 1
         # Dialogue lines
-        self.entry_line = "You stole your own time. You stopped moving forward."
+        self.entry_line = "Just stay..."
         self.mid_lines = [
-            "Rest... a little longer.",
+            "Rest...",
             "Motion is pointless.",
-            "Stay. Let the trail swallow you.",
-            "Time slows. You fade."
+            "Stay.",
+            "Why rush?",
         ]
         self.defeat_line = "Walk first, then think."  # victory popup for player
         self.dialog_cooldown = 0.0
