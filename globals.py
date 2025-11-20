@@ -31,7 +31,7 @@ PERFECTIONIST_PHASE2_HP_RATIO = 0.5  # Phase 2 when HP <= 50%
 # Boss Configuration - The Hollow (Boss #3)
 # Tunable knobs for the Hollow (previously the Procrastinator design). These
 # are named BOSS3_* so we can reserve BOSS2_* for a future different Boss #2.
-BOSS3_MAX_HEALTH = 520
+BOSS3_MAX_HEALTH = 1520
 BOSS3_MOVE_SPEED = 150
 BOSS3_COOLDOWN_P1 = 1.5
 BOSS3_COOLDOWN_P2 = 1.0
@@ -141,7 +141,7 @@ BOSS3_DIRECT_CHASE_MIN_SEP = 120.0      # clamp on closest allowed distance
 # Boss #2 (Sloth) – persistent ground zoning snail (balance pass v2, English comments)
 # --- Sloth Difficulty Overhaul (v3) ---
 # Increased durability & aggression
-BOSS2_MAX_HEALTH = 520            # Much higher durability for extended pressure
+BOSS2_MAX_HEALTH = 920            # Much higher durability for extended pressure
 BOSS2_MOVE_SPEED = 60              # Faster crawl encourages wider trail coverage
 BOSS2_SLIME_COOLDOWN = 1         # Phase 1 base slime volley rate (was 2.0)
 BOSS2_SLIME_COOLDOWN_P2 = 0.85     # Phase 2 faster slime volley rate (was 1.0)
