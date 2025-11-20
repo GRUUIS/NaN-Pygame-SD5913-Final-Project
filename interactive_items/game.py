@@ -21,14 +21,8 @@ def main():
 
     if choice == 'start':
         try:
-            from src.systems.inventory import Inventory
-            inv = Inventory()
-        except Exception:
-            inv = None
-
-        try:
             from interactive_items.map01_scene_withscreenprojection import run as run_map01
-            run_map01(screen, inventory=inv)
+            run_map01(screen)
         except Exception as e:
             print('Failed to import or run map01 scene:', e)
             pygame.quit()
