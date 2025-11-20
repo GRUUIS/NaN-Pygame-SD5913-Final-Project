@@ -540,7 +540,7 @@ def run(screen, inventory=None):
 
 		# 画面中央的半透明白色屏幕
 		screen_w, screen_h = screen.get_size()
-		rect_w, rect_h = 320, 240  # 你可以调整这个区域的大小
+		rect_w, rect_h = 320, 320  # Increased height to fit text inside
 		rect_x = (screen_w - rect_w) // 2
 		rect_y = (screen_h - rect_h) // 2
 
@@ -568,9 +568,14 @@ def run(screen, inventory=None):
 				group_img_fadeout_progress += dt
 				fade = max(0.0, 1.0 - group_img_fadeout_progress / group_img_fadeout_time)
 				group_img_alpha = int(image_alpha * fade)
+				# Also fade the overlay background
+				overlay.fill((255, 255, 255, int(180 * fade)))
+				
 				if group_img_fadeout_progress >= group_img_fadeout_time:
 					group_img_alpha = 0
 					show_only_group_img = False  # 完全消失后关闭group.png和文字
+					current_img_idx = -1 # Reset to no image
+					image_alpha = 0 # Reset alpha
 
 		# 只显示group.png图片，不再切换
 		if show_only_group_img:
@@ -581,7 +586,7 @@ def run(screen, inventory=None):
 		if img:
 			img_w, img_h = img.get_size()
 			img_x = (rect_w - img_w) // 2
-			img_y = (rect_h - img_h) // 2
+			img_y = 20 # Shifted up to make room for text
 			# 创建带alpha的副本
 			img_copy = img.copy()
 			# group.png淡出时用group_img_alpha，否则用image_alpha
@@ -720,9 +725,9 @@ def run(screen, inventory=None):
 					text_surfs.append(surf_alpha)
 					total_height += surf.get_height()
 				
-				# Position: just below the white overlay
+				# Position: inside the white overlay, below the image
 				spacing = 6
-				y = rect_y + rect_h + 12
+				y = rect_y + 230 # Positioned below the image (which ends at 220)
 				for surf in text_surfs:
 					x = (screen_w - surf.get_width()) // 2
 					screen.blit(surf, (x, y))
