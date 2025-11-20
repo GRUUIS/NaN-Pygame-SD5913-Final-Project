@@ -24,6 +24,10 @@ Players control a puppet figure representing "neglected self-awareness" within a
 
 ### Boss Encounters
 
+
+https://github.com/user-attachments/assets/93c9440a-f8c6-4d09-9aa8-f7328e04ebc6
+
+
 1. **Perfectionist** - "Self-Censorship/Fear of Action"
    - Entry boss, teaches baseline movement and dodge patterns
    - Standard bullet-hell patterns: spread, predictive, homing, sweep
