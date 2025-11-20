@@ -35,7 +35,7 @@ class SlothBattleScene:
 
         ground_h = 78
         ground_top = g.SCREENHEIGHT - ground_h
-        # Platforms: small bumps to reposition & avoid stacking trail infinitely
+        # Platforms: restore elevated ledges for repositioning & trail management
         self.platforms = [
             Platform(0, ground_top, g.SCREENWIDTH, ground_h),
             Platform(int(g.SCREENWIDTH*0.28), ground_top-60, 140, 18),
@@ -210,7 +210,8 @@ class SlothBattleScene:
 
     def reset_battle(self):
         # re-init while keeping same scene layout
-        ground_top = self.platforms[0].y
+        # Platform objects store position in rect; use rect.y instead of non-existent .y
+        ground_top = self.platforms[0].rect.y
         self.player = Player(g.SCREENWIDTH//2, g.SCREENHEIGHT - 200)
         self.boss = TheSloth(g.SCREENWIDTH*0.25, 0)
         self.boss.set_ground(ground_top)

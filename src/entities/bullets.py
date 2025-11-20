@@ -108,9 +108,11 @@ class Bullet:
         # Update position
         self.x += self.vx * dt
         self.y += self.vy * dt
-        # Heuristic: slime becomes pool when vertical speed small and near ground (bottom 140px)
+        # Improved pooling: only form puddle after descending and reaching ground level
         if self.type == 'slime' and not self.pool:
-            if abs(self.vy) < 30 or self.y > g.SCREENHEIGHT - 140:
+            ground_top = g.SCREENHEIGHT - getattr(g, 'BOSS2_GROUND_HEIGHT', 78)
+            # require downward motion and proximity to ground
+            if self.vy > 0 and self.y >= ground_top - self.size*0.4:
                 self.vx = 0
                 self.vy = 0
                 self.pool = True
@@ -243,10 +245,13 @@ class BulletManager:
                             player.take_damage(g.BOSS2_SLIME_TICK_DAMAGE)
                         # do not remove pool here
                     elif bullet.type == 'slime_spore' and getattr(bullet, 'pool', False):
+                        # Separate, lower DPS for spore pools
                         bullet.tick_timer += 1/ g.FPS
-                        if bullet.tick_timer >= max(0.4, g.BOSS2_SLIME_TICK_INTERVAL * 0.75):
+                        interval = getattr(g, 'BOSS2_SPORE_POOL_TICK_INTERVAL', 0.55)
+                        if bullet.tick_timer >= interval:
                             bullet.tick_timer = 0.0
-                            player.take_damage(g.BOSS2_SLIME_TICK_DAMAGE * 1.25)
+                            dmg = getattr(g, 'BOSS2_SPORE_POOL_TICK_DAMAGE', 20)
+                            player.take_damage(dmg)
                     else:
                         player.take_damage(bullet.damage)
                         # remove non-pool bullet

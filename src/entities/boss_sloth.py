@@ -44,10 +44,12 @@ class CrawlState(SlothState):
         self.attack_cd = self._cooldown()
         self.say_timer = 0.0
         self.retarget_timer = 0.0  # how often we re-aim at player's x
-        # Advanced pattern timers
+        # Advanced pattern timers (do not reset crush every re-entry so it can actually fire)
         self.dash_cd = getattr(g, 'BOSS2_DASH_COOLDOWN', 6.5)
         self.spore_cd = getattr(g, 'BOSS2_SPORE_COOLDOWN', 7.5)
         self.eruption_t = getattr(g, 'BOSS2_ERUPTION_INTERVAL', 9.0)
+        if getattr(self.boss, 'crush_cd', None) is None:
+            self.boss.crush_cd = getattr(g, 'BOSS2_CRUSH_COOLDOWN', 11.0)
     def _cooldown(self):
         return g.BOSS2_SLIME_COOLDOWN if self.boss.phase == 1 else g.BOSS2_SLIME_COOLDOWN_P2
     def pick_target(self):
@@ -98,7 +100,16 @@ class CrawlState(SlothState):
             self.dash_cd -= dt
             self.spore_cd -= dt
             self.eruption_t -= dt
+            self.boss.crush_cd -= dt
             # Priority order: dash -> spore -> eruption
+            # Insert crush as highest pressure when available
+            if self.boss.crush_cd <= 0:
+                base = getattr(g, 'BOSS2_CRUSH_COOLDOWN_P2', 8.5) if self.boss.phase==2 else getattr(g, 'BOSS2_CRUSH_COOLDOWN', 11.0)
+                if getattr(self.boss, 'enraged', False):
+                    base *= getattr(g, 'BOSS2_CRUSH_COOLDOWN_ENRAGE_MULT', 0.55)
+                self.boss.crush_cd = base
+                self.boss.change_state('crush')
+                return
             if self.dash_cd <= 0:
                 # reset cooldown (phase/enrage scaling)
                 base = getattr(g, 'BOSS2_DASH_COOLDOWN_P2', 5.5) if self.boss.phase==2 else getattr(g, 'BOSS2_DASH_COOLDOWN', 6.5)
@@ -148,19 +159,35 @@ class SlimeAttackState(SlothState):
             n = getattr(g, 'BOSS2_SLIME_VOLLEY_ENRAGE', 12)
         else:
             n = getattr(g, 'BOSS2_SLIME_VOLLEY_P2', 9) if self.boss.phase==2 else getattr(g, 'BOSS2_SLIME_VOLLEY_P1', 6)
-        spread = getattr(g, 'BOSS2_SLIME_SPREAD_P2', 1.05) if self.boss.phase==2 else getattr(g, 'BOSS2_SLIME_SPREAD_P1', 0.85)
+        # Aim base direction toward predicted player position then fan around it
+        px_center = player.x + player.width/2
+        py_center = player.y + player.height/2
+        # Simple lead based on player velocity (horizontal emphasis)
+        lead_t = 0.35
+        px_center += player.vx * lead_t
+        py_center += player.vy * lead_t
+        dx = px_center - origin_x
+        dy = py_center - origin_y
+        base_angle = math.atan2(dy, dx)
+        # Angular spread scaling (smaller for precise aiming, larger if enraged)
+        raw_spread = getattr(g, 'BOSS2_SLIME_SPREAD_P2', 1.05) if self.boss.phase==2 else getattr(g, 'BOSS2_SLIME_SPREAD_P1', 0.85)
+        if getattr(self.boss, 'enraged', False):
+            raw_spread *= 1.15
+        # Convert raw spread to radians fan around base_angle
+        angle_span = raw_spread * 0.25  # tighten compared to old random arcs
+        base_speed = getattr(g, 'BOSS2_SLIME_BASE_SPEED_P1', 190) if self.boss.phase==1 else getattr(g, 'BOSS2_SLIME_BASE_SPEED_P2', 210)
+        if getattr(self.boss, 'enraged', False):
+            base_speed *= getattr(g, 'BOSS2_SLIME_ENRAGE_SPEED_MULT', 1.08)
+        jitter_low = getattr(g, 'BOSS2_SLIME_SPEED_JITTER_LOW', -24)
+        jitter_high = getattr(g, 'BOSS2_SLIME_SPEED_JITTER_HIGH', 36)
         for i in range(n):
             ratio = (i/(n-1)) if n>1 else 0.5
-            offset = -spread/2 + spread * ratio
-            base_speed = getattr(g, 'BOSS2_SLIME_BASE_SPEED_P1', 190) if self.boss.phase==1 else getattr(g, 'BOSS2_SLIME_BASE_SPEED_P2', 210)
-            if getattr(self.boss, 'enraged', False):
-                base_speed *= getattr(g, 'BOSS2_SLIME_ENRAGE_SPEED_MULT', 1.08)
-            jitter_low = getattr(g, 'BOSS2_SLIME_SPEED_JITTER_LOW', -24)
-            jitter_high = getattr(g, 'BOSS2_SLIME_SPEED_JITTER_HIGH', 36)
+            # Center bullets denser toward player; use slight easing toward edges
+            eased = (math.sin((ratio-0.5)*math.pi)+ (ratio-0.5)*0.2)
+            ang = base_angle + (-angle_span/2 + angle_span * ratio) + eased*0.02
             speed = base_speed + random.uniform(jitter_low, jitter_high)
-            ang = getattr(g, 'BOSS2_SLIME_BASE_ANGLE', -1.05) + offset
-            vx = math.cos(ang)*speed
-            vy = math.sin(ang)*speed
+            vx = math.cos(ang) * speed
+            vy = math.sin(ang) * speed
             bullet_manager.add_bullet(origin_x, origin_y, vx, vy, 'slime', 'boss')
 
 
@@ -214,8 +241,14 @@ class SporeAttackState(SlothState):
         spread = getattr(g, 'BOSS2_SPORE_SPREAD_ENRAGE', 80) if getattr(self.boss, 'enraged', False) else getattr(g, 'BOSS2_SPORE_SPREAD_P1', 60)
         vy_min = getattr(g, 'BOSS2_SPORE_VY_MIN', -55)
         vy_max = getattr(g, 'BOSS2_SPORE_VY_MAX', -35)
+        # Predict horizontal position during float time (spore ascends then drops)
+        float_time = getattr(g, 'BOSS2_SPORE_FLOAT_TIME', 1.3)
+        target_x = player.x + player.width/2 + player.vx * (float_time*0.5)
+        dx_total = target_x - origin_x
+        base_vx = dx_total / max(0.2, float_time)
         for i in range(n):
-            vx = random.uniform(-spread, spread)
+            # Slight horizontal distribution around base_vx
+            vx = base_vx + random.uniform(-spread*0.25, spread*0.25)
             vy = random.uniform(vy_min, vy_max)
             bullet_manager.add_bullet(origin_x, origin_y, vx, vy, 'slime_spore', 'boss')
 
@@ -239,6 +272,70 @@ class EruptionState(SlothState):
             # accelerate aging so they vanish sooner post-eruption
             seg['age'] += getattr(g, 'BOSS2_ERUPTION_TRAIL_AGE_ADD', 0.6)
         self.done = True
+
+class CrushState(SlothState):
+    """Overhead lazy collapse: Sloth phases above player, drops with heavy impact,
+    dealing large burst damage and leaving a toxic pressure pool."""
+    def enter(self):
+        self.telegraph = getattr(g, 'BOSS2_CRUSH_TELEGRAPH_TIME', 1.2)
+        self.descending = False
+        self.completed = False
+        self.shadow_x = self.boss.x + self.boss.width/2
+        self.shadow_radius = getattr(g, 'BOSS2_CRUSH_IMPACT_RADIUS', 140)
+        # Lock target to player center (with lead) but DO NOT hide boss; keep on ground for clarity
+        self.shadow_x = self.boss.x + self.boss.width/2
+        ground_y = self.boss.ground_y if self.boss.ground_y is not None else (g.SCREENHEIGHT - 70 - self.boss.height)
+        self.impact_y = ground_y
+        # Starting elevated position (will move up smoothly instead of instant vanish)
+        self.start_y_target = self.impact_y - getattr(g, 'BOSS2_CRUSH_HEIGHT', 320)
+        self.lift_progress = 0.0  # 0..1 during telegraph lift
+        self.lift_duration = max(0.35, self.telegraph * 0.55)  # partial lift while warning shows
+        self.boss.x = self.shadow_x - self.boss.width/2
+        self.original_y = self.boss.y  # keep for interpolation
+    def update(self, dt, player, bullet_manager):
+        # Update target player x for slight adjustment early in telegraph
+        if not self.descending:
+            px_center = player.x + player.width/2 + player.vx * 0.25
+            self.shadow_x = max(40, min(g.SCREENWIDTH-40, px_center))
+            self.boss.x = self.shadow_x - self.boss.width/2
+        if not self.descending:
+            # Smooth lift so boss stays visible (no disappear); partial ascent
+            if self.lift_progress < 1.0:
+                self.lift_progress = min(1.0, self.lift_progress + dt / self.lift_duration)
+                # Ease (quadratic) upward
+                k = (self.lift_progress**2)
+                self.boss.y = self.original_y + (self.start_y_target - self.original_y) * k
+            self.telegraph -= dt
+            if self.telegraph <= 0:
+                self.descending = True
+        else:
+            # Fast drop
+            drop_speed = 900
+            self.boss.y += drop_speed * dt
+            if self.boss.y >= self.impact_y:
+                self.boss.y = self.impact_y
+                self._impact(player)
+                self.completed = True
+                self.boss.change_state('crawl')
+    def _impact(self, player):
+        # Burst damage if within radius
+        dmg_ratio = getattr(g, 'BOSS2_CRUSH_IMPACT_DAMAGE_RATIO', 0.33)
+        impact_dmg = player.max_health * dmg_ratio
+        # Direct overlap check: boss body or circular radius
+        player_center = (player.x + player.width/2, player.y + player.height/2)
+        center = (self.boss.x + self.boss.width/2, self.boss.y + self.boss.height/2)
+        dx = player_center[0] - center[0]
+        dy = player_center[1] - center[1]
+        dist = math.hypot(dx, dy)
+        if dist <= getattr(g, 'BOSS2_CRUSH_IMPACT_RADIUS', 140):
+            player.take_damage(impact_dmg)
+        # Spawn pressure pool segment
+        pool_w = getattr(g, 'BOSS2_CRUSH_POOL_WIDTH', 170)
+        pool_h = getattr(g, 'BOSS2_CRUSH_POOL_HEIGHT', 38)
+        rx = int(center[0] - pool_w/2)
+        ry = int(self.boss.y + self.boss.height - pool_h + 4)
+        rect = pygame.Rect(rx, ry, pool_w, pool_h)
+        self.boss.trail_segments.append({'rect': rect, 'age': 0.0, 'kind': 'crush'})
 
 
 class FadingState(SlothState):
@@ -283,6 +380,7 @@ class TheSloth:
             'dash': DashState(self),
             'spore_attack': SporeAttackState(self),
             'eruption': EruptionState(self),
+            'crush': CrushState(self),
             'fading': FadingState(self)
         }
         self.current_state = self.states['intro']
@@ -379,9 +477,42 @@ class TheSloth:
         if frames:
             frame = frames[self.anim_frame % len(frames)]
         if frame is None:
-            # fallback rectangle
-            color = (150,150,150) if self.state_name!='fading' else (200,200,200)
-            pygame.draw.rect(screen, color, (int(self.x), int(self.y), self.width, self.height), border_radius=12)
+            # Improved fallback: soft elliptical body with subtle gradient pulse
+            body_w, body_h = self.width, self.height
+            surf = pygame.Surface((body_w, body_h), pygame.SRCALPHA)
+            t = pygame.time.get_ticks() * 0.001
+            pulse = 0.15 + 0.05*math.sin(t*3.4)
+            base_col = (80, 110, 140)  # cooler palette
+            highlight = (140, 190, 220)
+            for r in range(body_w//2):
+                alpha = int(160 * (1 - r/(body_w/2))**1.2)
+                blend = r/(body_w/2)
+                # interpolate color
+                col = (
+                    int(base_col[0] + (highlight[0]-base_col[0])*blend*pulse),
+                    int(base_col[1] + (highlight[1]-base_col[1])*blend*pulse),
+                    int(base_col[2] + (highlight[2]-base_col[2])*blend*pulse),
+                    alpha
+                )
+                pygame.draw.ellipse(surf, col, (body_w/2 - r, body_h*0.15, 2*r, body_h*0.7))
+            # Edge outline
+            pygame.draw.ellipse(surf, (40,60,80,180), (2, body_h*0.15+2, body_w-4, body_h*0.7-4), 2)
+            screen.blit(surf, (int(self.x), int(self.y)))
+        # Telegraph shadow for crush attack
+        if self.state_name == 'crush':
+            st = self.states['crush']
+            if hasattr(st, 'telegraph') and not st.descending:
+                # Draw expanding pulsing shadow circle at impact center
+                prog = 1.0 - max(0.0, st.telegraph) / max(0.001, getattr(g, 'BOSS2_CRUSH_TELEGRAPH_TIME', 1.2))
+                radius = int(getattr(g, 'BOSS2_CRUSH_IMPACT_RADIUS',140) * (0.65 + 0.35*prog))
+                cx = int(st.shadow_x)
+                cy = int(self.ground_y + self.height - 6) if self.ground_y is not None else int(self.y + self.height)
+                shadow_surf = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
+                for r in range(radius, 0, -4):
+                    alpha = int(90 * (1 - r/radius)**1.4)
+                    col = (30, 50, 60, alpha)
+                    pygame.draw.circle(shadow_surf, col, (radius, radius), r)
+                screen.blit(shadow_surf, (cx-radius, cy-radius))
         else:
             screen.blit(frame, (int(self.x), int(self.y)))
         # simple fade overlay during fading
@@ -395,13 +526,29 @@ class TheSloth:
         for seg in self.trail_segments:
             r = seg['rect']
             age = seg['age']
-            fade = 1.0 - (age / g.BOSS2_SLIME_TRAIL_LIFETIME)
-            alpha = int(170 * max(0.05, fade))
+            life = g.BOSS2_CRUSH_POOL_LIFETIME if seg.get('kind') == 'crush' else g.BOSS2_SLIME_TRAIL_LIFETIME
+            fade = 1.0 - (age / life)
+            alpha = int(150 * max(0.05, fade))
             surf = pygame.Surface((r.width, r.height), pygame.SRCALPHA)
-            col = (70, 150, 90, alpha)
-            pygame.draw.rect(surf, col, (0,0,r.width,r.height), border_radius=6)
-            inner = pygame.Rect(4,4,r.width-8,r.height-8)
-            pygame.draw.rect(surf, (90,180,110,int(alpha*0.6)), inner, border_radius=4)
+            kind = seg.get('kind')
+            if kind == 'crush':
+                # Distinct heavier toxic pool (purple/teal mix)
+                base = (50, 40, 90)
+                tip = (80, 170, 180)
+            else:
+                base = (40, 120, 130)
+                tip = (70, 190, 200)
+            for y in range(r.height):
+                frac = y / max(1, r.height-1)
+                col = (
+                    int(base[0] + (tip[0]-base[0])*frac),
+                    int(base[1] + (tip[1]-base[1])*frac),
+                    int(base[2] + (tip[2]-base[2])*frac),
+                    alpha
+                )
+                pygame.draw.line(surf, col, (0,y), (r.width,y))
+            outline_col = (35,20,60,int(alpha*0.85)) if kind=='crush' else (20,50,60,int(alpha*0.8))
+            pygame.draw.rect(surf, outline_col, (0,0,r.width,r.height), 2, border_radius=6)
             screen.blit(surf, (r.x, r.y))
 
     # --- Ground & Trail helpers ---
@@ -433,15 +580,23 @@ class TheSloth:
         new_list = []
         for seg in self.trail_segments:
             seg['age'] += dt
-            if seg['age'] <= g.BOSS2_SLIME_TRAIL_LIFETIME:
+            life = g.BOSS2_CRUSH_POOL_LIFETIME if seg.get('kind') == 'crush' else g.BOSS2_SLIME_TRAIL_LIFETIME
+            if seg['age'] <= life:
                 # collision check
                 if player_rect.colliderect(seg['rect']) and self.state_name != 'fading':
                     moving = abs(player.vx) > 25
-                    dps = g.BOSS2_SLIME_TRAIL_DPS * (1.0 if moving else g.BOSS2_SLIME_TRAIL_IDLE_MULT)
+                    kind = seg.get('kind')
+                    if kind == 'crush':
+                        base_dps = getattr(g, 'BOSS2_CRUSH_POOL_DPS', 26.0)
+                        idle_mult = getattr(g, 'BOSS2_CRUSH_POOL_IDLE_MULT', 1.9)
+                        dps = base_dps * (1.0 if moving else idle_mult)
+                    else:
+                        base_dps = g.BOSS2_SLIME_TRAIL_DPS
+                        idle_mult = g.BOSS2_SLIME_TRAIL_IDLE_MULT
+                        dps = base_dps * (1.0 if moving else idle_mult)
                     if getattr(self, 'enraged', False):
                         dps *= getattr(g, 'BOSS2_TRAIL_ENRAGE_DPS_MULT', 1.3)
                     player.take_damage(dps * dt)
-                    # apply slow only while inside
                     player.vx *= g.BOSS2_SLIME_TRAIL_SLOW
                 new_list.append(seg)
         self.trail_segments = new_list
