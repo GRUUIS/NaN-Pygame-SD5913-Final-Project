@@ -10,7 +10,12 @@ other helpers.
 import os
 import glob
 import time
+import sys
 
+# Ensure project root is in sys.path for imports if run directly
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT_DIR not in sys.path:
+	sys.path.insert(0, ROOT_DIR)
 
 def run(screen):
 	import pygame
@@ -21,7 +26,9 @@ def run(screen):
 	# Local set to track collected items since inventory system is removed
 	collected_items = set()
 
-	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+	# Adjusted ROOT for testing folder (1 level deep)
+	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+	
 	# find Room1.tmj first, fallback to any Room1.tmx if necessary
 	map_path = None
 	for p in glob.iglob(os.path.join(ROOT, 'assets', 'map01', 'Room1.*')):
@@ -856,3 +863,11 @@ def run(screen):
 		pygame.display.flip()
 
 	return
+
+if __name__ == '__main__':
+	import pygame
+	import globals as g
+	pygame.init()
+	screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
+	run(screen)
+	pygame.quit()

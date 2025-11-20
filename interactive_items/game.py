@@ -21,7 +21,7 @@ def main():
 
     if choice == 'start':
         try:
-            from interactive_items.map01_scene_withscreenprojection import run as run_map01
+            from testing.map01_final import run as run_map01
             run_map01(screen)
         except Exception as e:
             print('Failed to import or run map01 scene:', e)
