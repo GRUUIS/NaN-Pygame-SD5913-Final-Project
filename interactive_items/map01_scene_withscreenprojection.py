@@ -12,11 +12,14 @@ import glob
 import time
 
 
-def run(screen, inventory=None):
+def run(screen):
 	import pygame
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
 	from src.ui.dialog_box_notusing import SpeechBubble
+
+	# Local set to track collected items since inventory system is removed
+	collected_items = set()
 
 	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 	# find Room1.tmj first, fallback to any Room1.tmx if necessary
@@ -401,33 +404,30 @@ def run(screen, inventory=None):
 						dist = hypot(px - r.centerx, py - r.centery)
 						print(f"[map01_scene DEBUG] Item {it.get('id')} at ({r.centerx}, {r.centery}), dist={dist:.1f}")
 						if dist < max(tile_w * 6, 160):
-							picked = False
-							if inventory:
-								picked = inventory.add_item({'id': it.get('id'), 'name': it.get('id')})
-							if picked or not inventory:
-								items.remove(it)
-								print('Picked up', it.get('id'))
-								# 如果拾取的是hourglass，启动图片淡入，并只显示group.png
-								if it.get('id') == 'hourglass':
-									image_fadein = True
-									image_alpha = 0
-									show_only_group_img = True
-									group_img_show_timer = 0.0
-									group_img_fadeout = False
-									group_img_fadeout_progress = 0.0
-									story_text_fadein = True
-									story_text_alpha = 0
-									story_text_fully_visible = False
-								
-								# If lamp is picked up, trigger brush projection
-								if it.get('id') == 'lamp':
-									show_brush_projection = True
-									brush_img_alpha = 0
-									brush_proj_timer = 0.0
-								break
-			# forward to inventory
-			if inventory:
-				inventory.handle_event(ev)
+							# Pick up item
+							items.remove(it)
+							item_id = it.get('id')
+							collected_items.add(item_id)
+							print('Picked up', item_id)
+							
+							# 如果拾取的是hourglass，启动图片淡入，并只显示group.png
+							if item_id == 'hourglass':
+								image_fadein = True
+								image_alpha = 0
+								show_only_group_img = True
+								group_img_show_timer = 0.0
+								group_img_fadeout = False
+								group_img_fadeout_progress = 0.0
+								story_text_fadein = True
+								story_text_alpha = 0
+								story_text_fully_visible = False
+							
+							# If lamp is picked up, trigger brush projection
+							if item_id == 'lamp':
+								show_brush_projection = True
+								brush_img_alpha = 0
+								brush_proj_timer = 0.0
+							break
 			# right-click pickup for items
 			if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 3:
 				sx, sy = ev.pos
@@ -440,13 +440,11 @@ def run(screen, inventory=None):
 						from math import hypot
 						dist = hypot(px - obj_screen.centerx, py - obj_screen.centery)
 						if dist < max(tile_w * 6, 160):
-							# attempt to add to inventory if available
-							picked = False
-							if inventory:
-								picked = inventory.add_item({'id': it.get('id'), 'name': it.get('id')})
-								if picked or not inventory:
-									items.remove(it)
-									print('Picked up', it.get('id'))
+							# Pick up item
+							items.remove(it)
+							item_id = it.get('id')
+							collected_items.add(item_id)
+							print('Picked up', item_id)
 							break
 
 		# update
@@ -502,7 +500,7 @@ def run(screen, inventory=None):
 				if player.rect.colliderect(d):
 					# If the player is carrying the special 'hourglass', send them to boss1
 					try:
-						if inventory and inventory.has_item('hourglass'):
+						if 'hourglass' in collected_items:
 							print('[map01_scene DEBUG] player has hourglass - launching boss1')
 							# import here to avoid circular imports at module load time
 							try:
@@ -836,9 +834,6 @@ def run(screen, inventory=None):
 
 		# instruction overlay removed from map scene per UI change; instructions
 		# (including pickup hint) are now shown in the main menu.
-
-		if inventory:
-			inventory.draw(screen)
 
 		# draw speech bubble if present
 		try:
