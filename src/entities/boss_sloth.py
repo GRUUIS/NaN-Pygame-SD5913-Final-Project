@@ -42,7 +42,7 @@ class CrawlState(SlothState):
     def enter(self):
         self.pick_target()
         self.attack_cd = self._cooldown()
-        self.say_timer = 0.0
+        # self.say_timer = 0.0  <-- Removed reset
         self.retarget_timer = 0.0  # how often we re-aim at player's x
         # Advanced pattern timers (do not reset crush every re-entry so it can actually fire)
         self.dash_cd = getattr(g, 'BOSS2_DASH_COOLDOWN', 6.5)
@@ -132,10 +132,10 @@ class CrawlState(SlothState):
                 self.boss.change_state('eruption')
                 return
         # Dialog timer
-        self.say_timer += dt
+        self.boss.say_timer += dt
         interval = 6.0 if self.boss.phase==1 else 4.5
-        if self.say_timer >= interval:
-            self.say_timer = 0
+        if self.boss.say_timer >= interval:
+            self.boss.say_timer = 0
             self.boss.say_random_mid()
 
 
@@ -346,7 +346,7 @@ class CrushState(SlothState):
 class FadingState(SlothState):
     def enter(self):
         self.timer = 0.0
-        self.duration = 2.5
+        self.duration = 4.0 # Longer for melt animation
         self.boss.say_once(self.boss.defeat_line)
     def update(self, dt, player, bullet_manager):
         self.timer += dt
@@ -373,6 +373,7 @@ class TheSloth:
         ]
         self.defeat_line = "Walk first, then think."  # victory popup for player
         self.dialog_cooldown = 0.0
+        self.say_timer = 0.0 # Persistent timer for mid-battle dialogue
         self.fully_defeated = False
         # Animation
         self.anim_timer = 0.0
@@ -500,8 +501,62 @@ class TheSloth:
         frame = None
         if frames:
             frame = frames[self.anim_frame % len(frames)]
-        if frame is None:
-            # Improved fallback: soft elliptical body with subtle gradient pulse
+        # simple fade overlay during fading
+        if self.state_name == 'fading':
+            # Melt animation: Squash height, expand width, fade out, sink into ground
+            prog = min(1.0, getattr(self.states['fading'], 'timer', 0.0)/ max(0.01, getattr(self.states['fading'], 'duration',1)))
+            
+            # Parameters for melt
+            melt_factor = prog ** 2  # Accelerate melting
+            
+            # Dimensions
+            current_w = self.width * (1.0 + 1.5 * melt_factor) # Expand width up to 2.5x
+            current_h = self.height * (1.0 - 0.9 * melt_factor) # Squash height down to 10%
+            
+            # Position (keep bottom centered)
+            # Original bottom is self.y + self.height
+            # New y should be bottom - current_h
+            bottom_y = self.y + self.height
+            # Add sinking effect (move bottom down slightly)
+            sink_y = 20 * melt_factor
+            draw_y = bottom_y - current_h + sink_y
+            draw_x = self.x + (self.width - current_w) / 2
+            
+            # Alpha fade
+            alpha = int(255 * (1.0 - melt_factor))
+            
+            if frame:
+                # Scale and blit sprite
+                scaled_surf = pygame.transform.scale(frame, (int(current_w), int(current_h)))
+                scaled_surf.set_alpha(alpha)
+                screen.blit(scaled_surf, (int(draw_x), int(draw_y)))
+            else:
+                # Fallback shape melt
+                surf = pygame.Surface((int(current_w), int(current_h)), pygame.SRCALPHA)
+                pygame.draw.ellipse(surf, (80, 110, 140, alpha), (0, 0, int(current_w), int(current_h)))
+                screen.blit(surf, (int(draw_x), int(draw_y)))
+                
+            # Draw some "bubbles" rising from the melt
+            if prog < 0.8:
+                import random
+                for _ in range(2):
+                    if random.random() < 0.3:
+                        bx = draw_x + random.random() * current_w
+                        by = draw_y + random.random() * current_h
+                        pygame.draw.circle(screen, (100, 200, 100, alpha), (int(bx), int(by)), random.randint(2, 5))
+        else:
+            # Normal draw
+            if frame:
+                screen.blit(frame, (int(self.x), int(self.y)))
+            elif self.state_name != 'fading': # Fallback only if not fading (fading handled above)
+                # Improved fallback: soft elliptical body with subtle gradient pulse
+                # ... (rest of fallback code is fine, but we need to ensure we don't double draw)
+                pass 
+                
+        # Fallback shape logic was mixed in previous code block, let's clean it up.
+        # If frame is None AND not fading, draw fallback.
+        if frame is None and self.state_name != 'fading':
+             # Improved fallback: soft elliptical body with subtle gradient pulse
             body_w, body_h = self.width, self.height
             surf = pygame.Surface((body_w, body_h), pygame.SRCALPHA)
             t = pygame.time.get_ticks() * 0.001
@@ -522,30 +577,6 @@ class TheSloth:
             # Edge outline
             pygame.draw.ellipse(surf, (40,60,80,180), (2, body_h*0.15+2, body_w-4, body_h*0.7-4), 2)
             screen.blit(surf, (int(self.x), int(self.y)))
-        # Telegraph shadow for crush attack
-        if self.state_name == 'crush':
-            st = self.states['crush']
-            if hasattr(st, 'telegraph') and not st.descending:
-                # Draw expanding pulsing shadow circle at impact center
-                prog = 1.0 - max(0.0, st.telegraph) / max(0.001, getattr(g, 'BOSS2_CRUSH_TELEGRAPH_TIME', 1.2))
-                radius = int(getattr(g, 'BOSS2_CRUSH_IMPACT_RADIUS',140) * (0.65 + 0.35*prog))
-                cx = int(st.shadow_x)
-                cy = int(self.ground_y + self.height - 6) if self.ground_y is not None else int(self.y + self.height)
-                shadow_surf = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
-                for r in range(radius, 0, -4):
-                    alpha = int(90 * (1 - r/radius)**1.4)
-                    col = (30, 50, 60, alpha)
-                    pygame.draw.circle(shadow_surf, col, (radius, radius), r)
-                screen.blit(shadow_surf, (cx-radius, cy-radius))
-        else:
-            screen.blit(frame, (int(self.x), int(self.y)))
-        # simple fade overlay during fading
-        if self.state_name == 'fading':
-            prog = min(1.0, getattr(self.states['fading'], 'timer', 0.0)/ max(0.01, getattr(self.states['fading'], 'duration',1)))
-            if frame:
-                overlay = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
-                overlay.fill((255,255,255,int(120*prog)))
-                screen.blit(overlay,(int(self.x), int(self.y)))
         # Draw slime trail segments (beneath boss, after to avoid covering player)
         for seg in self.trail_segments:
             r = seg['rect']

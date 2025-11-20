@@ -31,7 +31,7 @@ PERFECTIONIST_PHASE2_HP_RATIO = 0.5  # Phase 2 when HP <= 50%
 # Boss Configuration - The Hollow (Boss #3)
 # Tunable knobs for the Hollow (previously the Procrastinator design). These
 # are named BOSS3_* so we can reserve BOSS2_* for a future different Boss #2.
-BOSS3_MAX_HEALTH = 1520
+BOSS3_MAX_HEALTH = 1320
 BOSS3_MOVE_SPEED = 150
 BOSS3_COOLDOWN_P1 = 1.5
 BOSS3_COOLDOWN_P2 = 1.0

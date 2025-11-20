@@ -100,7 +100,9 @@ class BossBattleScene:
             b.ui = getattr(self, 'ui', None)
             return b
         if self._boss_type in ('procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
-            return TheHollow(x, y)
+            b = TheHollow(x, y)
+            b.ui = getattr(self, 'ui', None)
+            return b
         # default
         return Perfectionist(x, y)
     
@@ -259,14 +261,14 @@ class BossBattleScene:
     #region Game State & Reset
     def is_game_over(self) -> bool:
         """Check if battle is over"""
-        over = self.player.health <= 0 or self.boss.health <= 0
-        # Trigger victory popup once
-        if not self._shown_victory and over and self.boss.health <= 0:
-            self._shown_victory = True
-            def player_anchor():
-                return (self.player.x + self.player.width/2, self.player.y)
-            self.ui.add(TextPopup(getattr(self.boss, 'defeat_line', "This is not a threat-it's my process"), player_anchor, duration=3.0, bg=(10,10,10)))
-        return over
+        if self.player.health <= 0:
+            return True
+        if self.boss.health <= 0:
+            # Wait for boss to finish fading animation/dialogue
+            if hasattr(self.boss, 'fully_defeated') and not self.boss.fully_defeated:
+                return False
+            return True
+        return False
 
     def reset_battle(self):
         """Reset the battle maintaining the same boss type and clear bullets."""

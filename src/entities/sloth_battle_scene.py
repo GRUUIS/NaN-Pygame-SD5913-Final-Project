@@ -29,6 +29,8 @@ class SlothBattleScene:
         self.boss = TheSloth(g.SCREENWIDTH*0.25, 0)
         self.bullet_manager = BulletManager()
         self.ui = UIManager()
+        # Inject UI into boss for dialogue
+        self.boss.ui = self.ui
         self._shown_entry = False
         self._shown_victory = False
         self._last_boss_health = getattr(self.boss, 'health', 0)
@@ -210,12 +212,14 @@ class SlothBattleScene:
             screen.blit(font.render(l,True,(220,230,220)), (8, g.SCREENHEIGHT-120 + i*20))
 
     def is_game_over(self):
-        over = self.player.health <=0 or self.boss.health <=0
-        if over and not self._shown_victory and self.boss.health<=0:
-            self._shown_victory = True
-            def anchor(): return (self.player.x + self.player.width/2, self.player.y)
-            self.ui.add(TextPopup(getattr(self.boss,'defeat_line','Keep walking.'), anchor, duration=3.2, bg=(12,12,12)))
-        return over
+        if self.player.health <= 0:
+            return True
+        if self.boss.health <= 0:
+            # Wait for boss to finish fading animation/dialogue
+            if hasattr(self.boss, 'fully_defeated') and not self.boss.fully_defeated:
+                return False
+            return True
+        return False
 
     def reset_battle(self):
         # re-init while keeping same scene layout
@@ -226,6 +230,8 @@ class SlothBattleScene:
         self.boss.set_ground(ground_top)
         self.bullet_manager = BulletManager()
         self.ui = UIManager()
+        # Inject UI into boss for dialogue
+        self.boss.ui = self.ui
         self._shown_entry = False
         self._shown_victory = False
         self._last_boss_health = self.boss.health
