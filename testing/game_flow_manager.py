@@ -520,15 +520,10 @@ def main():
     # 第四阶段：跳转到战斗场景（map01）
     if puzzle_result == 'next':
         print("进入战斗场景...")
-        try:
-            from src.systems.inventory import Inventory
-            inv = Inventory()
-        except Exception:
-            inv = None
         
         try:
-            from src.scenes.map01_scene import run as run_map01
-            run_map01(screen, inventory=inv)
+            from interactive_items.map01_scene_withscreenprojection import run as run_map01
+            run_map01(screen)
         except Exception as e:
             print('Failed to run map01 scene:', e)
     
