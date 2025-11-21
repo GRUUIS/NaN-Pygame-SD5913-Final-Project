@@ -2,7 +2,7 @@
 
 **Mind's Maze** is a 2D pixel art puzzle-platformer exploring psychological themes through metaphorical boss battles. 
 
-Developed by Team NaN. In programming, NaN represents an undefined or unrepresentable value; in our project, this concept becomes a metaphor for the moments in life when our sense of self feels undefined, inconsistent, or lost. Mind’s Maze uses this idea as its narrative backbone—each level reflects cognitive states where clarity breaks down, and each boss symbolizes a psychological pattern that disrupts meaning or direction.
+It is developed by Team NaN. In programming, NotaNumber/NaN represents an undefined or unrepresentable value; in our project, this concept becomes a metaphor for the moments in life when our sense of self feels undefined, inconsistent, or lost. Mind’s Maze uses this idea as its narrative backbone—each level reflects cognitive states where clarity breaks down, and each boss symbolizes a psychological pattern that disrupts meaning or direction.
 
 ## Game Concept
 

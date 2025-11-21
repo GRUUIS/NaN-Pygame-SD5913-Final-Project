@@ -259,6 +259,12 @@ class Player:
         idx = self.frame_index % len(frames)
         image = frames[idx]
         
+        # Scale the sprite for visual size (1.5x)
+        scale_factor = 1.5
+        if scale_factor != 1.0:
+            new_size = (int(image.get_width() * scale_factor), int(image.get_height() * scale_factor))
+            image = pygame.transform.scale(image, new_size)
+
         # Flip if facing left (Blue witch sprites face right by default usually, let's assume right)
         # Actually, let's check the sprites. Usually sprites face right.
         # If facing_right is False, we flip.
