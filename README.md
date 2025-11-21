@@ -1,268 +1,80 @@
 # Mind's Maze - Psychological 2D Platformer
 
-A 2D pixel art puzzle-platformer game exploring psychological themes through metaphorical boss battles.
-The game is developed by Team NaN. In programming, NaN represents an undefined or unrepresentable value; in our project, this concept becomes a metaphor for the moments in life when our sense of self feels undefined, inconsistent, or lost. Mind’s Maze uses this idea as its narrative backbone—each level reflects cognitive states where clarity breaks down, and each boss symbolizes a psychological pattern that disrupts meaning or direction.
+**Mind's Maze** is a 2D pixel art puzzle-platformer exploring psychological themes through metaphorical boss battles. 
 
-## Project Overview
+Developed by Team NaN. In programming, NaN represents an undefined or unrepresentable value; in our project, this concept becomes a metaphor for the moments in life when our sense of self feels undefined, inconsistent, or lost. Mind’s Maze uses this idea as its narrative backbone—each level reflects cognitive states where clarity breaks down, and each boss symbolizes a psychological pattern that disrupts meaning or direction.
 
-**Genre:** 2D Side-scrolling Puzzle-Platformer  
-**Engine:** Pygame  
-**Art Style:** Pixel Art  
-**Timeline:** 5-6 weeks (Deadline: December 1, 2025)  
-**Team Size:** 4 developers  
+## Game Concept
 
-### Game Concept
+Players control a puppet figure representing "neglected self-awareness" within a chaotic mind landscape. The game features metaphorical boss battles representing common psychological obstacles:
 
-Players control a puppet figure representing "neglected self-awareness" within a chaotic mind landscape. The game features three metaphorical boss battles representing common psychological obstacles: perfectionism, procrastination, and nihilism.
-
-### Core Features
-
-- **Metaphorical Combat System:** Creative tools instead of traditional weapons
-- **Progressive Difficulty:** Each boss requires different strategies
-- **Pixel Art Aesthetic:** Retro-inspired visual design
-- **Multimedia Integration:** Images, audio, narrative elements
-- **Puzzle-Combat Hybrid:** Strategic thinking combined with action
-
-### Boss Encounters
-
-
-https://github.com/user-attachments/assets/93c9440a-f8c6-4d09-9aa8-f7328e04ebc6
-
-
-1. **Perfectionist** - "Self-Censorship/Fear of Action"
-   - Entry boss, teaches baseline movement and dodge patterns
-   - Standard bullet-hell patterns: spread, predictive, homing, sweep
-
-2. **The Hollow (Nihilism)** - Black silhouette of emptiness
-   - New Boss 3 (re-themed from Procrastinator mechanics)
-   - Summons "Void Shards" (black squares) from above; touching hurts
-   - Entry bubble: “You think words can scare me away?”
-   - Player uses “Voidfire” (purple flame) as the primary attack in this fight
-   - Victory bubble: “This is not a threat-it's my process”
-
-### The Sloth (Boss #2) Difficulty Overhaul (v3)
-
-The Sloth now emphasizes relentless lateral zoning and punishment for hesitation.
-
-Key Changes:
-- Max HP: 1600 (longer sustain, extended trail management challenge)
-- Crawl Speed: 86 (with phase/enrage speed multipliers) for wider trail spread
-- Trail Segments: wider, taller, dropped more frequently; lifetime 18s (was 15s)
-- Trail DPS: 20 baseline; idle multiplier 3.4 (stronger anti‑camp); enrage +30% bonus
-- Slime Volleys: 7 / 11 / 15 (Phase1 / Phase2 / Enrage), higher projectile speed & spread
-- Spore Bursts: 4 / 6 / 9 spores; shorter float (1.1s) so toxic puddles form sooner
-- Dash: Speed 320, cooldowns 5.5 / 3.6 / 2.2 (P1 / P2 / Enrage) sustaining chase pressure
-- Eruption: Intervals 8.0 / 5.0 / 3.2 and burst damage 18 (punishes trail loitering)
-- Earlier Enrage at 35% HP for longer high‑intensity end phase
-- Background: Replaced with high‑velocity eerie forest (multi‑layer parallax, pulsing sky, drifting fog & silhouette flashes) matching aggressive pacing.
-
-Strategic Impact:
-- Idling or micro‑stutter movement rapidly drains HP due to high idle multiplier and longer trail persistence.
-- Player must commit to decisive reposition bursts; small lateral taps are insufficient to escape compounding hazards.
-- Earlier enrage and faster spore drops compress safe windows forcing proactive route planning.
-
-Balancing Notes:
-- If fight length feels excessive, reduce `BOSS2_MAX_HEALTH` or trail lifetime first.
-- If zoning overwhelms mobility, slightly raise player move speed or reduce `BOSS2_SLIME_TRAIL_IDLE_MULT`.
-
-All tunables located in `globals.py` under Sloth Difficulty Overhaul block.
-
-### Technical Specifications
-
-- **Resolution:** 1280x720
-- **Frame Rate:** 60 FPS
-- **Controls:** WASD + Mouse + Spacebar
-- **Platform:** Windows (Primary)
+1.  **The First Attack**: Player couldn't react but being defeated by the hollow.
+2.  **The Sloth**: A zoning-heavy battle representing procrastination, featuring persistent slime trails and area denial.
+3.  **The Hollow**: A survival battle against Nihilism, featuring "Void Shards" and "Voidfire" mechanics.
 
 ## Project Structure
 
 ```
 Mind's-Maze/
-├── src/                    # Source code
-│   ├── entities/          # Player, bosses, items
-│   ├── scenes/            # Game states, levels
-│   ├── systems/           # Combat, audio, input
-│   └── utils/             # Helper functions
-├── assets/                # Game resources
-│   ├── images/           # Sprites, backgrounds, UI
-│   ├── audio/            # Music and sound effects
-│   └── fonts/            # Text rendering
-├── config/               # Game configuration
-├── docs/                 # Documentation
-├── main.py              # Entry point
-└── globals.py           # Global constants
+├── assets/                # Game resources (sprites, audio, maps)
+├── config/                # Configuration files
+├── src/                   # Source code
+│   ├── entities/          # Player, bosses, platforms
+│   ├── scenes/            # Game scenes (Menu, Gameplay, Bosses)
+│   ├── systems/           # Core systems (Physics, Audio)
+│   └── utils/             # Utilities (Logger, State Machine)
+├── testing/               # Test scripts and flow managers
+├── globals.py             # Global constants and configuration
+└── main.py                # Main entry point
 ```
 
-## Development Setup
+## Installation
 
-### Prerequisites
+1.  **Prerequisites**: Python 3.x
+2.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-### Installation
-1. Clone the repository:
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the game:
-   ```bash
-   python main.py
-   ```
+## How to Play
 
-### Quick Boss Tests
+### Run the Game
+game_flow_manager.py
 
-- Perfectionist boss test:
-   ```bash
-   python main.py boss1
-   ```
+### Boss Battle Test Modes
+You can directly test specific boss encounters:
 
-- The Hollow boss test (Boss 3):
-   ```bash
-   python main.py boss hollow
-   # or
-   python main.py boss3
-   ```
+```bash
+# Boss 2: The Sloth (Procrastination)
+python main.py boss2
 
-Controls in boss tests:
+# Boss 3: The Hollow (Nihilism)
+python main.py boss3
+```
 
-- WASD / Arrow keys: Move
-- Space / W / Up: Jump
-- Mouse Left: Shoot (Perfectionist: normal bullets; The Hollow: Voidfire)
-- R: Reset battle
-- ESC: Exit
+### Controls
+- **WASD**: Move
+- **Space**: Jump
+- **Mouse**: Aim & Shoot
+- **R**: Retry (in Boss Mode)
 
-Idle penalty (anti-camping) in boss battles:
+## Credits & Attribution
 
-- If you stand still on the ground too long, punishment escalates:
-   - Periodic “Void Shards” fall near you, count and speed scale with idle time
-   - Continuous health drain while idle (tunable)
-   - Tunables in `globals.py`:
-      - `PLAYER_IDLE_THRESHOLD` (seconds)
-      - `PLAYER_IDLE_SHARD_INTERVAL` (seconds)
-      - `PLAYER_IDLE_HEALTH_DRAIN` (HP per second)
+### Team NaN
+- **Structure Developer**: Main loop, scene management
+- **Combat Systems Developer**: Boss behaviors, combat mechanics
+- **Visual & UI Developer**: Map creation, camera, UI
+- **Content & Asset Integration**: Assets, narrative, dialogue
 
-## Team Roles & Responsibilities
+### Third-Party Assets
+- **Map / Tileset**: [Cozy Room Library](https://rolff.itch.io/cozy-room-library-tilemap-16x16) by Rolff
+- **Character Pack**: [Witches Pack](https://9e0.itch.io/witches-pack) by 9E0
+- **Icon Pack**: [RPG IAB Icon Pack](https://zeromatrix.itch.io/rpgiab-icons) by ZeroMatrix
+- **UI Styles**: [Complete UI Book Styles Pack](https://crusenho.itch.io/complete-ui-book-styles-pack) by Crusenho
+- **Music**: [Essential Game Music Pack](https://bellkalengar.itch.io/essential-game-music-pack) by Bell Kalengar
+- **Sound Effects**: OpenGameArt.org (Space Shoot Sounds, Spiritwatcher, Lurid Delusion)
 
-### Structure Developer
-- **Responsibilities:** main loop, scene management, and overall integration
-- **Files:** `main.py`, `src/scenes/`, `src/utils/`, project coordination
-
-### Combat Systems Developer
-- **Responsibilities:** Boss behaviors, combat mechanics, player controls, and balancing
-- **Files:** `src/entities/`, `src/systems/combat.py`, `src/utils/collision.py`
-
-### Visual & UI Developer
-- **Responsibilities:** Map creation, camera movement, and basic UI design
-- **Files:** `assets/` organization, `src/systems/renderer.py`, `src/systems/camera.py`, `src/scenes/`
-
-### Content & Asset Integration Developer
-- **Responsibilities:** Asset preparation (audio, images, sprites, animations), narrative text, and dialogue implementation
-- **Files:** `assets/`, `src/systems/audio.py`, `config/`, `src/utils/dialogue.py`
-
-## Development Guidelines
-
-### Code Standards
-- Pull lastest version everytime coding
-- Use descriptive variable and function names
-- Comment complex logic sections
-
-### Asset Guidelines
-- Pixel art sprites: 16x16 or 32x32 base size
-- Audio files: MP3 or WAV format
-- Consistent color palette across all art
-- Organize assets by type and usage
-
-### Git Workflow
-- Create feature branches for major changes
-- Commit frequently with descriptive messages
-- Test before pushing to main branch
-- Use pull requests for code review
-
-## Third-party components / Attribution
-
-- The project includes a vendored copy of `pygame_aseprite_animator` (used for loading Aseprite `.aseprite` animations) under `testing/pygame_aseprite_animator/`.
-- Original upstream repository: https://github.com/ISebSej/pygame_aseprite_animator
-- This copy was added as a vendor snapshot so the demo runner can parse `.aseprite` files without requiring an external install. The animator's original LICENSE file is included in `testing/pygame_aseprite_animator/LICENSE`.
-- If you prefer to track upstream changes directly, we can convert this to a git submodule instead (ask me and I can set that up).
-
-- Map loader dependency: PyTMX
-
-   This project uses PyTMX (https://github.com/bitcraft/PyTMX) to load maps authored with Tiled in some parts of the tooling and map loaders. PyTMX is not vendored into the repository source; it was installed into the project's virtualenv during development and is available via PyPI/GitHub.
-
-   Recommended ways for collaborators to get PyTMX when checking out this repo:
-
-   - Install via pip into your virtualenv (easy):
-
-      ```bash
-      pip install -r requirements.txt
-      ```
-
-      (we've added `pytmx` to `requirements.txt` so the command above will fetch the PyPI package)
-
-   - If you prefer to include PyTMX in-tree so contributors don't need an extra pip step,
-      you can add it as a git submodule from the upstream repository:
-
-      ```bash
-      git submodule add https://github.com/bitcraft/PyTMX.git third_party/pytmx
-      git submodule update --init --recursive
-      ```
-
-      This repository now includes PyTMX as a submodule at `third_party/pytmx` (commit 7af805b from https://github.com/bitcraft/PyTMX.git).
-
-      If you'd prefer a fully-included snapshot (no git submodule), we can vendor the files directly into the repo and add the LICENSE file; tell me and I will copy the snapshot into `third_party/pytmx` and commit it.
-
-   - Check upstream license and attribution before redistributing a vendored copy. The upstream project is hosted at https://github.com/bitcraft/PyTMX — please review its LICENSE file.
-
-### Assets attribution
-
-- Map / tileset: Cozy Room Library (16x16) — downloaded from itch.io
-   - Link (download page): https://rolff.itch.io/cozy-room-library-tilemap-16x16/download/eyJpZCI6MjU1Njc0OSwiZXhwaXJlcyI6MTc2MjM5MzY1NH0%3d%2eVi8Y0Q5pfsFyRUsK2%2fz8ZZXBYQM%3d
-   - Author / source page: https://rolff.itch.io/cozy-room-library-tilemap-16x16
-
-- Character pack: Witches Pack — downloaded from itch.io
-   - Pack page: https://9e0.itch.io/witches-pack
-
-- Icon pack: RPG IAB Icon Pack — downloaded from itch.io
-   - Pack page: https://zeromatrix.itch.io/rpgiab-icons
-
-- UI / Book styles: Complete UI Book Styles Pack — downloaded from itch.io
-   - Pack page: https://crusenho.itch.io/complete-ui-book-styles-pack
-
-- Music pack: Essential Game Music Pack — Bell Kalengar — downloaded from itch.io
-   - Pack page: https://bellkalengar.itch.io/essential-game-music-pack
-
-- Boss related sound - OpenGameArt.org
-   - Source page: https://opengameart.org/content/space-shoot-sounds
-   - Source page: https://opengameart.org/content/spiritwatcher
-   - Source page: https://opengameart.org/content/lurid-delusion
-
-
-
-## Game Design Document
-
-### Core Loop
-1. **Exploration:** Navigate mind-scape environments
-2. **Discovery:** Find creative tools and story elements  
-3. **Challenge:** Face psychological boss battles
-4. **Growth:** Overcome obstacles through strategy
-
-### Progression System
-- **Tools Acquisition:** Unlock new abilities
-- **Knowledge Gain:** Learn boss patterns and strategies
-- **Narrative Advancement:** Discover story through gameplay
-
-## Current Development Status
-
-**Phase 1: Foundation** (Weeks 1-2)
-- [x] Project structure setup
-- [ ] Core game engine implementation
-- [x] Basic player movement and controls
-
-**Phase 2: Core Systems** (Weeks 3-4)  
-- [x] Boss battle framework
-- [ ] Combat and puzzle mechanics
-- [x] Asset integration pipeline
-
-**Phase 3: Content & Polish** (Weeks 5-6)
-- [x] Audio implementation
-- [ ] Testing and bug fixes
+### Libraries
+- **PyTMX**: Map loading (MIT License)
+- **pygame_aseprite_animator**: Animation handling (MIT License)
 
