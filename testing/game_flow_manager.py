@@ -522,7 +522,27 @@ def main():
         print("进入战斗场景...")
         
         try:
-            from testing.map01_final import run as run_map01
+            # Debug: ensure we're importing the expected `testing.map01_final` module
+            import importlib
+            mod = importlib.import_module('testing.map01_final')
+            mod_file = getattr(mod, '__file__', None)
+            print(f"DEBUG: testing.map01_final loaded from: {mod_file}")
+            # Quick heuristic: check source for immediate lamp append vs delayed data
+            try:
+                with open(mod_file, 'r', encoding='utf-8') as f:
+                    src = f.read()
+                if "items.append({'id': 'lamp'" in src or "items.append({\'id\': 'lamp'" in src:
+                    print('DEBUG: lamp is appended immediately in the map file')
+                elif 'lamp_item_data' in src:
+                    print('DEBUG: lamp appears delayed (lamp_item_data present)')
+                else:
+                    print('DEBUG: lamp logic not detected in source')
+            except Exception:
+                pass
+
+            run_map01 = getattr(mod, 'run', None)
+            if not callable(run_map01):
+                raise ImportError('testing.map01_final has no callable run(screen)')
             run_map01(screen)
         except Exception as e:
             print('Failed to run map01 scene:', e)
