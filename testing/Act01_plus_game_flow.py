@@ -942,7 +942,7 @@ def main():
     if puzzle_result == 'next':
         print("进入战斗场景...")
         try:
-            from src.systems.inventory import Inventory
+            from src.systems.inventory_notusing import Inventory
             inv = Inventory()
         except Exception:
             inv = None
