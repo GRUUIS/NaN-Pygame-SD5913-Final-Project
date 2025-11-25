@@ -946,7 +946,7 @@ class YumeNikkiPuzzle:
         seq_tiles = [(4, 4), (5, 4), (4, 5), (5, 5)]
         seq_puzzle = SequencePuzzle(seq_tiles, [0, 2, 3, 1])  # Correct order
         self.puzzles.append(('sequence', seq_puzzle))
-        orb1 = EffectOrb(4 * TILE_SIZE + 20, 3 * TILE_SIZE, 'cat', seq_puzzle)
+        orb1 = EffectOrb(4 * TILE_SIZE + 20, 3 * TILE_SIZE, 'Fight Perfectionism', seq_puzzle)
         self.orbs.append(orb1)
         
         # Hint for sequence puzzle
@@ -958,19 +958,19 @@ class YumeNikkiPuzzle:
         # Puzzle 2: Memory puzzle (top-right area)
         mem_puzzle = MemoryPuzzle(19, 4)
         self.puzzles.append(('memory', mem_puzzle))
-        orb2 = EffectOrb(20 * TILE_SIZE + 20, 3 * TILE_SIZE, 'knife', mem_puzzle)
+        orb2 = EffectOrb(20 * TILE_SIZE + 20, 3 * TILE_SIZE, 'Resist Procrastination', mem_puzzle)
         self.orbs.append(orb2)
         
         # Puzzle 3: Lights puzzle (bottom-left area) - 2x2 simple version
         lights_puzzle = LightsPuzzle(4, 13, 2)
         self.puzzles.append(('lights', lights_puzzle))
-        orb3 = EffectOrb(5 * TILE_SIZE, 12 * TILE_SIZE, 'bicycle', lights_puzzle)
+        orb3 = EffectOrb(5 * TILE_SIZE, 12 * TILE_SIZE, 'Pursue Nature', lights_puzzle)
         self.orbs.append(orb3)
         
         # Puzzle 4: Code puzzle (bottom-right area)
         code_puzzle = CodePuzzle(19, 13)
         self.puzzles.append(('code', code_puzzle))
-        orb4 = EffectOrb(20 * TILE_SIZE + 20, 12 * TILE_SIZE, 'neon', code_puzzle)
+        orb4 = EffectOrb(20 * TILE_SIZE + 20, 12 * TILE_SIZE, 'Sort Out Thoughts', code_puzzle)
         self.orbs.append(orb4)
         
         # Hints for code puzzle scattered around - with hint numbers
