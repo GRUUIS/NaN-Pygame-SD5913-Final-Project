@@ -39,10 +39,10 @@ def main():
         if len(sys.argv) > 1:
             mode = sys.argv[1].lower()
             
-            # if mode in ['boss1', 'perfectionist']:
-            #     print("Starting Boss Battle Test Mode... (Perfectionist)")
-            #     run_boss_test('perfectionist')
-            #     return
+            if mode in ['boss1', 'intro']:
+                print("Starting Boss Battle Test Mode... (Intro/Boss1)")
+                run_boss_test('boss1')
+                return
             if mode in ['boss2', 'sloth', 'the_sloth', 'b0ss', 'snail']:
                 print("Starting Boss Battle Test Mode... (The Sloth)")
                 run_boss_test('sloth')
@@ -112,6 +112,9 @@ def run_boss_test(boss_type: str = 'perfectionist'):
     if bt in ('sloth','the_sloth','b0ss','snail'):
         from src.entities.sloth_battle_scene import SlothBattleScene
         boss_scene = SlothBattleScene()
+    elif bt == 'boss1':
+        from src.scenes.boss1_scripted_scene import Boss1ScriptedScene
+        boss_scene = Boss1ScriptedScene(None)
     else:
         boss_scene = BossBattleScene(boss_type=boss_type)
     
@@ -137,8 +140,11 @@ def run_boss_test(boss_type: str = 'perfectionist'):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-                elif event.key == pygame.K_r:
-                    # Reset boss battle using new method
+                elif event.key == pygame.K_SPACE and boss_scene.is_game_over():
+                    # Continue after defeat/victory
+                    running = False
+                elif event.key == pygame.K_r and not boss_scene.is_game_over():
+                    # Reset only if not already game over prompt flow
                     boss_scene.reset_battle()
                     show_game_over_timer = 0
                     print("Boss battle reset!")
@@ -157,9 +163,9 @@ def run_boss_test(boss_type: str = 'perfectionist'):
             if show_game_over_timer <= 0:
                 show_game_over_timer = 3.0  # Show for 3 seconds
                 if boss_scene.player.health <= 0:
-                    print("DEFEAT! Press R to retry")
+                    print("DEFEAT")
                 elif boss_scene.boss.health <= 0:
-                    print("VICTORY! Press R for new battle")
+                    print("VICTORY!")
             else:
                 show_game_over_timer -= dt
                 draw_game_over_screen(screen, boss_scene)
@@ -191,56 +197,59 @@ def draw_ui_overlay(screen, boss_scene):
     draw_health_bar(screen, boss_scene.player.health, boss_scene.player.max_health, 
                    10, g.SCREENHEIGHT - 40, 200, 20, "Player")
     
-    draw_health_bar(screen, boss_scene.boss.health, boss_scene.boss.max_health,
+    if hasattr(boss_scene, 'boss') and boss_scene.boss:
+        draw_health_bar(screen, boss_scene.boss.health, boss_scene.boss.max_health,
                    g.SCREENWIDTH - 210, 10, 200, 20, "Boss")
 
     # Optional boss-specific overlays (Stress meter, Deadline timer)
-    boss = boss_scene.boss
-    if hasattr(boss, 'max_stress') and hasattr(boss, 'stress'):
-        # Draw Stress bar below boss HP
-        stress_current = getattr(boss, 'stress', 0)
-        stress_max = max(1, getattr(boss, 'max_stress', 100))
-        draw_meter_bar(
-            screen,
-            current=stress_current,
-            maximum=stress_max,
-            x=g.SCREENWIDTH - 210,
-            y=35,
-            width=200,
-            height=14,
-            label="Stress",
-            color_high=(220, 120, 120),
-            color_mid=(230, 180, 80),
-            color_low=(120, 200, 120)
-        )
+    if hasattr(boss_scene, 'boss') and boss_scene.boss:
+        boss = boss_scene.boss
+        if hasattr(boss, 'max_stress') and hasattr(boss, 'stress'):
+            # Draw Stress bar below boss HP
+            stress_current = getattr(boss, 'stress', 0)
+            stress_max = max(1, getattr(boss, 'max_stress', 100))
+            draw_meter_bar(
+                screen,
+                current=stress_current,
+                maximum=stress_max,
+                x=g.SCREENWIDTH - 210,
+                y=35,
+                width=200,
+                height=14,
+                label="Stress",
+                color_high=(220, 120, 120),
+                color_mid=(230, 180, 80),
+                color_low=(120, 200, 120)
+            )
 
-    if hasattr(boss, 'deadline_left') and hasattr(boss, 'deadline_total'):
-        # Draw Deadline bar at top center
-        d_left = max(0.0, float(getattr(boss, 'deadline_left', 0.0)))
-        d_total = max(0.01, float(getattr(boss, 'deadline_total', 60.0)))
-        center_x = g.SCREENWIDTH // 2 - 110
-        draw_meter_bar(
-            screen,
-            current=d_left,
-            maximum=d_total,
-            x=center_x,
-            y=10,
-            width=220,
-            height=14,
-            label=f"Deadline: {int(d_left)}s",
-            color_high=(120, 200, 120),
-            color_mid=(230, 180, 80),
-            color_low=(220, 120, 120)
-        )
+        if hasattr(boss, 'deadline_left') and hasattr(boss, 'deadline_total'):
+            # Draw Deadline bar at top center
+            d_left = max(0.0, float(getattr(boss, 'deadline_left', 0.0)))
+            d_total = max(0.01, float(getattr(boss, 'deadline_total', 60.0)))
+            center_x = g.SCREENWIDTH // 2 - 110
+            draw_meter_bar(
+                screen,
+                current=d_left,
+                maximum=d_total,
+                x=center_x,
+                y=10,
+                width=220,
+                height=14,
+                label=f"Deadline: {int(d_left)}s",
+                color_high=(120, 200, 120),
+                color_mid=(230, 180, 80),
+                color_low=(220, 120, 120)
+            )
     
     # Debug info if enabled
     if g.SHOW_DEBUG_INFO:
         debug_info = [
             f"Player: ({int(boss_scene.player.x)}, {int(boss_scene.player.y)})",
-            f"Boss State: {boss_scene.boss.current_state.__class__.__name__}",
             f"Bullets: {len(boss_scene.bullet_manager.bullets)}",
             f"FPS: {int(pygame.time.Clock().get_fps())}"
         ]
+        if hasattr(boss_scene, 'boss') and boss_scene.boss:
+            debug_info.insert(1, f"Boss State: {boss_scene.boss.current_state.__class__.__name__}")
         
         for i, info in enumerate(debug_info):
             text = small_font.render(info, True, g.COLORS['ui_text'])
@@ -313,17 +322,21 @@ def draw_game_over_screen(screen, boss_scene):
     
     if boss_scene.player.health <= 0:
         title_text = font.render("DEFEAT", True, g.COLORS['ui_health_low'])
-        subtitle_text = small_font.render("Press R to retry", True, g.COLORS['ui_text'])
-    else:
+        subtitle_text = None
+    elif hasattr(boss_scene, 'boss') and boss_scene.boss and boss_scene.boss.health <= 0:
         title_text = font.render("VICTORY!", True, g.COLORS['ui_health_high'])
-        subtitle_text = small_font.render("Press R for new battle", True, g.COLORS['ui_text'])
+        subtitle_text = None
+    else:
+        # Fallback for scripted scenes where boss might not exist or be killable
+        title_text = font.render("GAME OVER", True, g.COLORS['ui_text'])
+        subtitle_text = small_font.render("Press R to restart", True, g.COLORS['ui_text'])
     
     # Center the text
-    title_rect = title_text.get_rect(center=(g.SCREENWIDTH//2, g.SCREENHEIGHT//2 - 30))
-    subtitle_rect = subtitle_text.get_rect(center=(g.SCREENWIDTH//2, g.SCREENHEIGHT//2 + 30))
-    
+    title_rect = title_text.get_rect(center=(g.SCREENWIDTH//2, g.SCREENHEIGHT//2))
     screen.blit(title_text, title_rect)
-    screen.blit(subtitle_text, subtitle_rect)
+    if subtitle_text:
+        subtitle_rect = subtitle_text.get_rect(center=(g.SCREENWIDTH//2, g.SCREENHEIGHT//2 + 30))
+        screen.blit(subtitle_text, subtitle_rect)
 
 
 def show_help():

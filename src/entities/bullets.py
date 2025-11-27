@@ -49,7 +49,7 @@ class Bullet:
         if bullet_type == 'laser':
             self.size = 6
         elif bullet_type == 'void_shard':
-            self.size = 6
+            self.size = 7
         elif bullet_type == 'voidfire':
             self.size = 5
         elif bullet_type == 'slime':
@@ -148,7 +148,7 @@ class Bullet:
             pygame.draw.ellipse(screen, color, body_rect)
             draw_glow(int(self.size*1.4), color, 35)
         elif self.type == 'void_shard':
-            # Diamond shape
+            # Diamond shape with subtle glow for visibility on dark scenes
             s = self.size
             pts = [
                 (int(self.x), int(self.y - s)),
@@ -158,6 +158,7 @@ class Bullet:
             ]
             pygame.draw.polygon(screen, color, pts)
             pygame.draw.polygon(screen, (0,0,0), pts, 1)
+            draw_glow(int(self.size*1.8), color, 50)
         elif self.type == 'voidfire':
             pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
             draw_glow(self.size*2, color, 65)
