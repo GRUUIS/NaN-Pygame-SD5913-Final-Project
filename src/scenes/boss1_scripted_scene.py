@@ -7,7 +7,7 @@ from src.scenes.base_scene import BaseScene
 from src.entities.player import Player
 from src.entities.bullets import BulletManager
 from src.entities.platform import Platform
-from src.systems.ui import UIManager
+from src.systems.ui import UIManager, draw_ui_overlay
 
 class Boss1ScriptedScene(BaseScene):
     """
@@ -41,9 +41,7 @@ class Boss1ScriptedScene(BaseScene):
         self.attack_started = False
         self.game_over_timer = 0.0
         self._is_game_over = False
-        self._start_fade = False
-        self._fade_alpha = 0
-        self._defeated_effect_timer = 0.0
+        # defeat UI stays simple
         
         # Attack Configuration
         self.shard_spawn_timer = 0.0
@@ -95,17 +93,6 @@ class Boss1ScriptedScene(BaseScene):
             self.player.vx = 0.0
             self.player.vy = 0.0
             self.bullet_manager.update(dt, self.player, None)
-            # Player defeated visual effect timer
-            self._defeated_effect_timer += dt
-            # Handle fade-to-black after space pressed
-            if self._start_fade:
-                self._fade_alpha = min(255, self._fade_alpha + int(180 * dt))
-                if self._fade_alpha >= 255:
-                    try:
-                        # Gracefully exit by posting QUIT so outer loop ends
-                        pygame.event.post(pygame.event.Event(pygame.QUIT))
-                    except Exception:
-                        pygame.quit()
             return
 
         # 1. Update Player (apply heavy slow using a time-varying scale)
@@ -189,39 +176,25 @@ class Boss1ScriptedScene(BaseScene):
         
         # 3. Draw Player
         self.player.draw(screen)
-        # Defeated visual: red pulse around player when game over
-        if self._is_game_over:
-            cx = int(self.player.x + self.player.width/2)
-            cy = int(self.player.y + self.player.height/2)
-            pulse = 8 + int(6 * (1 + math.sin(self._defeated_effect_timer * 6)))
-            radius = max(20, int(self.player.width * 0.8)) + pulse
-            ring = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
-            pygame.draw.circle(ring, (220, 40, 40, 90), (radius, radius), radius)
-            pygame.draw.circle(ring, (0, 0, 0, 0), (radius, radius), max(0, radius-10))
-            screen.blit(ring, (cx - radius, cy - radius))
+        # No extra defeated glow; keep original minimal look
         
         # 4. Draw Bullets
         self.bullet_manager.draw(screen)
         
         # 5. UI (Health)
         self.ui.draw(screen)
+        # centralized HUD (player health etc.)
+        try:
+            draw_ui_overlay(screen, self)
+        except Exception:
+            pass
         
-        # 6. Game Over Text and fade-to-black after Space
+        # 6. Game Over Text (original simple UI)
         if self._is_game_over:
             font = pygame.font.Font(None, 72)
-            text = font.render("DEFEAT", True, (200, 40, 40))
+            text = font.render("YOU DIED", True, (150, 0, 0))
             rect = text.get_rect(center=(g.SCREENWIDTH//2, g.SCREENHEIGHT//2))
             screen.blit(text, rect)
-            # Prompt
-            small = pygame.font.Font(None, 28)
-            prompt = small.render("Press Space", True, (200, 180, 200))
-            screen.blit(prompt, prompt.get_rect(center=(g.SCREENWIDTH//2, g.SCREENHEIGHT//2 + 46)))
-            # Fade overlay if started
-            if self._start_fade:
-                overlay = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT))
-                overlay.set_alpha(self._fade_alpha)
-                overlay.fill((0, 0, 0))
-                screen.blit(overlay, (0, 0))
 
     def is_game_over(self):
         """Compatibility with run_boss_test loop which expects a callable."""
@@ -235,9 +208,6 @@ class Boss1ScriptedScene(BaseScene):
                 self.enter() # Restart
             if event.key == pygame.K_ESCAPE:
                 self.game_manager.change_scene('menu') # Assuming menu exists
-            if event.key == pygame.K_SPACE and self._is_game_over:
-                # Start fade to black and exit
-                self._start_fade = True
 
     def exit(self):
         # Restore any globals we modified

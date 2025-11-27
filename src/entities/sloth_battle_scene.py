@@ -20,7 +20,7 @@ from .player import Player
 from .boss_sloth import TheSloth
 from .bullets import BulletManager
 from .platform import Platform
-from ..systems.ui import UIManager, TextPopup
+from ..systems.ui import UIManager, TextPopup, draw_ui_overlay, draw_game_over_screen
 
 
 class SlothBattleScene:
@@ -198,6 +198,15 @@ class SlothBattleScene:
         self.player.draw(screen)
         self.bullet_manager.draw(screen)
         self.ui.draw(screen)
+        try:
+            draw_ui_overlay(screen, self)
+        except Exception:
+            pass
+        if self.is_game_over():
+            try:
+                draw_game_over_screen(screen, self)
+            except Exception:
+                pass
         if g.SHOW_DEBUG_INFO:
             self._draw_debug(screen)
 
