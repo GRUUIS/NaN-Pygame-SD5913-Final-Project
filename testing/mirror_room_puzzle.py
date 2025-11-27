@@ -37,6 +37,13 @@ ASSET_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "
 TILES_DIR = os.path.join(ASSET_DIR, "tiles")
 SPRITES_DIR = os.path.join(ASSET_DIR, "sprites")
 
+# Blue Witch sprite settings
+BLUE_WITCH_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "sprites", "Blue_witch")
+WITCH_FRAME_WIDTH = 32
+WITCH_FRAME_HEIGHT = 32
+WITCH_SCALE = 1.8
+WITCH_ANIMATION_SPEED = 0.15
+
 COLOR_BLACK = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_DREAM = (15, 15, 25)
@@ -57,6 +64,12 @@ class Character:
         self.animation_timer = 0.0
         self.collision_width = 16
         self.collision_height = 12
+        
+        # Transformation state
+        self.transformed = False
+        self.witch_frames = None
+        self.transform_timer = 0
+        self.transform_particles = []
     
     def _load_frames(self) -> dict:
         frames = {}
@@ -71,7 +84,94 @@ class Character:
                 frames[dir_name].append(scaled)
         return frames
     
+    def _load_witch_frames(self) -> dict:
+        """Load Blue Witch sprite frames (vertical sprite sheets)"""
+        frames = {'idle': [], 'run': []}
+        
+        # Load idle sprite
+        idle_path = os.path.join(BLUE_WITCH_DIR, "B_witch_idle.png")
+        run_path = os.path.join(BLUE_WITCH_DIR, "B_witch_run.png")
+        
+        try:
+            # Load idle frames (vertical sprite sheet: 32x288, 9 frames)
+            idle_sheet = pygame.image.load(idle_path).convert_alpha()
+            idle_rows = idle_sheet.get_height() // WITCH_FRAME_HEIGHT
+            for row in range(idle_rows):
+                rect = pygame.Rect(0, row * WITCH_FRAME_HEIGHT,
+                                   WITCH_FRAME_WIDTH, WITCH_FRAME_HEIGHT)
+                frame = idle_sheet.subsurface(rect)
+                scaled = pygame.transform.scale(frame,
+                    (int(WITCH_FRAME_WIDTH * WITCH_SCALE), int(WITCH_FRAME_HEIGHT * WITCH_SCALE)))
+                frames['idle'].append(scaled)
+            
+            # Load run frames (vertical sprite sheet: 32x384, 12 frames)
+            run_sheet = pygame.image.load(run_path).convert_alpha()
+            run_rows = run_sheet.get_height() // WITCH_FRAME_HEIGHT
+            for row in range(run_rows):
+                rect = pygame.Rect(0, row * WITCH_FRAME_HEIGHT,
+                                   WITCH_FRAME_WIDTH, WITCH_FRAME_HEIGHT)
+                frame = run_sheet.subsurface(rect)
+                scaled = pygame.transform.scale(frame,
+                    (int(WITCH_FRAME_WIDTH * WITCH_SCALE), int(WITCH_FRAME_HEIGHT * WITCH_SCALE)))
+                frames['run'].append(scaled)
+            
+            # Ensure we have at least one frame
+            if not frames['idle']:
+                frames['idle'] = [pygame.Surface((int(WITCH_FRAME_WIDTH * WITCH_SCALE), 
+                                                   int(WITCH_FRAME_HEIGHT * WITCH_SCALE)), pygame.SRCALPHA)]
+            if not frames['run']:
+                frames['run'] = frames['idle'].copy()
+                
+        except Exception as e:
+            print(f"Warning: Could not load witch sprites: {e}")
+            # Create placeholder frames
+            placeholder = pygame.Surface((int(WITCH_FRAME_WIDTH * WITCH_SCALE), 
+                                         int(WITCH_FRAME_HEIGHT * WITCH_SCALE)), pygame.SRCALPHA)
+            pygame.draw.circle(placeholder, (100, 100, 200), 
+                             (int(WITCH_FRAME_WIDTH * WITCH_SCALE // 2), 
+                              int(WITCH_FRAME_HEIGHT * WITCH_SCALE // 2)), 15)
+            frames['idle'] = [placeholder]
+            frames['run'] = [placeholder]
+        
+        return frames
+    
+    def transform_to_witch(self):
+        """Transform character into Blue Witch"""
+        if not self.transformed:
+            self.transformed = True
+            self.transform_timer = 0
+            self.witch_frames = self._load_witch_frames()
+            self.frame_index = 0
+            
+            # Create transformation particles
+            for _ in range(40):
+                angle = random.uniform(0, 2 * math.pi)
+                dist = random.uniform(10, 60)
+                self.transform_particles.append({
+                    'x': math.cos(angle) * dist,
+                    'y': math.sin(angle) * dist,
+                    'vx': math.cos(angle) * random.uniform(50, 150),
+                    'vy': math.sin(angle) * random.uniform(50, 150),
+                    'size': random.randint(3, 8),
+                    'life': 1.0,
+                    'color': random.choice([
+                        (100, 150, 255),  # Blue
+                        (150, 100, 255),  # Purple
+                        (200, 200, 255),  # White
+                        (80, 120, 200),   # Dark blue
+                    ])
+                })
+    
     def update(self, dt: float, dx: float, dy: float, collision_check=None):
+        # Update transformation particles
+        if self.transform_particles:
+            self.transform_timer += dt
+            for p in self.transform_particles:
+                p['x'] += p['vx'] * dt
+                p['y'] += p['vy'] * dt
+                p['life'] -= dt * 1.5
+            self.transform_particles = [p for p in self.transform_particles if p['life'] > 0]
+        
         if dx != 0 or dy != 0:
             self.is_moving = True
             self.direction = self._get_direction(dx, dy)
@@ -90,13 +190,28 @@ class Character:
         else:
             self.is_moving = False
         
+        # Different animation speed based on transformation
+        anim_speed = WITCH_ANIMATION_SPEED if self.transformed else ANIMATION_SPEED
+        
         if self.is_moving:
             self.animation_timer += dt
-            if self.animation_timer >= ANIMATION_SPEED:
+            if self.animation_timer >= anim_speed:
                 self.animation_timer = 0
-                self.frame_index = (self.frame_index % 8) + 1
+                if self.transformed and self.witch_frames:
+                    max_frames = len(self.witch_frames['run']) - 1
+                    self.frame_index = (self.frame_index % max_frames) + 1 if max_frames > 0 else 0
+                else:
+                    self.frame_index = (self.frame_index % 8) + 1
         else:
-            self.frame_index = 0
+            if self.transformed and self.witch_frames:
+                # Animate idle for witch
+                self.animation_timer += dt
+                if self.animation_timer >= anim_speed * 1.5:
+                    self.animation_timer = 0
+                    max_frames = len(self.witch_frames['idle'])
+                    self.frame_index = (self.frame_index + 1) % max_frames if max_frames > 0 else 0
+            else:
+                self.frame_index = 0
     
     def _get_direction(self, dx, dy):
         if dx > 0 and dy > 0: return 'down_right'
@@ -109,10 +224,49 @@ class Character:
         return 'up'
     
     def draw(self, surface, camera_x=0, camera_y=0):
-        frame = self.frames[self.direction][self.frame_index]
-        draw_x = self.x - camera_x - frame.get_width() // 2
-        draw_y = self.y - camera_y - frame.get_height() + self.collision_height
-        surface.blit(frame, (draw_x, draw_y))
+        if self.transformed and self.witch_frames:
+            # Draw witch sprite
+            if self.is_moving:
+                frames = self.witch_frames['run']
+            else:
+                frames = self.witch_frames['idle']
+            
+            frame_idx = min(self.frame_index, len(frames) - 1)
+            frame = frames[frame_idx]
+            
+            # Flip sprite based on direction
+            if 'left' in self.direction:
+                frame = pygame.transform.flip(frame, True, False)
+            
+            draw_x = self.x - camera_x - frame.get_width() // 2
+            draw_y = self.y - camera_y - frame.get_height() + self.collision_height
+            
+            # Add magical glow effect for witch
+            glow_surf = pygame.Surface((frame.get_width() + 20, frame.get_height() + 20), pygame.SRCALPHA)
+            glow_alpha = int(40 + 20 * math.sin(pygame.time.get_ticks() * 0.005))
+            pygame.draw.ellipse(glow_surf, (100, 150, 255, glow_alpha), 
+                              (0, glow_surf.get_height() - 15, glow_surf.get_width(), 15))
+            surface.blit(glow_surf, (draw_x - 10, draw_y - 5))
+            
+            surface.blit(frame, (draw_x, draw_y))
+        else:
+            # Draw normal character
+            frame = self.frames[self.direction][self.frame_index]
+            draw_x = self.x - camera_x - frame.get_width() // 2
+            draw_y = self.y - camera_y - frame.get_height() + self.collision_height
+            surface.blit(frame, (draw_x, draw_y))
+        
+        # Draw transformation particles
+        if self.transform_particles:
+            for p in self.transform_particles:
+                px = self.x + p['x'] - camera_x
+                py = self.y + p['y'] - camera_y - 20
+                alpha = int(255 * p['life'])
+                size = int(p['size'] * p['life'])
+                if size > 0:
+                    ps = pygame.Surface((size * 2 + 2, size * 2 + 2), pygame.SRCALPHA)
+                    pygame.draw.circle(ps, (*p['color'], alpha), (size + 1, size + 1), size)
+                    surface.blit(ps, (int(px) - size, int(py) - size))
     
     def get_reflection_direction(self):
         """Get the mirrored direction for reflection"""
@@ -127,7 +281,20 @@ class Character:
     def draw_reflection(self, surface, mirror_x, camera_x=0, camera_y=0, alpha=150):
         """Draw a mirrored reflection of the character"""
         reflected_dir = self.get_reflection_direction()
-        frame = self.frames[reflected_dir][self.frame_index]
+        
+        # Get the appropriate frame based on transformation state
+        if self.transformed and self.witch_frames:
+            if self.is_moving:
+                frames = self.witch_frames['run']
+            else:
+                frames = self.witch_frames['idle']
+            frame_idx = min(self.frame_index, len(frames) - 1)
+            frame = frames[frame_idx]
+            # Handle left direction for witch
+            if 'left' in self.direction:
+                frame = pygame.transform.flip(frame, True, False)
+        else:
+            frame = self.frames[reflected_dir][self.frame_index]
         
         # Flip horizontally
         flipped = pygame.transform.flip(frame, True, False)
@@ -1034,8 +1201,11 @@ class MirrorRoomPuzzle:
         # Check if pencil was collected
         if self.pencil.collected and not self.effect_obtained:
             self.effect_obtained = True
-            self.dialogue.show("Obtained [PENCIL] effect!\n\nThe power to draw your own path...")
-            self.dream_effect.flash((255, 255, 200), 200)
+            # Transform character into Blue Witch!
+            self.character.transform_to_witch()
+            self.dialogue.show("Obtained [PENCIL] effect!\n\nYou feel the magic flowing through you...\nYour form begins to change!")
+            self.dream_effect.flash((100, 150, 255), 200)
+            self.dream_effect.shake(0.6, 8)
             self.game_complete = True
         
         # Update mirror highlight
