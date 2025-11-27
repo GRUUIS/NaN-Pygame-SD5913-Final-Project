@@ -1155,12 +1155,7 @@ class MirrorRoomPuzzle:
         return True
     
     def update(self, dt):
-        if self.game_complete:
-            self.dialogue.update(dt)
-            self.dream_effect.update(dt)
-            return
-        
-        # Character movement
+        # Always update character (allow movement even after game complete)
         keys = pygame.key.get_pressed()
         dx = dy = 0
         if keys[pygame.K_w] or keys[pygame.K_UP]: dy = -1
@@ -1170,6 +1165,15 @@ class MirrorRoomPuzzle:
         
         self.character.update(dt, dx, dy, self.check_collision)
         self.update_camera()
+        
+        # Update effects
+        self.dialogue.update(dt)
+        self.dream_effect.update(dt)
+        
+        if self.game_complete:
+            # Still update mirror for any remaining shards
+            self.mirror.update(dt)
+            return
         
         # Update mirror
         self.mirror.update(dt)
@@ -1213,9 +1217,6 @@ class MirrorRoomPuzzle:
         dx = self.character.x - mirror_center_x
         dy = self.character.y - (self.mirror.y + self.mirror.height)
         self.mirror.highlight = math.sqrt(dx*dx + dy*dy) < 80
-        
-        self.dialogue.update(dt)
-        self.dream_effect.update(dt)
     
     def draw(self):
         shake_x, shake_y = self.dream_effect.get_shake_offset()
