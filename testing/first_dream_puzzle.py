@@ -15,8 +15,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # --------------------------
 # Configuration
 # --------------------------
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+# Default screen size (can be overridden)
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 FPS = 60
 TILE_SIZE = 32
 MAP_WIDTH = 25
@@ -25,7 +26,7 @@ MAP_HEIGHT = 19
 CHAR_FRAME_WIDTH = 23
 CHAR_FRAME_HEIGHT = 36
 CHAR_SCALE = 1.5
-ANIMATION_SPEED = 0.2
+ANIMATION_SPEED = 0.08  # Faster animation for smoother walking
 
 DIRECTION_MAP = {
     'down': 0, 'down_right': 1, 'right': 2, 'up_right': 3,
@@ -89,13 +90,18 @@ class Character:
         else:
             self.is_moving = False
         
+        # Smoother animation: always update timer, gradually return to idle
+        self.animation_timer += dt
         if self.is_moving:
-            self.animation_timer += dt
             if self.animation_timer >= ANIMATION_SPEED:
-                self.animation_timer = 0
+                self.animation_timer -= ANIMATION_SPEED
                 self.frame_index = (self.frame_index % 8) + 1
         else:
-            self.frame_index = 0
+            # Smoothly transition to idle frame
+            if self.animation_timer >= ANIMATION_SPEED * 2:
+                self.animation_timer = 0
+                if self.frame_index != 0:
+                    self.frame_index = 0
     
     def _get_direction(self, dx, dy):
         if dx > 0 and dy > 0: return 'down_right'
@@ -118,7 +124,9 @@ class Character:
 
 
 class DreamEffect:
-    def __init__(self):
+    def __init__(self, screen_width=1280, screen_height=720):
+        self.screen_width = screen_width
+        self.screen_height = screen_height
         self.static_timer = 0
         self.static_intensity = 0
         self.flash_alpha = 0
@@ -128,8 +136,8 @@ class DreamEffect:
         self.particles = []
         for _ in range(30):
             self.particles.append({
-                'x': random.randint(0, SCREEN_WIDTH),
-                'y': random.randint(0, SCREEN_HEIGHT),
+                'x': random.randint(0, self.screen_width),
+                'y': random.randint(0, self.screen_height),
                 'speed': random.uniform(10, 30),
                 'size': random.randint(1, 3),
                 'alpha': random.randint(50, 120),
@@ -168,10 +176,13 @@ class DreamEffect:
             p['y'] -= p['speed'] * dt
             p['x'] += math.sin(p['y'] * 0.02) * 0.5
             if p['y'] < -10:
-                p['y'] = SCREEN_HEIGHT + 10
-                p['x'] = random.randint(0, SCREEN_WIDTH)
+                p['y'] = self.screen_height + 10
+                p['x'] = random.randint(0, self.screen_width)
     
     def draw(self, surface):
+        sw = surface.get_width()
+        sh = surface.get_height()
+        
         for p in self.particles:
             ps = pygame.Surface((p['size']*2+2, p['size']*2+2), pygame.SRCALPHA)
             pygame.draw.circle(ps, (*p['color'], p['alpha']), (p['size']+1, p['size']+1), p['size'])
@@ -180,7 +191,7 @@ class DreamEffect:
         if self.static_intensity > 0:
             ss = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
             for _ in range(int(800 * self.static_intensity / 255)):
-                x, y = random.randint(0, SCREEN_WIDTH-1), random.randint(0, SCREEN_HEIGHT-1)
+                x, y = random.randint(0, sw-1), random.randint(0, sh-1)
                 gray = random.randint(100, 255)
                 pygame.draw.rect(ss, (gray, gray, gray, min(255, self.static_intensity)), (x, y, 2, 2))
             surface.blit(ss, (0, 0))
@@ -193,12 +204,14 @@ class DreamEffect:
         vignette = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
         for i in range(60):
             alpha = int(80 * (1 - i / 60))
-            pygame.draw.rect(vignette, (0, 0, 0, alpha), (i, i, SCREEN_WIDTH-i*2, SCREEN_HEIGHT-i*2), 1)
+            pygame.draw.rect(vignette, (0, 0, 0, alpha), (i, i, sw-i*2, sh-i*2), 1)
         surface.blit(vignette, (0, 0))
 
 
 class DialogueBox:
-    def __init__(self):
+    def __init__(self, screen_width=1280, screen_height=720):
+        self.screen_width = screen_width
+        self.screen_height = screen_height
         self.active = False
         self.text = ""
         self.display_text = ""
@@ -234,8 +247,10 @@ class DialogueBox:
     def draw(self, surface):
         if not self.active:
             return
+        sw = surface.get_width()
+        sh = surface.get_height()
         box_h = 110
-        box_rect = pygame.Rect(30, SCREEN_HEIGHT - box_h - 30, SCREEN_WIDTH - 60, box_h)
+        box_rect = pygame.Rect(30, sh - box_h - 30, sw - 60, box_h)
         box_surf = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
         box_surf.fill((20, 10, 35, 240))
         pygame.draw.rect(box_surf, (120, 80, 160), (0, 0, box_rect.width, box_rect.height), 3)
@@ -848,11 +863,22 @@ class HintObject:
 
 
 class YumeNikkiPuzzle:
-    def __init__(self):
+    def __init__(self, screen=None):
         pygame.init()
         pygame.mixer.init()
         
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Use provided screen or create new one
+        if screen is not None:
+            self.screen = screen
+            self.owns_screen = False
+        else:
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+            self.owns_screen = True
+        
+        # Get actual screen dimensions
+        self.screen_width = self.screen.get_width()
+        self.screen_height = self.screen.get_height()
+        
         pygame.display.set_caption("Dream Diary - Puzzle Edition")
         self.clock = pygame.time.Clock()
         
@@ -864,16 +890,16 @@ class YumeNikkiPuzzle:
             "assets", "8Direction_TopDown_Character Sprites_ByBossNelNel", "SpriteSheet.png"
         )
         
-        spawn_x = 12 * TILE_SIZE + TILE_SIZE // 2
-        spawn_y = 10 * TILE_SIZE + TILE_SIZE // 2
+        spawn_x = 15 * TILE_SIZE + TILE_SIZE // 2
+        spawn_y = 14 * TILE_SIZE + TILE_SIZE // 2
         self.character = Character(sprite_path, spawn_x, spawn_y)
         
         self.camera_x = 0
         self.camera_y = 0
         
         self.effects_collected = []
-        self.dialogue = DialogueBox()
-        self.dream_effect = DreamEffect()
+        self.dialogue = DialogueBox(self.screen_width, self.screen_height)
+        self.dream_effect = DreamEffect(self.screen_width, self.screen_height)
         self.game_complete = False
         
         self._create_puzzles()
@@ -1001,14 +1027,26 @@ class YumeNikkiPuzzle:
         return False
     
     def update_camera(self):
-        target_x = self.character.x - SCREEN_WIDTH // 2
-        target_y = self.character.y - SCREEN_HEIGHT // 2
-        max_x = MAP_WIDTH * TILE_SIZE - SCREEN_WIDTH
-        max_y = MAP_HEIGHT * TILE_SIZE - SCREEN_HEIGHT
-        target_x = max(0, min(target_x, max_x))
-        target_y = max(0, min(target_y, max_y))
-        self.camera_x += (target_x - self.camera_x) * 0.1
-        self.camera_y += (target_y - self.camera_y) * 0.1
+        screen_w, screen_h = self.screen.get_size()
+        map_pixel_width = MAP_WIDTH * TILE_SIZE
+        map_pixel_height = MAP_HEIGHT * TILE_SIZE
+        
+        # If map is smaller than screen, center it
+        if map_pixel_width < screen_w:
+            self.camera_x = -(screen_w - map_pixel_width) // 2
+        else:
+            target_x = self.character.x - screen_w // 2
+            max_x = map_pixel_width - screen_w
+            target_x = max(0, min(target_x, max_x))
+            self.camera_x += (target_x - self.camera_x) * 0.1
+        
+        if map_pixel_height < screen_h:
+            self.camera_y = -(screen_h - map_pixel_height) // 2
+        else:
+            target_y = self.character.y - screen_h // 2
+            max_y = map_pixel_height - screen_h
+            target_y = max(0, min(target_y, max_y))
+            self.camera_y += (target_y - self.camera_y) * 0.1
     
     def _update_code_puzzle_proximity(self):
         """Auto-activate code puzzle when near, deactivate when far"""
@@ -1374,12 +1412,13 @@ class YumeNikkiPuzzle:
                 hint_text = "WASD: Move | Arrow Keys: Change Code"
         
         hint = small_font.render(hint_text, True, (100, 80, 120))
-        self.screen.blit(hint, (10, SCREEN_HEIGHT - 25))
+        screen_w, screen_h = self.screen.get_size()
+        self.screen.blit(hint, (10, screen_h - 25))
         
         # Puzzle status
         solved_count = sum(1 for _, p in self.puzzles if p.solved)
         status = small_font.render(f"Puzzles: {solved_count}/4", True, (150, 130, 180))
-        self.screen.blit(status, (SCREEN_WIDTH - 100, 10))
+        self.screen.blit(status, (screen_w - 100, 10))
         
         # Game complete
         if self.game_complete:
@@ -1393,7 +1432,8 @@ class YumeNikkiPuzzle:
             except:
                 big_font = pygame.font.Font(None, 64)
             text = big_font.render("Awakening...", True, (80, 60, 100))
-            rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            sw, sh = self.screen.get_size()
+            rect = text.get_rect(center=(sw // 2, sh // 2))
             self.screen.blit(text, rect)
     
     def run(self):
@@ -1403,12 +1443,53 @@ class YumeNikkiPuzzle:
             running = self.handle_events()
             self.update(dt)
             self.draw()
-        pygame.quit()
+            
+            # Check if game is complete and return 'next'
+            if self.game_complete:
+                # Wait a moment then return
+                pygame.time.wait(2000)
+                return 'next'
+        
+        return 'quit'
+
+
+def run_dream_puzzle(screen=None):
+    """
+    Run the dream puzzle scene.
+    Can be called from game_flow_manager.py.
+    
+    Args:
+        screen: Optional pygame screen. If None, creates its own.
+    
+    Returns:
+        'next' if puzzle completed, 'quit' if player quit
+    """
+    # If screen provided, pass it to the game
+    if screen is not None:
+        game = YumeNikkiPuzzle(screen=screen)
+        running = True
+        while running:
+            dt = game.clock.tick(FPS) / 1000.0
+            running = game.handle_events()
+            game.update(dt)
+            game.draw()
+            
+            if game.game_complete:
+                pygame.time.wait(2000)
+                return 'next'
+        
+        return 'quit'
+    else:
+        # Standalone mode
+        game = YumeNikkiPuzzle()
+        return game.run()
 
 
 def main():
-    game = YumeNikkiPuzzle()
-    game.run()
+    pygame.init()
+    result = run_dream_puzzle()
+    pygame.quit()
+    return result
 
 
 if __name__ == "__main__":
