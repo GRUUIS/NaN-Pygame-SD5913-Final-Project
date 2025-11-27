@@ -535,43 +535,58 @@ def run(screen):
 			pass
 
 		# door handling: if player overlaps any door rect, teleport to opposite side
+		import traceback
 		now = time.time()
 		if now - last_teleport > teleport_cooldown:
-			for d in door_rects:
-				if player.rect.colliderect(d):
-					# If the player is carrying the special 'hourglass', send them to boss1
-					try:
-						if 'hourglass' in collected_items:
-							print('[map01_scene DEBUG] player has hourglass - launching boss1')
-							# import here to avoid circular imports at module load time
-							try:
-								import main as main_mod
-								# call the main-run helper to start the boss test (boss2/3 hence the first one is deleted)
-								main_mod.run_boss_test('hollow')
-							except Exception as e:
-								print('[map01_scene DEBUG] failed to launch boss:', e)
-							running = False
+			try:
+				for d in door_rects:
+					if player.rect.colliderect(d):
+						# If the player is carrying the special 'hourglass', send them to boss1
+						try:
+							if 'hourglass' in collected_items:
+								print('[map01_scene DEBUG] player has hourglass - launching boss1')
+								# import here to avoid circular imports at module load time
+								try:
+										import main as main_mod
+										# call the main-run helper to start the boss test (use run_boss_cli)
+										try:
+											main_mod.run_boss_cli('hollow')
+										except AttributeError:
+											# fallback to old name if present
+											if hasattr(main_mod, 'run_boss_test'):
+												try:
+													main_mod.run_boss_test('hollow')
+												except Exception as e:
+													print('[map01_scene DEBUG] fallback run_boss_test failed:', e)
+											else:
+												print('[map01_scene DEBUG] no boss runner found in main module')
+								except Exception as e:
+									print('[map01_scene DEBUG] failed to launch boss:', e)
+								running = False
+								break
+						except Exception:
+							# ignore and continue with normal door behaviour
+							pass
+						# find opposite side candidate with same row (ty)
+						ty = d.top // (tile_h * scale_int)
+						left = d.left < (map_pixel_w // 2)
+						candidates = [r for r in door_rects if (r.top // (tile_h * scale_int)) == ty and (r.left < (map_pixel_w // 2)) != left]
+						if not candidates:
+							# fallback: pick any door on opposite half
+							candidates = [r for r in door_rects if (r.left < (map_pixel_w // 2)) != left]
+						if candidates:
+							dest = candidates[0]
+							# move player to dest center
+							player.x = dest.left + 4
+							# use player's collision height (ch) rather than undefined 'h'
+							player.y = dest.top - getattr(player, 'ch', getattr(player, 'h', 0))
+							player.vx = 0
+							player.vy = 0
+							last_teleport = now
 							break
-					except Exception:
-						# ignore and continue with normal door behaviour
-						pass
-					# find opposite side candidate with same row (ty)
-					ty = d.top // (tile_h * scale_int)
-					left = d.left < (map_pixel_w // 2)
-					candidates = [r for r in door_rects if (r.top // (tile_h * scale_int)) == ty and (r.left < (map_pixel_w // 2)) != left]
-					if not candidates:
-						# fallback: pick any door on opposite half
-						candidates = [r for r in door_rects if (r.left < (map_pixel_w // 2)) != left]
-					if candidates:
-						dest = candidates[0]
-						# move player to dest center
-						player.x = dest.left + 4
-						# use player's collision height (ch) rather than undefined 'h'
-						player.y = dest.top - getattr(player, 'ch', getattr(player, 'h', 0))
-						player.vx = 0
-						player.vy = 0
-						last_teleport = now
-					break
+			except Exception:
+				print('[map01_scene ERROR] exception during door handling:')
+				traceback.print_exc()
 
 
 		# draw

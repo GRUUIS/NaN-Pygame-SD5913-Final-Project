@@ -10,6 +10,7 @@ import sys
 import os
 import subprocess
 import globals as g
+import traceback
 from src.utils.logger import setup_logger
 logger = setup_logger()
 logger.info("Game started!")
@@ -26,9 +27,22 @@ def run_menu_and_flow():
     """Delegate to testing/game_flow_manager.py for menu + flow."""
     try:
         from testing.game_flow_manager import main as run_flow
-        run_flow()
+        try:
+            run_flow()
+        except Exception:
+            print("Unhandled exception in game_flow_manager:")
+            traceback.print_exc()
+            raise
     except Exception as e:
         print(f"Failed to run game_flow_manager: {e}")
+
+
+# Ensure any uncaught exceptions print a full traceback to the terminal
+def _print_unhandled(exc_type, exc_value, exc_tb):
+    print("Uncaught exception:")
+    traceback.print_exception(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _print_unhandled
 #endregion Game Flow Manager Bridge
 
 #region Entry Point
