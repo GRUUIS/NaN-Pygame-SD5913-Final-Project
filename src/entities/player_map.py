@@ -79,7 +79,7 @@ class MapPlayer:
 			self.facing = 'left'
 		elif self.vx > 0:
 			self.facing = 'right'
-		if (keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP]) and self.on_ground:
+		if (keys[pygame.K_w] or keys[pygame.K_UP]) and self.on_ground:
 			self.vy = self.jump_v
 			self.on_ground = False
 
