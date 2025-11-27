@@ -20,13 +20,23 @@ Mind's-Maze/
 ├── config/                # Configuration files
 ├── src/                   # Source code
 │   ├── entities/          # Player, bosses, platforms
-│   ├── scenes/            # Game scenes (Menu, Gameplay, Bosses)
+│   ├── scenes/            # Game scenes (Menu, Gameplay, Bosses, Puzzles)
 │   ├── systems/           # Core systems (Physics, Audio)
 │   └── utils/             # Utilities (Logger, State Machine)
 ├── testing/               # Test scripts and flow managers
 ├── globals.py             # Global constants and configuration
 └── main.py                # Main entry point
 ```
+Key scenes and prototypes (non-exhaustive):
+- `src/scenes/menu_scene.py`: Start menu; routes to `GameplayScene`.
+- `src/scenes/gameplay_scene.py`: Core gameplay placeholder (integrates later systems).
+- `src/scenes/game_over_scene.py`: End screen scaffold for loop completion.
+- `src/scenes/boss1_scripted_scene.py`: Intro/Boss1 Hollow ambush (cinematic defeat; Space to continue).
+- `src/scenes/third_puzzle_scene.py`: Top-down room puzzle scene (used by demo below).
+- `testing/first_dream_puzzle.py`: Yume Nikki-style multi-puzzle prototype (4 puzzles + effects).
+- `testing/third_puzzle_demo.py`: Minimal runner for the third puzzle scene.
+- `testing/run_map.py`: Tiled map viewer with scaling and optional physics.
+- `testing/game_flow_manager.py`: Prototype flow: menu → puzzle → dream transition → combat.
 
 ## Installation
 
@@ -45,6 +55,10 @@ game_flow_manager.py
 You can directly test specific boss encounters:
 
 ```bash
+# Intro/Boss1: The First Attack (Hollow ambush)
+python main.py boss1
+python main.py intro
+
 # Boss 2: The Sloth (Procrastination)
 python main.py boss2
 
@@ -56,7 +70,26 @@ python main.py boss3
 - **WASD**: Move
 - **Space**: Jump
 - **Mouse**: Aim & Shoot
-- **R**: Retry (in Boss Mode)
+- **R**: Reset (during battle in Boss Test Mode)
+- **Space (Game Over)**: Continue (Boss Test Mode)
+
+### Puzzle Prototypes & Tools
+- Yume Nikki-style puzzle scene:
+    ```bash
+    python testing/first_dream_puzzle.py
+    ```
+    Notes: WASD/Arrows move; Space/Enter interact when prompted; onscreen hints included.
+
+- Third Puzzle demo (top-down room, interactables):
+    ```bash
+    python testing/third_puzzle_demo.py
+    ```
+
+- Tiled map viewer (scales to window; optional Pymunk integration):
+    ```bash
+    python testing/run_map.py
+    ```
+    Controls: WASD pan, F fullscreen, ESC quit. Edit the `map_path` in-file to load other TMJ maps.
 
 ## Credits & Attribution
 
@@ -76,5 +109,6 @@ python main.py boss3
 
 ### Libraries
 - **PyTMX**: Map loading (MIT License)
-- **pygame_aseprite_animator**: Animation handling (MIT License)
+- **Custom Sprite Loader**: Mask-based sprite strip slicing and animation (MIT)
+ - **Pymunk**: Physics (optional; used in prototypes)
 

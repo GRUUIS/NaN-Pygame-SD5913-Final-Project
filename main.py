@@ -1,21 +1,3 @@
-"""
-Mind's Maze - Main Entry Point
-
-A 2D psychological puzzle-platformer game built with Pygame.
-This is the main entry point for the game.
-
-Author: Team NaN
-Course: Creative Programming SD5913
-
-Usage:
-    python main.py                              # Normal game mode
-    python main.py boss [perfectionist|sloth|hollow]  # Boss battle test mode (default: perfectionist)
-    python main.py test [perfectionist|sloth|hollow]  # Same as boss mode
-    XXXpython main.py boss1                          # Shortcut: Perfectionist boss test
-    python main.py boss2                          # Shortcut: The Sloth boss test
-    python main.py boss3                          # Shortcut: The Hollow boss test
-"""
-
 import pygame
 import sys
 import os
