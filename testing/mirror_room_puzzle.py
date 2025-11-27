@@ -204,12 +204,9 @@ class Character:
                     self.frame_index = (self.frame_index % 8) + 1
         else:
             if self.transformed and self.witch_frames:
-                # Animate idle for witch
-                self.animation_timer += dt
-                if self.animation_timer >= anim_speed * 1.5:
-                    self.animation_timer = 0
-                    max_frames = len(self.witch_frames['idle'])
-                    self.frame_index = (self.frame_index + 1) % max_frames if max_frames > 0 else 0
+                # Keep witch at first frame when idle (no animation)
+                self.frame_index = 0
+                self.animation_timer = 0
             else:
                 self.frame_index = 0
     
@@ -946,6 +943,172 @@ class PencilItem:
             surface.blit(hint, (draw_x - hint.get_width()//2 + 8, draw_y - 25))
 
 
+class Door:
+    """A magical door that appears after transformation"""
+    def __init__(self, x, y, width=48, height=72):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.rect = pygame.Rect(x, y, width, height)
+        
+        # State
+        self.locked = True  # Door is locked until transformation
+        self.visible = True
+        self.activated = False
+        self.activation_timer = 0
+        
+        # Visual effects
+        self.glow_timer = 0
+        self.particles = []
+        self.highlight = False
+        
+    def unlock(self):
+        """Unlock the door after transformation"""
+        if self.locked:
+            self.locked = False
+            # Create unlock particles
+            for _ in range(20):
+                angle = random.uniform(0, 2 * math.pi)
+                self.particles.append({
+                    'x': self.x + self.width // 2,
+                    'y': self.y + self.height // 2,
+                    'vx': math.cos(angle) * random.uniform(30, 80),
+                    'vy': math.sin(angle) * random.uniform(30, 80),
+                    'life': 1.0,
+                    'size': random.randint(3, 6),
+                    'color': random.choice([
+                        (200, 80, 80),   # Dark red
+                        (180, 60, 60),   # Deeper red
+                        (220, 100, 80),  # Red-orange
+                    ])
+                })
+    
+    def activate(self):
+        """Activate door transition"""
+        if not self.locked and not self.activated:
+            self.activated = True
+            self.activation_timer = 0
+            return True
+        return False
+    
+    def update(self, dt):
+        self.glow_timer += dt
+        
+        # Update particles
+        for p in self.particles:
+            p['x'] += p['vx'] * dt
+            p['y'] += p['vy'] * dt
+            p['life'] -= dt * 1.5
+        self.particles = [p for p in self.particles if p['life'] > 0]
+        
+        # Activation animation
+        if self.activated:
+            self.activation_timer += dt
+            # Create swirling particles during activation
+            if self.activation_timer < 1.5:
+                if random.random() < dt * 30:
+                    angle = self.glow_timer * 3 + random.uniform(-0.5, 0.5)
+                    dist = random.uniform(20, 50)
+                    self.particles.append({
+                        'x': self.x + self.width // 2 + math.cos(angle) * dist,
+                        'y': self.y + self.height // 2 + math.sin(angle) * dist,
+                        'vx': -math.cos(angle) * 60,
+                        'vy': -math.sin(angle) * 60,
+                        'life': 0.8,
+                        'size': random.randint(2, 5),
+                        'color': (200, 80, 80)  # Dark red
+                    })
+            return self.activation_timer >= 2.0  # Return True when transition complete
+        return False
+    
+    def draw(self, surface, camera_x, camera_y):
+        if not self.visible:
+            return
+        
+        draw_x = self.x - camera_x
+        draw_y = self.y - camera_y
+        
+        # Draw door frame (dark red)
+        frame_color = (70, 40, 40)
+        pygame.draw.rect(surface, frame_color, (draw_x - 4, draw_y - 4, self.width + 8, self.height + 8))
+        pygame.draw.rect(surface, (100, 50, 50), (draw_x - 4, draw_y - 4, self.width + 8, self.height + 8), 3)
+        
+        # Door body
+        if self.locked:
+            # Locked door - dark red and dull
+            door_color = (50, 25, 25)
+            pygame.draw.rect(surface, door_color, (draw_x, draw_y, self.width, self.height))
+            # Lock symbol
+            lock_x = draw_x + self.width // 2
+            lock_y = draw_y + self.height // 2
+            pygame.draw.circle(surface, (100, 60, 50), (lock_x, lock_y - 5), 8)
+            pygame.draw.rect(surface, (100, 60, 50), (lock_x - 6, lock_y, 12, 10))
+        else:
+            # Unlocked door - glowing dark red magical
+            pulse = (math.sin(self.glow_timer * 3) + 1) / 2
+            
+            # Glow effect behind door (dark red)
+            glow_surf = pygame.Surface((self.width + 40, self.height + 40), pygame.SRCALPHA)
+            glow_alpha = int(60 + 40 * pulse)
+            for r in range(30, 0, -3):
+                alpha = int(glow_alpha * (1 - r / 30))
+                pygame.draw.rect(glow_surf, (180, 60, 60, alpha), 
+                               (20 - r, 20 - r, self.width + r * 2, self.height + r * 2))
+            surface.blit(glow_surf, (draw_x - 20, draw_y - 20))
+            
+            # Door with dark red magical gradient
+            door_surf = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            for y in range(self.height):
+                gradient = int(60 + 40 * (y / self.height) + 20 * pulse)
+                color = (gradient + 40, gradient - 20, gradient - 20, 255)  # Dark red gradient
+                pygame.draw.line(door_surf, color, (0, y), (self.width, y))
+            surface.blit(door_surf, (draw_x, draw_y))
+            
+            # Magical runes/symbols (dark red/orange)
+            rune_color = (255, 150, 100, int(150 + 100 * pulse))
+            # Draw simple rune pattern
+            cx, cy = draw_x + self.width // 2, draw_y + self.height // 2
+            rune_surf = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            pygame.draw.circle(rune_surf, rune_color, (self.width // 2, self.height // 2), 15, 2)
+            pygame.draw.line(rune_surf, rune_color, (self.width // 2, self.height // 2 - 20), 
+                           (self.width // 2, self.height // 2 + 20), 2)
+            pygame.draw.line(rune_surf, rune_color, (self.width // 2 - 15, self.height // 2), 
+                           (self.width // 2 + 15, self.height // 2), 2)
+            surface.blit(rune_surf, (draw_x, draw_y))
+            
+            # Handle/knob (bronze/copper color)
+            knob_x = draw_x + self.width - 12
+            knob_y = draw_y + self.height // 2
+            pygame.draw.circle(surface, (180, 120, 80), (knob_x, knob_y), 5)
+            pygame.draw.circle(surface, (220, 160, 100), (knob_x, knob_y), 3)
+        
+        # Draw particles
+        for p in self.particles:
+            px = p['x'] - camera_x
+            py = p['y'] - camera_y
+            alpha = int(255 * p['life'])
+            size = int(p['size'] * p['life'])
+            if size > 0:
+                ps = pygame.Surface((size * 2 + 2, size * 2 + 2), pygame.SRCALPHA)
+                pygame.draw.circle(ps, (*p['color'], alpha), (size + 1, size + 1), size)
+                surface.blit(ps, (int(px) - size, int(py) - size))
+        
+        # Highlight when nearby
+        if self.highlight and not self.locked:
+            hl_surf = pygame.Surface((self.width + 8, self.height + 8), pygame.SRCALPHA)
+            hl_surf.fill((255, 200, 200, 30))  # Light red highlight
+            surface.blit(hl_surf, (draw_x - 4, draw_y - 4))
+            
+            # Draw hint
+            try:
+                font = pygame.font.Font(FONT_PATH, 18)
+            except:
+                font = pygame.font.Font(None, 18)
+            hint = font.render("Press SPACE to enter", True, (255, 180, 150))  # Dark red/orange text
+            surface.blit(hint, (draw_x + self.width // 2 - hint.get_width() // 2, draw_y - 30))
+
+
 class MirrorRoomPuzzle:
     def __init__(self, screen=None):
         pygame.init()
@@ -1074,6 +1237,14 @@ class MirrorRoomPuzzle:
             pygame.Rect((MAP_WIDTH - 4) * TILE_SIZE, 5 * TILE_SIZE, 32, 48),
             pygame.Rect((MAP_WIDTH - 4) * TILE_SIZE, 9 * TILE_SIZE, 32, 48),
         ]
+        
+        # Create magical door (at bottom center of map)
+        door_x = (MAP_WIDTH // 2) * TILE_SIZE - 24
+        door_y = (MAP_HEIGHT - 3) * TILE_SIZE
+        self.door = Door(door_x, door_y, 48, 72)
+        
+        # Door transition state
+        self.door_transitioning = False
     
     def check_collision(self, x, y, width, height):
         check_points = [(x, y), (x - width//2, y), (x + width//2, y),
@@ -1113,6 +1284,20 @@ class MirrorRoomPuzzle:
     def handle_interaction(self):
         char_x, char_y = self.character.x, self.character.y
         
+        # Check if near door (only works after transformation)
+        if self.character.transformed and not self.door.locked:
+            door_center_x = self.door.x + self.door.width // 2
+            door_center_y = self.door.y + self.door.height // 2
+            dx = char_x - door_center_x
+            dy = char_y - door_center_y
+            if math.sqrt(dx*dx + dy*dy) < 60:
+                if self.door.activate():
+                    self.door_transitioning = True
+                    self.dialogue.show("The door opens to a new dream...")
+                    self.dream_effect.flash((150, 100, 255), 200)
+                    self.dream_effect.shake(0.5, 6)
+                return
+        
         # Check if near pencil
         if self.pencil.visible and not self.pencil.absorbing and not self.pencil.collected:
             dx = char_x - self.pencil.x
@@ -1130,6 +1315,15 @@ class MirrorRoomPuzzle:
         dy = char_y - mirror_center_y
         if math.sqrt(dx*dx + dy*dy) < 100 and not self.mirror.broken:
             self.dialogue.show("A tall mirror stands before you.\nYour reflection stares back... expectantly.\n\nFind the marked positions in the room.")
+        
+        # Check if near locked door
+        if self.door.locked:
+            door_center_x = self.door.x + self.door.width // 2
+            door_center_y = self.door.y + self.door.height // 2
+            dx = char_x - door_center_x
+            dy = char_y - door_center_y
+            if math.sqrt(dx*dx + dy*dy) < 60:
+                self.dialogue.show("A mysterious door...\nIt seems to be sealed by some magic.\n\nPerhaps after obtaining power...")
     
     def handle_events(self):
         for event in pygame.event.get():
@@ -1170,9 +1364,29 @@ class MirrorRoomPuzzle:
         self.dialogue.update(dt)
         self.dream_effect.update(dt)
         
+        # Update door
+        self.door.update(dt)
+        
+        # Check door highlight
+        door_center_x = self.door.x + self.door.width // 2
+        door_center_y = self.door.y + self.door.height // 2
+        door_dx = self.character.x - door_center_x
+        door_dy = self.character.y - door_center_y
+        self.door.highlight = math.sqrt(door_dx*door_dx + door_dy*door_dy) < 60
+        
+        # Check if door transition is complete
+        if self.door_transitioning and self.door.activation_timer >= 2.0:
+            self.dialogue.show("You step through the door...\n\n[Scene Complete!]")
+            self.dream_effect.flash((255, 255, 255), 255)
+        
         if self.game_complete:
             # Still update mirror for any remaining shards
             self.mirror.update(dt)
+            
+            # Unlock door after transformation
+            if self.character.transformed and self.door.locked:
+                self.door.unlock()
+                self.dialogue.show("A door begins to glow...\nThe path forward is now open!")
             return
         
         # Update mirror
@@ -1228,6 +1442,9 @@ class MirrorRoomPuzzle:
         # Draw small decorative mirrors
         for rect in self.small_mirrors:
             self._draw_small_mirror(rect, shake_x, shake_y)
+        
+        # Draw door
+        self.door.draw(self.screen, self.camera_x - shake_x, self.camera_y - shake_y)
         
         # Draw puzzle markers
         self.puzzle.draw(self.screen, self.camera_x - shake_x, self.camera_y - shake_y)
