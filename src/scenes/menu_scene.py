@@ -31,10 +31,13 @@ class MenuScene(BaseScene):
         self.show_settings = False
         self.music_volume = getattr(g, 'music_volume', 0.2)
         self._settings_dragging = False
+        # Developer mode flag exposed in settings (default: False)
+        self.developer_mode = getattr(g, 'DEVELOPER_MODE', False)
         self._ui_bar = None
         self._ui_fill = None
         self._ui_handle = None
         self._settings_bar_rect = None
+        self._dev_checkbox_rect = None
         
         # Font (will use default for now)
         self.font_large = pygame.font.Font(None, 72)
@@ -74,6 +77,15 @@ class MenuScene(BaseScene):
                             pygame.mixer.music.set_volume(self.music_volume)
                         except Exception:
                             pass
+                    # Developer checkbox click
+                    try:
+                        chk = getattr(self, '_dev_checkbox_rect', None)
+                        if chk and chk.collidepoint(mx, my):
+                            self.developer_mode = not getattr(self, 'developer_mode', False)
+                            setattr(g, 'DEVELOPER_MODE', self.developer_mode)
+                            setattr(g, 'DEBUG_MODE', self.developer_mode)
+                    except Exception:
+                        pass
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self._settings_dragging = False
                 elif event.type == pygame.MOUSEMOTION and self._settings_dragging:
@@ -246,17 +258,27 @@ class MenuScene(BaseScene):
                 vol_surf = self.font_small.render(f"Music Volume: {int(self.music_volume*100)}%", True, self.text_color)
                 vol_rect = vol_surf.get_rect(center=(screen_width // 2, bar_y - 26))
                 screen.blit(vol_surf, vol_rect)
+                # Developer Mode checkbox
+                try:
+                    chk_size = 18
+                    chk_x = screen_width // 2 - 80
+                    chk_y = bar_y + 40
+                    self._dev_checkbox_rect = pygame.Rect(chk_x, chk_y, chk_size, chk_size)
+                    pygame.draw.rect(screen, (200,200,200), self._dev_checkbox_rect, 2)
+                    if getattr(self, 'developer_mode', False):
+                        pygame.draw.rect(screen, (100,150,255), self._dev_checkbox_rect.inflate(-4, -4))
+                    label_surf = self.font_small.render('Developer Mode', True, self.text_color)
+                    label_rect = label_surf.get_rect(topleft=(chk_x + chk_size + 8, chk_y))
+                    screen.blit(label_surf, label_rect)
+                except Exception:
+                    self._dev_checkbox_rect = None
             except Exception:
                 pass
         else:
             # Draw instructions (include in-game pickup hint)
-            instruction_text = "Use W/S or Arrow Keys to navigate, Enter/Space to select."
+            instruction_text = "Use W/S or Arrow Keys to navigate, Space to select."
             instruction_surface = pygame.font.Font(None, 20).render(instruction_text, True, self.text_color)
             instruction_rect = instruction_surface.get_rect(center=(screen_width // 2, screen_height - 66))
             screen.blit(instruction_surface, instruction_rect)
 
-            # control legend (separate line)
-            control_text = "C: collect items    (RMB: collect)"
-            control_surface = pygame.font.Font(None, 18).render(control_text, True, self.text_color)
-            control_rect = control_surface.get_rect(center=(screen_width // 2, screen_height - 40))
-            screen.blit(control_surface, control_rect)
+            # control legend removed per UX change

@@ -14,6 +14,11 @@ import time
 
 def run(screen):
 	import pygame
+	import sys
+	ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+	if ROOT not in sys.path:
+		sys.path.insert(0, ROOT)
+	import globals as g
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
 	from src.ui.dialog_box_notusing import SpeechBubble
@@ -384,6 +389,12 @@ def run(screen):
 			if ev.type == pygame.QUIT:
 				running = False
 			elif ev.type == pygame.KEYDOWN:
+				# Developer Mode Skip
+				if ev.key == pygame.K_z and getattr(g, 'DEVELOPER_MODE', False):
+					print("Developer Mode: Skipping map01...")
+					running = False
+					return 'next'
+
 				if ev.key == pygame.K_ESCAPE:
 					running = False
 				elif ev.key == pygame.K_t:

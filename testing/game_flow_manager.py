@@ -898,6 +898,12 @@ def run_puzzle_scene(screen):
             if event.type == pygame.QUIT:
                 return 'quit'
             
+            # Developer Mode Skip
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_z:
+                if getattr(g, 'DEVELOPER_MODE', False):
+                    print("Developer Mode: Skipping scene...")
+                    return 'next'
+            
             # 空格键交互
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 result = handle_interaction()

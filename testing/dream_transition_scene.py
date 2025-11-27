@@ -7,6 +7,7 @@ import sys
 import math
 import random
 from pathlib import Path
+import globals as g
 
 # 路径设置
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -115,6 +116,9 @@ def run_dream_transition(screen):
             if event.type == pygame.QUIT:
                 return 'quit'
             if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_z and getattr(g, 'DEVELOPER_MODE', False):
+                    print("Developer Mode: Skipping transition...")
+                    return 'next'
                 if event.key == pygame.K_ESCAPE:
                     return 'quit'
                 if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:

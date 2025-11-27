@@ -9,6 +9,7 @@ import sys
 import os
 import math
 import random
+import globals as g
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -1170,6 +1171,12 @@ class YumeNikkiPuzzle:
                 return False
             
             if event.type == pygame.KEYDOWN:
+                # Developer Mode Skip
+                if event.key == pygame.K_z and getattr(g, 'DEVELOPER_MODE', False):
+                    print("Developer Mode: Skipping puzzle...")
+                    self.game_complete = True
+                    return True
+
                 if event.key == pygame.K_ESCAPE:
                     if self.active_puzzle:
                         # Reset puzzle state if needed

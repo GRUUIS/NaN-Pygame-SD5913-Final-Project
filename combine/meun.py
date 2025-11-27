@@ -134,6 +134,8 @@ class Meun:
         self.menu_options = ["Start Game", "Settings", "Quit"]
         self.show_settings = False
         self.music_volume = getattr(g, 'music_volume', 0.2)
+        # Developer mode flag exposed in settings (default: False)
+        self.developer_mode = getattr(g, 'DEVELOPER_MODE', False)
         self._settings_dragging = False
         self.selected_option = 0
         self.show_instructions = False
@@ -183,6 +185,15 @@ class Meun:
                             pygame.mixer.music.set_volume(self.music_volume)
                         except Exception:
                             pass
+                    # Developer checkbox click
+                    try:
+                        chk = getattr(self, '_dev_checkbox_rect', None)
+                        if chk and chk.collidepoint(mx, my):
+                            self.developer_mode = not getattr(self, 'developer_mode', False)
+                            setattr(g, 'DEVELOPER_MODE', self.developer_mode)
+                            setattr(g, 'DEBUG_MODE', self.developer_mode)
+                    except Exception:
+                        pass
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self._settings_dragging = False
                 elif event.type == pygame.MOUSEMOTION and getattr(self, '_settings_dragging', False):
@@ -440,15 +451,28 @@ class Meun:
                 # label
                 draw_text(self.screen, self.font_small_bold, f"Music Volume: {int(self.music_volume*100)}%", self.text_color,
                           (screen_w // 2, bar_y - 26), spacing=self.letter_spacing, align='center')
+
+                # Developer Mode checkbox
+                try:
+                    chk_size = 18
+                    chk_x = screen_w // 2 - 80
+                    chk_y = bar_y + 40
+                    self._dev_checkbox_rect = pygame.Rect(chk_x, chk_y, chk_size, chk_size)
+                    pygame.draw.rect(self.screen, (200,200,200), self._dev_checkbox_rect, 2)
+                    if getattr(self, 'developer_mode', False):
+                        pygame.draw.rect(self.screen, (100,150,255), self._dev_checkbox_rect.inflate(-4, -4))
+                    # label to the right (topleft align)
+                    draw_text(self.screen, self.font_small_bold, 'Developer Mode', self.text_color,
+                              (chk_x + chk_size + 8, chk_y), spacing=self.letter_spacing, align='topleft')
+                except Exception:
+                    self._dev_checkbox_rect = None
             except Exception:
                 pass
-        # Footer instruction (two lines)
+
+        # Footer instruction (single line)
         draw_text(self.screen, self.font_small_bold,
-                  "Use W/S or Arrow Keys to navigate, Enter/Space to select",
-                  self.text_color, (screen_width // 2, screen_height - 56), spacing=self.letter_spacing, align='center')
-        draw_text(self.screen, self.font_small_bold,
-                  "C: collect items    (RMB: collect)",
-                  self.text_color, (screen_width // 2, screen_height - 32), spacing=self.letter_spacing, align='center')
+                  "Use W/S or Arrow Keys to navigate, Space to select",
+                  self.text_color, (screen_width // 2, screen_height - 48), spacing=self.letter_spacing, align='center')
 
     def run(self):
         fps = getattr(g, 'FPS', 60)
