@@ -17,7 +17,7 @@ from .boss_the_hollow import TheHollow
 from .boss_sloth import TheSloth
 from .bullets import BulletManager
 from .platform import Platform
-from ..systems.ui import UIManager, TextPopup, Announcement
+from ..systems.ui import UIManager, TextPopup, Announcement, draw_ui_overlay, draw_game_over_screen
 #endregion Imports
 
 
@@ -218,6 +218,17 @@ class BossBattleScene:
         self.boss.draw(screen)
         self.bullet_manager.draw(screen)
         self.ui.draw(screen)
+        # Draw centralized HUD (player/boss bars, meters, footer)
+        try:
+            draw_ui_overlay(screen, self)
+        except Exception:
+            pass
+
+        if self.is_game_over():
+            try:
+                draw_game_over_screen(screen, self)
+            except Exception:
+                pass
         
         # Draw active spikes
         if self.spikes_active:
