@@ -1301,8 +1301,9 @@ class MirrorRoomPuzzle:
         if self.effect_obtained:
             pygame.draw.circle(self.screen, (255, 200, 100), (effect_x, 25), 15)
             pygame.draw.circle(self.screen, (255, 255, 200), (effect_x, 25), 10)
-            label = small_font.render("✏", True, (80, 60, 40))
-            self.screen.blit(label, (effect_x - label.get_width()//2, 18))
+            # Draw pencil icon instead of emoji
+            pygame.draw.line(self.screen, (80, 60, 40), (effect_x - 5, 30), (effect_x + 5, 20), 3)
+            pygame.draw.line(self.screen, (255, 200, 50), (effect_x - 5, 30), (effect_x + 3, 22), 2)
         else:
             pygame.draw.circle(self.screen, (50, 50, 60), (effect_x, 25), 15)
             pygame.draw.circle(self.screen, (40, 40, 50), (effect_x, 25), 12, 2)
