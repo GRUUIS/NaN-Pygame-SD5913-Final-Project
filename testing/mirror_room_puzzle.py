@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # --------------------------
 # Configuration
 # --------------------------
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 FPS = 60
 TILE_SIZE = 32
 MAP_WIDTH = 20
@@ -152,7 +152,9 @@ class Character:
 
 
 class DreamEffect:
-    def __init__(self):
+    def __init__(self, screen_width=1280, screen_height=720):
+        self.screen_width = screen_width
+        self.screen_height = screen_height
         self.static_timer = 0
         self.static_intensity = 0
         self.flash_alpha = 0
@@ -163,8 +165,8 @@ class DreamEffect:
         # Dust particles floating in the room
         for _ in range(20):
             self.particles.append({
-                'x': random.randint(0, SCREEN_WIDTH),
-                'y': random.randint(0, SCREEN_HEIGHT),
+                'x': random.randint(0, self.screen_width),
+                'y': random.randint(0, self.screen_height),
                 'speed': random.uniform(5, 15),
                 'size': random.randint(1, 2),
                 'alpha': random.randint(30, 80),
@@ -203,8 +205,8 @@ class DreamEffect:
             p['y'] -= p['speed'] * dt
             p['x'] += math.sin(p['y'] * 0.01) * 0.3
             if p['y'] < -10:
-                p['y'] = SCREEN_HEIGHT + 10
-                p['x'] = random.randint(0, SCREEN_WIDTH)
+                p['y'] = self.screen_height + 10
+                p['x'] = random.randint(0, self.screen_width)
     
     def draw(self, surface):
         for p in self.particles:
@@ -214,8 +216,9 @@ class DreamEffect:
         
         if self.static_intensity > 0:
             ss = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+            surf_w, surf_h = surface.get_size()
             for _ in range(int(800 * self.static_intensity / 255)):
-                x, y = random.randint(0, SCREEN_WIDTH-1), random.randint(0, SCREEN_HEIGHT-1)
+                x, y = random.randint(0, surf_w-1), random.randint(0, surf_h-1)
                 gray = random.randint(100, 255)
                 pygame.draw.rect(ss, (gray, gray, gray, min(255, self.static_intensity)), (x, y, 2, 2))
             surface.blit(ss, (0, 0))
@@ -226,10 +229,11 @@ class DreamEffect:
             surface.blit(fs, (0, 0))
         
         # Vignette effect
+        surf_w, surf_h = surface.get_size()
         vignette = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
         for i in range(60):
             alpha = int(100 * (1 - i / 60))
-            pygame.draw.rect(vignette, (0, 0, 0, alpha), (i, i, SCREEN_WIDTH-i*2, SCREEN_HEIGHT-i*2), 1)
+            pygame.draw.rect(vignette, (0, 0, 0, alpha), (i, i, surf_w-i*2, surf_h-i*2), 1)
         surface.blit(vignette, (0, 0))
 
 
@@ -271,7 +275,8 @@ class DialogueBox:
         if not self.active:
             return
         box_h = 110
-        box_rect = pygame.Rect(30, SCREEN_HEIGHT - box_h - 30, SCREEN_WIDTH - 60, box_h)
+        surf_w, surf_h = surface.get_size()
+        box_rect = pygame.Rect(30, surf_h - box_h - 30, surf_w - 60, box_h)
         box_surf = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
         box_surf.fill((10, 10, 20, 240))
         pygame.draw.rect(box_surf, (100, 120, 150), (0, 0, box_rect.width, box_rect.height), 3)
@@ -342,7 +347,8 @@ class MirrorShard:
         # Draw shard with reflection effect
         if len(rotated) >= 3:
             # Glass color with transparency
-            shard_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            surf_w, surf_h = surface.get_size()
+            shard_surf = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
             pygame.draw.polygon(shard_surf, (200, 220, 255, self.alpha), rotated)
             # Highlight
             pygame.draw.polygon(shard_surf, (255, 255, 255, self.alpha // 2), rotated, 1)
@@ -774,11 +780,14 @@ class PencilItem:
 
 
 class MirrorRoomPuzzle:
-    def __init__(self):
+    def __init__(self, screen=None):
         pygame.init()
         pygame.mixer.init()
         
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        if screen is not None:
+            self.screen = screen
+        else:
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Dream Diary - Mirror Room")
         self.clock = pygame.time.Clock()
         
@@ -796,8 +805,9 @@ class MirrorRoomPuzzle:
         self.camera_x = 0
         self.camera_y = 0
         
+        screen_w, screen_h = self.screen.get_size()
         self.dialogue = DialogueBox()
-        self.dream_effect = DreamEffect()
+        self.dream_effect = DreamEffect(screen_w, screen_h)
         
         self._create_puzzle()
         
@@ -914,21 +924,22 @@ class MirrorRoomPuzzle:
         # Center the map on screen since it's smaller than the screen
         map_pixel_width = MAP_WIDTH * TILE_SIZE
         map_pixel_height = MAP_HEIGHT * TILE_SIZE
+        screen_w, screen_h = self.screen.get_size()
         
         # If map is smaller than screen, center it
-        if map_pixel_width < SCREEN_WIDTH:
-            self.camera_x = -(SCREEN_WIDTH - map_pixel_width) // 2
+        if map_pixel_width < screen_w:
+            self.camera_x = -(screen_w - map_pixel_width) // 2
         else:
-            target_x = self.character.x - SCREEN_WIDTH // 2
-            max_x = map_pixel_width - SCREEN_WIDTH
+            target_x = self.character.x - screen_w // 2
+            max_x = map_pixel_width - screen_w
             target_x = max(0, min(target_x, max_x))
             self.camera_x += (target_x - self.camera_x) * 0.1
         
-        if map_pixel_height < SCREEN_HEIGHT:
-            self.camera_y = -(SCREEN_HEIGHT - map_pixel_height) // 2
+        if map_pixel_height < screen_h:
+            self.camera_y = -(screen_h - map_pixel_height) // 2
         else:
-            target_y = self.character.y - SCREEN_HEIGHT // 2
-            max_y = map_pixel_height - SCREEN_HEIGHT
+            target_y = self.character.y - screen_h // 2
+            max_y = map_pixel_height - screen_h
             target_y = max(0, min(target_y, max_y))
             self.camera_y += (target_y - self.camera_y) * 0.1
     
@@ -1111,10 +1122,11 @@ class MirrorRoomPuzzle:
         # Controls hint
         hint_text = "WASD/Arrows: Move | SPACE: Interact | E: Effects"
         hint = small_font.render(hint_text, True, (100, 100, 120))
-        self.screen.blit(hint, (10, SCREEN_HEIGHT - 25))
+        screen_w, screen_h = self.screen.get_size()
+        self.screen.blit(hint, (10, screen_h - 25))
         
         # Effect indicator
-        effect_x = SCREEN_WIDTH - 60
+        effect_x = screen_w - 60
         if self.effect_obtained:
             pygame.draw.circle(self.screen, (255, 200, 100), (effect_x, 25), 15)
             pygame.draw.circle(self.screen, (255, 255, 200), (effect_x, 25), 10)
@@ -1136,7 +1148,7 @@ class MirrorRoomPuzzle:
             except:
                 big_font = pygame.font.Font(None, 48)
             text = big_font.render("Mirror Cleared", True, (50, 50, 80))
-            rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            rect = text.get_rect(center=(screen_w // 2, screen_h // 2))
             self.screen.blit(text, rect)
     
     def run(self):

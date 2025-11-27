@@ -1,12 +1,13 @@
 """
 游戏流程管理器
-整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境过渡 -> 战斗场景
+整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> 战斗场景
 
 场景流程：
 1. combine/game.py 的菜单界面（初始界面）
 2. testing/new_third_puzzle.py 的解谜场景
-3. testing/dream_transition_scene.py 的梦境过渡场景（剧情衔接）
-4. combine/game.py 的 map01 场景（战斗场景）
+3. testing/first_dream_puzzle.py 的梦境解谜场景（4个谜题）
+4. testing/dream_transition_scene.py 的梦境过渡场景（主角转换为小女巫）
+5. combine/game.py 的 map01 场景（战斗场景）
 
 在解谜场景中，玩家走到门前（坐标 21,12 和 21,13）右键点击可跳转到梦境场景。
 """
@@ -32,6 +33,7 @@ def run_puzzle_scene(screen):
     """
     from src.tiled_loader import load_map, draw_map
     import xml.etree.ElementTree as ET
+    import random
     
     # 屏幕设置
     SCREEN_WIDTH = screen.get_width()
@@ -169,7 +171,7 @@ def run_puzzle_scene(screen):
     blocked_coords = {(tx, ty) for tx, ty, _r in collision_tiles}
     
     # 玩家初始位置
-    USER_DEFAULT_SPAWN = (16, 15)
+    USER_DEFAULT_SPAWN = (15, 14)
     sx, sy = USER_DEFAULT_SPAWN
     player_x = sx * TILE_SIZE
     player_y = sy * TILE_SIZE
@@ -201,28 +203,42 @@ def run_puzzle_scene(screen):
     try:
         sprite_sheet = pygame.image.load(str(sprite_path)).convert_alpha()
         # 8个方向：下、左下、左、左上、上、右上、右、右下
-        directions = ['down', 'down_left', 'left', 'up_left', 'up', 'up_right', 'right', 'down_right']
+        # 精灵图中的行顺序 - 实际上精灵图中是右方向，左方向需要翻转
+        directions = ['down', 'down_right', 'right', 'up_right', 'up', 'up_left', 'left', 'down_left']
         
+        # 需要翻转的方向映射（左侧方向使用右侧方向的翻转）
+        # 精灵图本身包含右方向，左方向需要翻转右方向获得
+        flip_mapping = {
+            'left': 'right',
+            'up_left': 'up_right', 
+            'down_left': 'down_right'
+        }
+        
+        # 先加载不需要翻转的方向
         for row, direction in enumerate(directions):
+            if direction in flip_mapping:
+                continue  # 稍后处理需要翻转的方向
+            
             player_animations[direction] = {
                 'idle': None,
                 'walk': []
             }
             # 第一列是idle
             idle_sprite = sprite_sheet.subsurface(pygame.Rect(0, row * SPRITE_H, SPRITE_W, SPRITE_H))
-            # 右侧方向需要水平翻转
-            if 'right' in direction:
-                idle_sprite = pygame.transform.flip(idle_sprite, True, False)
             player_animations[direction]['idle'] = pygame.transform.scale(idle_sprite, (player_draw_w, player_draw_h))
             
             # 第2-9列是行走动画（8帧）
             for col in range(1, 9):
                 walk_sprite = sprite_sheet.subsurface(pygame.Rect(col * SPRITE_W, row * SPRITE_H, SPRITE_W, SPRITE_H))
-                # 右侧方向需要水平翻转
-                if 'right' in direction:
-                    walk_sprite = pygame.transform.flip(walk_sprite, True, False)
                 scaled_sprite = pygame.transform.scale(walk_sprite, (player_draw_w, player_draw_h))
                 player_animations[direction]['walk'].append(scaled_sprite)
+        
+        # 处理需要翻转的方向（左侧方向通过翻转右侧方向获得）
+        for flip_dir, source_dir in flip_mapping.items():
+            player_animations[flip_dir] = {
+                'idle': pygame.transform.flip(player_animations[source_dir]['idle'], True, False),
+                'walk': [pygame.transform.flip(frame, True, False) for frame in player_animations[source_dir]['walk']]
+            }
         
         player_img = player_animations['down']['idle']  # 默认朝下静止
     except Exception as e:
@@ -236,7 +252,7 @@ def run_puzzle_scene(screen):
     player_moving = False  # 是否在移动
     anim_frame = 0  # 当前动画帧
     anim_timer = 0  # 动画计时器
-    ANIM_FPS = 8  # 每秒8帧
+    ANIM_FPS = 12  # 每秒12帧，更流畅的动画
     FRAME_DURATION = 1.0 / ANIM_FPS
     
     # 相机设置
@@ -297,6 +313,258 @@ def run_puzzle_scene(screen):
         pygame.draw.rect(screen, (255, 255, 200), bubble_rect, border_radius=5)
         pygame.draw.rect(screen, (0, 0, 0), bubble_rect, 1, border_radius=5)
         screen.blit(text_surf, text_surf.get_rect(center=bubble_rect.center))
+    
+    # ========== 收集系统 ==========
+    import math
+    
+    # 可收集物品定义（物品名称 -> 描述文本、颜色）
+    collectible_items = {
+        'item1': {'name': 'Strange Object', 'desc': 'It feels... familiar somehow.', 'collected': False, 'color': (100, 200, 255)},
+        'item2': {'name': 'Old Photograph', 'desc': 'The faces are blurred... who are they?', 'collected': False, 'color': (255, 200, 100)},
+        'item3': {'name': 'Faded Letter', 'desc': 'The ink has faded... but something remains.', 'collected': False, 'color': (255, 255, 150)},
+    }
+    collected_items = []
+    ITEMS_REQUIRED = 3  # 需要收集的物品数量才能开门
+    door_unlocked = False
+    
+    # 收集动画粒子系统
+    class CollectParticle:
+        def __init__(self, x, y, target_x, target_y, color):
+            self.x = x
+            self.y = y
+            self.start_x = x
+            self.start_y = y
+            self.target_x = target_x
+            self.target_y = target_y
+            self.color = color
+            self.progress = 0.0
+            self.speed = 2.5  # 飞行速度
+            self.active = True
+            self.glow_timer = 0
+            self.particles = []  # 拖尾粒子
+            
+        def update(self, dt, new_target_x, new_target_y):
+            if not self.active:
+                return
+            # 更新目标位置（跟踪角色）
+            self.target_x = new_target_x
+            self.target_y = new_target_y
+            
+            self.progress += dt * self.speed
+            self.glow_timer += dt
+            
+            # 贝塞尔曲线运动（有弧度的飞行）
+            t = min(self.progress, 1.0)
+            # 控制点在起点和终点之间上方
+            ctrl_x = (self.start_x + self.target_x) / 2
+            ctrl_y = min(self.start_y, self.target_y) - 80
+            
+            # 二次贝塞尔曲线
+            self.x = (1-t)**2 * self.start_x + 2*(1-t)*t * ctrl_x + t**2 * self.target_x
+            self.y = (1-t)**2 * self.start_y + 2*(1-t)*t * ctrl_y + t**2 * self.target_y
+            
+            # 添加拖尾粒子
+            if random.random() < 0.3:
+                self.particles.append({
+                    'x': self.x + random.uniform(-5, 5),
+                    'y': self.y + random.uniform(-5, 5),
+                    'alpha': 200,
+                    'size': random.uniform(3, 8)
+                })
+            
+            # 更新拖尾粒子
+            for p in self.particles:
+                p['alpha'] -= 300 * dt
+                p['size'] -= 5 * dt
+            self.particles = [p for p in self.particles if p['alpha'] > 0 and p['size'] > 0]
+            
+            if self.progress >= 1.0:
+                self.active = False
+        
+        def draw(self, surface):
+            if not self.active:
+                return
+            
+            # 绘制拖尾
+            for p in self.particles:
+                color_with_alpha = (*self.color, int(p['alpha']))
+                glow = pygame.Surface((int(p['size']*4), int(p['size']*4)), pygame.SRCALPHA)
+                pygame.draw.circle(glow, color_with_alpha, (int(p['size']*2), int(p['size']*2)), int(p['size']))
+                surface.blit(glow, (p['x'] - p['size']*2, p['y'] - p['size']*2))
+            
+            # 绘制主光球
+            pulse = (math.sin(self.glow_timer * 10) + 1) / 2
+            glow_size = 25 + pulse * 10
+            
+            # 外层光晕
+            glow_surf = pygame.Surface((int(glow_size*2), int(glow_size*2)), pygame.SRCALPHA)
+            for r in range(int(glow_size), 0, -2):
+                alpha = int(100 * (1 - r / glow_size))
+                pygame.draw.circle(glow_surf, (*self.color, alpha), 
+                                 (int(glow_size), int(glow_size)), r)
+            surface.blit(glow_surf, (self.x - glow_size, self.y - glow_size))
+            
+            # 内核
+            pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), 8)
+            pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), 6)
+    
+    # 收集动画列表
+    collect_animations = []
+    
+    # 吸收特效（当物品飞到角色身上时）
+    class AbsorbEffect:
+        def __init__(self, x, y, color):
+            self.x = x
+            self.y = y
+            self.color = color
+            self.timer = 0
+            self.duration = 0.5
+            self.active = True
+            self.rings = []
+            for i in range(3):
+                self.rings.append({'radius': 5, 'alpha': 255, 'delay': i * 0.1})
+        
+        def update(self, dt):
+            self.timer += dt
+            for ring in self.rings:
+                if self.timer > ring['delay']:
+                    ring['radius'] += 150 * dt
+                    ring['alpha'] = max(0, 255 - ring['radius'] * 4)
+            if self.timer >= self.duration:
+                self.active = False
+        
+        def draw(self, surface):
+            for ring in self.rings:
+                if ring['alpha'] > 0:
+                    surf = pygame.Surface((int(ring['radius']*2+4), int(ring['radius']*2+4)), pygame.SRCALPHA)
+                    pygame.draw.circle(surf, (*self.color, int(ring['alpha'])), 
+                                     (int(ring['radius']+2), int(ring['radius']+2)), int(ring['radius']), 3)
+                    surface.blit(surf, (self.x - ring['radius'] - 2, self.y - ring['radius'] - 2))
+    
+    absorb_effects = []
+    
+    # 为可交互物品添加发光效果计时器
+    for obj in interactive_objects:
+        obj['glow_timer'] = random.uniform(0, math.pi * 2)
+    
+    # 手动指定收集物品位置（只选择可到达的位置）
+    collectible_positions = {
+        'item1': (17, 15),    # First item position
+        'item2': (22, 14),    # Second item position  
+        'item3': (24, 14),    # Third item position (main position with glow effect)
+    }
+    
+    # 扩展触发范围（额外的触发位置，但不显示特效）
+    extended_trigger_positions = {
+        'item3': [(24, 15)],  # (24, 15) 也可以触发 item3，但不显示发光特效
+    }
+    
+    # 将指定位置的交互物品映射到收集物品
+    item_mapping = {}  # id(obj) -> item_key
+    glow_positions = {}  # item_key -> (tx, ty) 只有这个位置显示发光特效
+    
+    for obj in interactive_objects:
+        tx = obj['rect'].x // TILE_SIZE
+        ty = obj['rect'].y // TILE_SIZE
+        
+        # 检查主要位置
+        for item_key, (target_tx, target_ty) in collectible_positions.items():
+            if tx == target_tx and ty == target_ty:
+                item_mapping[id(obj)] = item_key
+                obj['is_collectible'] = True
+                obj['item_key'] = item_key
+                obj['show_glow'] = True  # 主要位置显示发光
+                glow_positions[item_key] = (tx, ty)
+                break
+        
+        # 检查扩展触发位置
+        for item_key, extra_positions in extended_trigger_positions.items():
+            for (ext_tx, ext_ty) in extra_positions:
+                if tx == ext_tx and ty == ext_ty:
+                    item_mapping[id(obj)] = item_key
+                    obj['is_collectible'] = True
+                    obj['item_key'] = item_key
+                    obj['show_glow'] = False  # 扩展位置不显示发光
+                    break
+    
+    # ========== 对话框系统 ==========
+    class DialogueBox:
+        def __init__(self, font_path):
+            self.active = False
+            self.text = ""
+            self.display_text = ""
+            self.char_index = 0
+            self.char_timer = 0
+            self.char_speed = 0.03
+            self.display_time = 0
+            self.auto_close_time = 3.0  # 3秒后自动关闭
+            try:
+                self.font = pygame.font.Font(str(font_path), 28)
+                self.small_font = pygame.font.Font(str(font_path), 20)
+            except:
+                self.font = pygame.font.Font(None, 28)
+                self.small_font = pygame.font.Font(None, 20)
+        
+        def show(self, text):
+            self.active = True
+            self.text = text
+            self.display_text = ""
+            self.char_index = 0
+            self.char_timer = 0
+            self.display_time = 0
+        
+        def update(self, dt):
+            if not self.active:
+                return
+            if self.char_index < len(self.text):
+                self.char_timer += dt
+                if self.char_timer >= self.char_speed:
+                    self.char_timer = 0
+                    self.display_text += self.text[self.char_index]
+                    self.char_index += 1
+            else:
+                self.display_time += dt
+                if self.display_time >= self.auto_close_time:
+                    self.active = False
+        
+        def skip(self):
+            if self.char_index < len(self.text):
+                self.display_text = self.text
+                self.char_index = len(self.text)
+            else:
+                self.active = False
+        
+        def draw(self, surface):
+            if not self.active:
+                return
+            sw, sh = surface.get_size()
+            box_h = 120
+            box_w = sw - 100
+            box_x = 50
+            box_y = sh - box_h - 40
+            
+            # 绘制对话框背景
+            box_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+            box_surf.fill((20, 15, 30, 230))
+            pygame.draw.rect(box_surf, (150, 130, 180), (0, 0, box_w, box_h), 3, border_radius=8)
+            surface.blit(box_surf, (box_x, box_y))
+            
+            # 绘制文本
+            lines = self.display_text.split('\n')
+            for i, line in enumerate(lines):
+                text_surf = self.font.render(line, True, (255, 255, 255))
+                surface.blit(text_surf, (box_x + 20, box_y + 15 + i * 32))
+            
+            # 绘制继续提示
+            if self.char_index >= len(self.text):
+                if int(pygame.time.get_ticks() / 500) % 2:
+                    hint = self.small_font.render("Press SPACE to continue...", True, (180, 180, 200))
+                    surface.blit(hint, (box_x + box_w - hint.get_width() - 20, box_y + box_h - 30))
+    
+    dialogue = DialogueBox(FONT_PATH)
+    
+    # 显示开场提示
+    dialogue.show("I feel like I forgot something...\nIs everything as it should be?")
     
     # 主循环
     clock = pygame.time.Clock()
@@ -391,6 +659,42 @@ def run_puzzle_scene(screen):
         lerp_t = max(0.0, min(1.0, camera_smooth * dt))
         camera_x = camera_x + (desired_camera_x - camera_x) * lerp_t
         
+        # ===== 绘制可收集物品的发光效果 =====
+        for obj in interactive_objects:
+            item_key = item_mapping.get(id(obj))
+            # 只有标记了 show_glow 且物品未收集时才显示发光效果
+            if item_key and not collectible_items[item_key]['collected'] and obj.get('show_glow', False):
+                # 更新发光计时器
+                obj['glow_timer'] += dt * 3
+                
+                # 计算物品屏幕位置
+                obj_screen_x = int(round(obj['rect'].x * scale)) + offset_x - int(round(camera_x))
+                obj_screen_y = int(round(obj['rect'].y * scale)) + offset_y
+                
+                # 绘制脉动发光效果
+                pulse = (math.sin(obj['glow_timer']) + 1) / 2
+                glow_size = 30 + pulse * 15
+                item_color = collectible_items[item_key]['color']
+                
+                glow_surf = pygame.Surface((int(glow_size*2), int(glow_size*2)), pygame.SRCALPHA)
+                for r in range(int(glow_size), 0, -3):
+                    alpha = int(80 * (1 - r / glow_size) * (0.5 + pulse * 0.5))
+                    pygame.draw.circle(glow_surf, (*item_color, alpha), 
+                                     (int(glow_size), int(glow_size)), r)
+                screen.blit(glow_surf, (obj_screen_x + tile_draw_size//2 - glow_size, 
+                                       obj_screen_y + tile_draw_size//2 - glow_size))
+                
+                # 绘制小星星粒子
+                for i in range(3):
+                    angle = obj['glow_timer'] * 2 + i * (math.pi * 2 / 3)
+                    star_dist = 20 + pulse * 8
+                    star_x = obj_screen_x + tile_draw_size//2 + math.cos(angle) * star_dist
+                    star_y = obj_screen_y + tile_draw_size//2 + math.sin(angle) * star_dist
+                    star_alpha = int(150 + pulse * 100)
+                    star_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+                    pygame.draw.circle(star_surf, (*item_color, star_alpha), (4, 4), 3)
+                    screen.blit(star_surf, (star_x - 4, star_y - 4))
+        
         # 绘制玩家
         screen_x = int(round(player_x * scale)) + offset_x - int(round(camera_x))
         screen_y = int(round(player_y * scale)) + offset_y
@@ -423,7 +727,10 @@ def run_puzzle_scene(screen):
         for door in door_objects:
             if player_bbox_rect.colliderect(door["rect"].inflate(10, 10)):
                 current_door = door
-                draw_bubble("Right-click to open", door["rect"].x, door["rect"].y, camera_x, offset_x, offset_y)
+                if door_unlocked:
+                    draw_bubble("SPACE: Enter", door["rect"].x, door["rect"].y, camera_x, offset_x, offset_y)
+                else:
+                    draw_bubble(f"Locked ({len(collected_items)}/{ITEMS_REQUIRED})", door["rect"].x, door["rect"].y, camera_x, offset_x, offset_y)
                 break
         
         # 检查普通交互
@@ -431,50 +738,177 @@ def run_puzzle_scene(screen):
             for obj in interactive_objects:
                 if player_bbox_rect.colliderect(obj["rect"].inflate(10, 10)):
                     current_interactive = obj
-                    draw_bubble(obj["prompt"], obj["rect"].x, obj["rect"].y, camera_x, offset_x, offset_y)
+                    # 检查是否已收集
+                    item_key = item_mapping.get(id(obj))
+                    if item_key and collectible_items.get(item_key, {}).get('collected'):
+                        draw_bubble("(Collected)", obj["rect"].x, obj["rect"].y, camera_x, offset_x, offset_y)
+                    elif item_key:
+                        # 可收集物品显示特殊提示
+                        draw_bubble("SPACE: Collect", obj["rect"].x, obj["rect"].y, camera_x, offset_x, offset_y)
+                    else:
+                        draw_bubble("SPACE: Check", obj["rect"].x, obj["rect"].y, camera_x, offset_x, offset_y)
                     break
+        
+        # 绘制收集进度UI
+        try:
+            ui_font = pygame.font.Font(str(FONT_PATH), 24)
+            ui_small = pygame.font.Font(str(FONT_PATH), 18)
+        except:
+            ui_font = pygame.font.Font(None, 24)
+            ui_small = pygame.font.Font(None, 18)
+        
+        # 收集进度背景
+        ui_bg = pygame.Surface((200, 80), pygame.SRCALPHA)
+        ui_bg.fill((0, 0, 0, 150))
+        screen.blit(ui_bg, (10, 10))
+        
+        # 标题
+        title = ui_font.render("Collected Items", True, (255, 220, 150))
+        screen.blit(title, (20, 15))
+        
+        # 进度条
+        progress = len(collected_items) / ITEMS_REQUIRED
+        bar_w, bar_h = 160, 15
+        pygame.draw.rect(screen, (50, 50, 60), (20, 45, bar_w, bar_h), border_radius=3)
+        pygame.draw.rect(screen, (100, 200, 100) if progress >= 1.0 else (200, 150, 50), 
+                        (20, 45, int(bar_w * min(progress, 1.0)), bar_h), border_radius=3)
+        
+        # 进度文本
+        progress_text = ui_small.render(f"{len(collected_items)} / {ITEMS_REQUIRED}", True, (255, 255, 255))
+        screen.blit(progress_text, (20 + bar_w//2 - progress_text.get_width()//2, 65))
+        
+        # ===== 更新和绘制收集动画 =====
+        # 计算玩家中心位置（用于动画跟踪）
+        player_center_x = draw_x + player_draw_w // 2
+        player_center_y = draw_y + player_draw_h // 2
+        
+        # 更新收集动画
+        for anim in collect_animations:
+            anim.update(dt, player_center_x, player_center_y)
+            # 当动画完成时，创建吸收特效
+            if not anim.active:
+                absorb_effects.append(AbsorbEffect(player_center_x, player_center_y, anim.color))
+        collect_animations[:] = [a for a in collect_animations if a.active]
+        
+        # 更新吸收特效
+        for effect in absorb_effects:
+            effect.update(dt)
+        absorb_effects[:] = [e for e in absorb_effects if e.active]
+        
+        # 绘制收集动画
+        for anim in collect_animations:
+            anim.draw(screen)
+        
+        # 绘制吸收特效
+        for effect in absorb_effects:
+            effect.draw(screen)
+        
+        # 更新对话框
+        dialogue.update(dt)
+        dialogue.draw(screen)
+        
+        # 定义交互处理函数
+        def handle_interaction():
+            nonlocal door_unlocked, collected_items
+            
+            # 如果对话框激活，按空格跳过/关闭
+            if dialogue.active:
+                dialogue.skip()
+                return
+            
+            # 门交互
+            if current_door:
+                if door_unlocked:
+                    print(f"玩家触发门交互，跳转到下一场景")
+                    return 'next_scene'
+                else:
+                    remaining = ITEMS_REQUIRED - len(collected_items)
+                    dialogue.show(f"The door is locked!\nYou need to find {remaining} more item(s) to unlock it.")
+                return
+            
+            # 普通物品交互
+            if current_interactive:
+                # 播放音效
+                sound_path = current_interactive.get("sound_path")
+                resolved = None
+                if sound_path:
+                    if os.path.isabs(sound_path) and os.path.exists(sound_path):
+                        resolved = sound_path
+                    else:
+                        cand = ASSETS_PATH / sound_path
+                        if cand.exists():
+                            resolved = str(cand)
+                        else:
+                            cand2 = ASSETS_PATH / 'sounds' / sound_path
+                            if cand2.exists():
+                                resolved = str(cand2)
+                if resolved:
+                    try:
+                        pygame.mixer.Sound(resolved).play()
+                    except Exception as e:
+                        print(f"音效播放失败：{e}")
+                else:
+                    default_click = ASSETS_PATH / 'sounds' / 'click.wav'
+                    if default_click.exists():
+                        try:
+                            pygame.mixer.Sound(str(default_click)).play()
+                        except Exception:
+                            pass
+                
+                # 检查是否可收集
+                item_key = item_mapping.get(id(current_interactive))
+                if item_key and not collectible_items[item_key]['collected']:
+                    # 收集物品
+                    collectible_items[item_key]['collected'] = True
+                    collected_items.append(item_key)
+                    item_info = collectible_items[item_key]
+                    
+                    # 创建收集动画（物品飞向角色）
+                    obj_screen_x = int(round(current_interactive['rect'].x * scale)) + offset_x - int(round(camera_x)) + tile_draw_size//2
+                    obj_screen_y = int(round(current_interactive['rect'].y * scale)) + offset_y + tile_draw_size//2
+                    player_center_x = draw_x + player_draw_w // 2
+                    player_center_y = draw_y + player_draw_h // 2
+                    
+                    collect_anim = CollectParticle(obj_screen_x, obj_screen_y, 
+                                                   player_center_x, player_center_y,
+                                                   item_info['color'])
+                    collect_animations.append(collect_anim)
+                    
+                    # 显示收集提示
+                    dialogue.show(f"Found: {item_info['name']}!\n{item_info['desc']}\n\n[{len(collected_items)}/{ITEMS_REQUIRED} items collected]")
+                    
+                    # 检查是否收集足够
+                    if len(collected_items) >= ITEMS_REQUIRED:
+                        door_unlocked = True
+                        # 延迟显示开门提示会在下次交互时显示
+                    
+                    print(f"收集物品: {item_info['name']} ({len(collected_items)}/{ITEMS_REQUIRED})")
+                elif item_key and collectible_items[item_key]['collected']:
+                    # 已经收集过
+                    dialogue.show(f"You already checked this.\nNothing else here...")
+                else:
+                    # 普通交互（无收集物品）
+                    dialogue.show(f"Examining: {current_interactive['name']}...\nJust an ordinary object.")
+                
+                print(f"与【{current_interactive['name']}】交互")
+            return None
         
         # 事件处理
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return 'quit'
             
+            # 空格键交互
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                result = handle_interaction()
+                if result == 'next_scene':
+                    return 'next'
+            
             # 右键交互
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
-                # 门交互：跳转到下一场景
-                if current_door:
-                    print(f"玩家触发门交互，跳转到下一场景")
+                result = handle_interaction()
+                if result == 'next_scene':
                     return 'next'
-                
-                # 普通交互
-                if current_interactive:
-                    sound_path = current_interactive.get("sound_path")
-                    resolved = None
-                    if sound_path:
-                        if os.path.isabs(sound_path) and os.path.exists(sound_path):
-                            resolved = sound_path
-                        else:
-                            cand = ASSETS_PATH / sound_path
-                            if cand.exists():
-                                resolved = str(cand)
-                            else:
-                                cand2 = ASSETS_PATH / 'sounds' / sound_path
-                                if cand2.exists():
-                                    resolved = str(cand2)
-                    if resolved:
-                        try:
-                            pygame.mixer.Sound(resolved).play()
-                        except Exception as e:
-                            print(f"音效播放失败：{e}")
-                    else:
-                        default_click = ASSETS_PATH / 'sounds' / 'click.wav'
-                        if default_click.exists():
-                            try:
-                                pygame.mixer.Sound(str(default_click)).play()
-                            except Exception:
-                                pass
-                    
-                    print(f"与【{current_interactive['name']}】交互")
         
         pygame.display.flip()
     
@@ -495,18 +929,7 @@ def main():
         pygame.quit()
         return
     
-    # 第2阶段：进入 First Dream Puzzle（独立脚本）
-    print("进入 First Dream Puzzle 场景...")
-    try:
-        import subprocess, sys, os
-        script_path = os.path.join('testing', 'first_dream_puzzle.py')
-        ret = subprocess.call([sys.executable, script_path])
-        if ret != 0:
-            print(f"First Dream Puzzle 退出码: {ret}")
-    except Exception as e:
-        print(f"启动 First Dream Puzzle 失败: {e}")
-    
-    # 第3阶段：运行解谜场景
+    # 第二阶段：运行解谜场景
     print("进入解谜场景...")
     puzzle_result = run_puzzle_scene(screen)
     
@@ -514,7 +937,21 @@ def main():
         pygame.quit()
         return
     
-    # 第4阶段：梦境过渡场景
+    # 第三阶段：梦日记风格解谜关卡（4个谜题）
+    if puzzle_result == 'next':
+        print("进入梦境解谜关卡...")
+        try:
+            from testing.first_dream_puzzle import run_dream_puzzle
+            dream_puzzle_result = run_dream_puzzle(screen)
+            
+            if dream_puzzle_result == 'quit':
+                pygame.quit()
+                return
+        except Exception as e:
+            print(f'梦境解谜关卡加载失败: {e}')
+            dream_puzzle_result = 'next'  # 失败则跳过
+    
+    # 第四阶段：梦境过渡场景（小女巫转换）
     if puzzle_result == 'next':
         print("解谜完成，进入梦境过渡...")
         try:
@@ -528,7 +965,7 @@ def main():
             print(f'梦境场景加载失败: {e}')
             dream_result = 'next'  # 失败则跳过梦境场景
     
-    # 第5阶段：跳转到战斗场景（map01）
+    # 第四阶段：跳转到战斗场景（map01）
     if puzzle_result == 'next':
         print("进入战斗场景...")
         
