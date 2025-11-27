@@ -14,6 +14,7 @@ import time
 
 def run(screen, inventory=None):
 	import pygame
+	import traceback
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
 	from src.ui.dialog_box_notusing import SpeechBubble
@@ -400,12 +401,25 @@ def run(screen, inventory=None):
 							# import here to avoid circular imports at module load time
 							try:
 								import main as main_mod
-								# call the main-run helper to start the boss test (boss2/3 hence the first one is deleted)
-								main_mod.run_boss_test('hollow')
+								boss_started = False
+								try:
+									main_mod.run_boss_cli('hollow')
+									boss_started = True
+								except AttributeError:
+									try:
+										main_mod.run_boss_test('hollow')
+										boss_started = True
+									except Exception as e:
+										print('[map01_scene DEBUG] failed to launch boss (fallback):', e)
+								except Exception as e:
+									print('[map01_scene DEBUG] failed to launch boss:', e)
+								if boss_started:
+									# return immediately so the map does not draw to a closed display
+									return
 							except Exception as e:
-								print('[map01_scene DEBUG] failed to launch boss:', e)
-							running = False
-							break
+								print('[map01_scene DEBUG] exception during boss launch:')
+								traceback.print_exc()
+								# continue with normal door behaviour
 					except Exception:
 						# ignore and continue with normal door behaviour
 						pass

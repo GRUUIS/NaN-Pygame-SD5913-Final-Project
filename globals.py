@@ -295,6 +295,8 @@ GAME_STATES = {
 
 # Debug Mode
 DEBUG_MODE = True
+# Developer mode enables debug shortcuts (e.g. press 'Z' to skip scenes)
+DEVELOPER_MODE = True
 SHOW_DEBUG_INFO = True
 SHOW_COLLISION_BOXES = False
 

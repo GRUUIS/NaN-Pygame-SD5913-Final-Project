@@ -11,6 +11,7 @@ import os
 import glob
 import time
 import sys
+import pygame
 
 # Ensure project root is in sys.path for imports if run directly
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -40,6 +41,7 @@ def run(screen):
 	gear_target_color = (120, 120, 120, 180)
 
 	import pygame
+	import traceback
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
 	from src.ui.dialog_box_notusing import SpeechBubble
@@ -434,6 +436,7 @@ def run(screen):
 						if img_121_pos and target_rect.collidepoint(img_121_pos[0] + 40, img_121_pos[1] + 40):
 							gear_121_locked = True
 							img_121_pos = (gear_target_positions[1][0] - 40, gear_target_positions[1][1] - 40)
+							print('[DEBUG] gear_121_locked set ->', gear_121_locked)
 				elif ev.type == pygame.MOUSEMOTION and drag_121:
 					img_121_pos = (ev.pos[0] - drag_offset_121[0], ev.pos[1] - drag_offset_121[1])
 			if group_img_fadeout and group_img_alpha == 0 and reward_img_clicked and not gear_111_locked:
@@ -451,6 +454,7 @@ def run(screen):
 						if reward_img_pos and target_rect.collidepoint(reward_img_pos[0] + 40, reward_img_pos[1] + 40):
 							gear_111_locked = True
 							reward_img_pos = (gear_target_positions[0][0] - 40, gear_target_positions[0][1] - 40)
+							print('[DEBUG] gear_111_locked set ->', gear_111_locked)
 				elif ev.type == pygame.MOUSEMOTION and drag_111:
 					reward_img_pos = (ev.pos[0] - drag_offset_111[0], ev.pos[1] - drag_offset_111[1])
 			if ev.type == pygame.QUIT:
@@ -481,6 +485,11 @@ def run(screen):
 								items.remove(it)
 								collected_items.add(item_id)
 								print('Picked up', item_id)
+								# DEBUG: show collected state after lamp pickup
+								try:
+									print(f"[DEBUG] collected_items={collected_items} show_brush_projection will be set")
+								except Exception:
+									pass
 								show_brush_projection = True
 								brush_img_alpha = 0
 								brush_proj_timer = 0.0
@@ -489,6 +498,11 @@ def run(screen):
 								items.remove(it)
 								collected_items.add(item_id)
 								print('Picked up', item_id)
+								# DEBUG: show collected state after hourglass pickup
+								try:
+									print(f"[DEBUG] collected_items={collected_items} image_fadein={image_fadein}")
+								except Exception:
+									pass
 								image_fadein = True
 								image_alpha = 0
 								show_only_group_img = True
@@ -498,6 +512,13 @@ def run(screen):
 								story_text_fadein = True
 								story_text_alpha = 0
 								story_text_fully_visible = False
+								# Spawn the lamp immediately after hourglass pickup (if prepared)
+								try:
+									if lamp_item_data is not None and not any(x.get('id') == 'lamp' for x in items) and 'lamp' not in collected_items:
+										items.append(lamp_item_data)
+										print('[DEBUG] Lamp spawned after hourglass pickup')
+								except Exception:
+									pass
 								break
 			# right-click pickup for items
 			if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 3:
@@ -516,6 +537,10 @@ def run(screen):
 								items.remove(it)
 								collected_items.add(item_id)
 								print('Picked up', item_id)
+								try:
+									print(f"[DEBUG] collected_items={collected_items} show_brush_projection will be set (right-click)")
+								except Exception:
+									pass
 								show_brush_projection = True
 								brush_img_alpha = 0
 								brush_proj_timer = 0.0
@@ -524,6 +549,10 @@ def run(screen):
 								items.remove(it)
 								collected_items.add(item_id)
 								print('Picked up', item_id)
+								try:
+									print(f"[DEBUG] collected_items={collected_items} image_fadein={image_fadein} (right-click)")
+								except Exception:
+									pass
 								image_fadein = True
 								image_alpha = 0
 								show_only_group_img = True
@@ -533,6 +562,13 @@ def run(screen):
 								story_text_fadein = True
 								story_text_alpha = 0
 								story_text_fully_visible = False
+								# Spawn the lamp immediately after hourglass pickup (if prepared)
+								try:
+									if lamp_item_data is not None and not any(x.get('id') == 'lamp' for x in items) and 'lamp' not in collected_items:
+										items.append(lamp_item_data)
+										print('[DEBUG] Lamp spawned after hourglass pickup (right-click)')
+								except Exception:
+									pass
 								break
 
 		# update
@@ -590,15 +626,30 @@ def run(screen):
 					try:
 						if 'hourglass' in collected_items:
 							print('[map01_scene DEBUG] player has hourglass - launching boss1')
+							print(f"[DEBUG] door triggered; collected_items={collected_items}")
 							# import here to avoid circular imports at module load time
 							try:
 								import main as main_mod
-								# call the main-run helper to start the boss test (boss2/3 hence the first one is deleted)
-								main_mod.run_boss_test('hollow')
+								boss_started = False
+								# prefer run_boss_cli if present, fallback to legacy run_boss_test
+								try:
+									main_mod.run_boss_cli('hollow')
+									boss_started = True
+								except AttributeError:
+									try:
+										main_mod.run_boss_test('hollow')
+										boss_started = True
+									except Exception as e:
+										print('[map01_scene DEBUG] failed to launch boss (fallback):', e)
+								except Exception as e:
+									print('[map01_scene DEBUG] failed to launch boss:', e)
+								# if the boss actually started, exit the map immediately
+								if boss_started:
+									# return to avoid drawing to a closed display surface
+									return
 							except Exception as e:
-								print('[map01_scene DEBUG] failed to launch boss:', e)
-							running = False
-							break
+								print('[map01_scene DEBUG] exception during boss launch:')
+								traceback.print_exc()
 					except Exception:
 						# ignore and continue with normal door behaviour
 						pass
