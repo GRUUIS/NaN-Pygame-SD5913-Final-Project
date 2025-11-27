@@ -131,9 +131,15 @@ class Meun:
         self.text_color = (255, 255, 255)
         self.highlight_color = (100, 150, 255)
 
-        self.menu_options = ["Start Game", "Instructions", "Quit"]
+        self.menu_options = ["Start Game", "Settings", "Quit"]
+        self.show_settings = False
+        self.music_volume = getattr(g, 'music_volume', 0.2)
+        self._settings_dragging = False
         self.selected_option = 0
         self.show_instructions = False
+
+        # slider rect cached for interaction
+        self._settings_bar_rect = None
 
         self.clock = pygame.time.Clock()
 
@@ -163,14 +169,42 @@ class Meun:
                 return self.select_option()
             elif event.key == pygame.K_ESCAPE:
                 return 'quit'
+        # mouse handling for settings slider
+        if getattr(self, 'show_settings', False):
+            try:
+                rect = getattr(self, '_settings_bar_rect', None)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mx, my = event.pos
+                    if rect and rect.inflate(12, 16).collidepoint(mx, my):
+                        self._settings_dragging = True
+                        rel = (mx - rect.x) / float(rect.width)
+                        self.music_volume = max(0.0, min(1.0, rel))
+                        try:
+                            pygame.mixer.music.set_volume(self.music_volume)
+                        except Exception:
+                            pass
+                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self._settings_dragging = False
+                elif event.type == pygame.MOUSEMOTION and getattr(self, '_settings_dragging', False):
+                    mx, my = event.pos
+                    if rect:
+                        rel = (mx - rect.x) / float(rect.width)
+                        self.music_volume = max(0.0, min(1.0, rel))
+                        try:
+                            pygame.mixer.music.set_volume(self.music_volume)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
         return None
 
     def select_option(self):
         if self.selected_option == 0:
             return 'start'
         elif self.selected_option == 1:
-            # Toggle instructions overlay
-            self.show_instructions = not self.show_instructions
+            # Toggle settings overlay
+            self.show_settings = not self.show_settings
             return None
         elif self.selected_option == 2:
             return 'quit'
@@ -302,24 +336,112 @@ class Meun:
             draw_text(self.screen, self.font_medium_bold, option, color,
                       (screen_width // 2, start_y + i * 60), spacing=self.letter_spacing, align='center')
 
-        # Instructions overlay (simple version)
-        if self.show_instructions:
-            lines = [
-                "Controls:",
-                "  WASD / Arrow Keys: Move",
-                "  Mouse: Aim and interact",
-                "  ESC: Back / Quit",
-                "  C: collect items    (RMB: collect)",
-                "", 
-                "Press Enter/Space to close this screen."
-            ]
-            line_h = self.font_small_bold.get_linesize()
-            spacing_v = line_h + 6
-            base_x = 120
-            base_y = 120
-            for idx, line in enumerate(lines):
-                draw_text(self.screen, self.font_small_bold, line, self.text_color,
-                          (base_x, base_y + idx * spacing_v), spacing=self.letter_spacing, align='topleft')
+        # Settings overlay (uses UI frame and a volume slider)
+        if getattr(self, 'show_settings', False):
+            try:
+                repo_root = Path(__file__).resolve().parents[1]
+                frame_path = repo_root / 'assets' / 'UI' / 'Complete_UI_Essential_Pack_Free' / '01_Flat_Theme' / 'Sprites' / 'UI_Flat_FrameSlot01a.png'
+                frame_orig = None
+                if frame_path.exists():
+                    frame_orig = pygame.image.load(str(frame_path)).convert_alpha()
+
+                screen_w, screen_h = self.screen.get_size()
+                fw = 400
+                fh = 200
+                frame_surf = None
+                if frame_orig:
+                    iw, ih = frame_orig.get_size()
+                    s = max(1, fw // iw)
+                    while iw * s < fw or ih * s < fh:
+                        s += 1
+                    frame_surf = pygame.transform.scale(frame_orig, (iw * s, ih * s))
+
+                frame_x = (screen_w - (frame_surf.get_width() if frame_surf else fw)) // 2
+                frame_y = (screen_h - (frame_surf.get_height() if frame_surf else fh)) // 2
+                # draw generated settings background if available
+                try:
+                    bg_path = repo_root / 'assets' / 'UI' / 'settings_background.png'
+                    if bg_path.exists():
+                        bg_img = pygame.image.load(str(bg_path)).convert_alpha()
+                        bw = frame_surf.get_width() if frame_surf else fw
+                        bh = frame_surf.get_height() if frame_surf else fh
+                        bg_s = pygame.transform.smoothscale(bg_img, (bw, bh))
+                        self.screen.blit(bg_s, (frame_x, frame_y))
+                    elif frame_surf:
+                        self.screen.blit(frame_surf, (frame_x, frame_y))
+                except Exception:
+                    if frame_surf:
+                        self.screen.blit(frame_surf, (frame_x, frame_y))
+
+                # Title
+                draw_text(self.screen, self.font_subtitle_bold, "Settings", self.text_color,
+                          (screen_w // 2, frame_y + 34), spacing=self.letter_spacing, align='center')
+
+                # load UI sprites for slider
+                sprites_dir = repo_root / 'assets' / 'UI' / 'Complete_UI_Essential_Pack_Free' / '01_Flat_Theme' / 'Sprites'
+                try:
+                    bar_path = sprites_dir / 'UI_Flat_Bar01a.png'
+                    fill_path = sprites_dir / 'UI_Flat_BarFill01a.png'
+                    
+                    # Try generated handle first
+                    gen_handle_path = repo_root / 'assets' / 'UI' / 'settings_handle.png'
+                    handle_path = sprites_dir / 'UI_Flat_Handle01a.png'
+                    
+                    bar_img = pygame.image.load(str(bar_path)).convert_alpha() if bar_path.exists() else None
+                    fill_img = pygame.image.load(str(fill_path)).convert_alpha() if fill_path.exists() else None
+                    
+                    if gen_handle_path.exists():
+                        handle_img = pygame.image.load(str(gen_handle_path)).convert_alpha()
+                    elif handle_path.exists():
+                        handle_img = pygame.image.load(str(handle_path)).convert_alpha()
+                    else:
+                        handle_img = None
+                except Exception:
+                    bar_img = fill_img = handle_img = None
+
+                bar_w = 240
+                bar_h = 24
+                bar_x = (screen_w - bar_w) // 2
+                bar_y = frame_y + 80
+                # cache slider rect for events
+                try:
+                    self._settings_bar_rect = pygame.Rect(bar_x, bar_y, bar_w, bar_h)
+                except Exception:
+                    self._settings_bar_rect = None
+
+                if bar_img:
+                    try:
+                        self.screen.blit(pygame.transform.smoothscale(bar_img, (bar_w, bar_h)), (bar_x, bar_y))
+                    except Exception:
+                        pygame.draw.rect(self.screen, (60,60,60), (bar_x, bar_y, bar_w, bar_h))
+                else:
+                    pygame.draw.rect(self.screen, (60,60,60), (bar_x, bar_y, bar_w, bar_h))
+
+                fill_w = int(self.music_volume * bar_w)
+                if fill_img:
+                    try:
+                        self.screen.blit(pygame.transform.smoothscale(fill_img, (max(1, fill_w), bar_h)), (bar_x, bar_y))
+                    except Exception:
+                        pygame.draw.rect(self.screen, (120,170,255), (bar_x, bar_y, fill_w, bar_h))
+                else:
+                    pygame.draw.rect(self.screen, (120,170,255), (bar_x, bar_y, fill_w, bar_h))
+
+                handle_w, handle_h = 20, 30
+                handle_x = bar_x + fill_w - handle_w // 2
+                handle_y = bar_y + (bar_h - handle_h) // 2
+                if handle_img:
+                    try:
+                        self.screen.blit(pygame.transform.smoothscale(handle_img, (handle_w, handle_h)), (handle_x, handle_y))
+                    except Exception:
+                        pygame.draw.circle(self.screen, (200,200,200), (handle_x+handle_w//2, handle_y+handle_h//2), handle_w//2)
+                else:
+                    pygame.draw.circle(self.screen, (200,200,200), (handle_x+handle_w//2, handle_y+handle_h//2), handle_w//2)
+
+                # label
+                draw_text(self.screen, self.font_small_bold, f"Music Volume: {int(self.music_volume*100)}%", self.text_color,
+                          (screen_w // 2, bar_y - 26), spacing=self.letter_spacing, align='center')
+            except Exception:
+                pass
         # Footer instruction (two lines)
         draw_text(self.screen, self.font_small_bold,
                   "Use W/S or Arrow Keys to navigate, Enter/Space to select",
@@ -367,6 +489,10 @@ class Meun:
                 # use music playback (streaming) and loop indefinitely
                 pygame.mixer.music.load(music_path)
                 pygame.mixer.music.play(loops=-1)
+                try:
+                    pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+                except Exception:
+                    pass
                 music_playing = True
                 print(f"[meun] playing menu music: {music_path}")
             except Exception as e:

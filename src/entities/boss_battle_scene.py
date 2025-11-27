@@ -85,7 +85,13 @@ class BossBattleScene:
             if bgm_file:
                 bgm_path = os.path.join('assets', 'sfx', bgm_file)
                 pygame.mixer.music.load(bgm_path)
-                pygame.mixer.music.set_volume(0.5)
+                try:
+                    pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+                except Exception:
+                    try:
+                        pygame.mixer.music.set_volume(0.2)
+                    except Exception:
+                        pass
                 pygame.mixer.music.play(-1)
         except Exception as e:
             print(f"Failed to load BGM: {e}")

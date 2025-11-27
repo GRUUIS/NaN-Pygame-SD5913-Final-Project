@@ -18,7 +18,7 @@ NIHILISM_HEALTH = 200
 
 # Audio Settings
 MASTER_VOLUME = 0.7
-MUSIC_VOLUME = 0.5
+MUSIC_VOLUME = 0.2
 SFX_VOLUME = 0.8
 
 # Development Flags

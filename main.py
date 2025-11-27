@@ -28,6 +28,29 @@ def run_menu_and_flow():
 #region Entry Point
 def main():
     try:
+        # Ensure global music_volume is set from config so scenes can read it
+        try:
+            from config import settings as cfg
+            setattr(g, 'music_volume', getattr(cfg, 'MUSIC_VOLUME', 0.2))
+        except Exception:
+            try:
+                setattr(g, 'music_volume', 0.2)
+            except Exception:
+                pass
+        # Try to initialize the mixer and set the music default volume so
+        # any later playback uses the configured value.
+        try:
+            try:
+                pygame.mixer.get_init()
+            except Exception:
+                pygame.mixer.init()
+            try:
+                pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+            except Exception:
+                # ignore if mixer not fully ready
+                pass
+        except Exception:
+            pass
         # CLI shortcuts: support boss1/2/3 direct tests and help
         if len(sys.argv) > 1:
             mode = sys.argv[1].lower()
