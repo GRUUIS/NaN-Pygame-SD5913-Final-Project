@@ -360,6 +360,36 @@ def run(screen):
 	show_121_img = False
 	img_121_clicked = False # For 1-2-1.png
 
+	# 预加载 1-1-1.png 和 1-2-1.png（性能优化 - 避免每帧加载）
+	reward_img_111 = None
+	reward_img_121 = None
+	try:
+		reward_img_path = os.path.join(ROOT, 'assets', '1-1-1.png')
+		if os.path.exists(reward_img_path):
+			reward_img_111 = pygame.image.load(reward_img_path).convert_alpha()
+			reward_img_111 = pygame.transform.smoothscale(reward_img_111, (80, 80))
+	except Exception as e:
+		print(f"[map01_scene DEBUG] Failed to load 1-1-1.png: {e}")
+	
+	try:
+		img_121_path = os.path.join(ROOT, 'assets', '1-2-1.png')
+		if os.path.exists(img_121_path):
+			reward_img_121 = pygame.image.load(img_121_path).convert_alpha()
+			reward_img_121 = pygame.transform.smoothscale(reward_img_121, (80, 80))
+	except Exception as e:
+		print(f"[map01_scene DEBUG] Failed to load 1-2-1.png: {e}")
+
+	# 预加载字体（性能优化 - 避免每帧创建字体）
+	font_path = os.path.join(ROOT, 'assets', 'Silver.ttf')
+	try:
+		story_font = pygame.font.Font(font_path, 22) if os.path.exists(font_path) else pygame.font.SysFont('consolas', 22)
+		prompt_font_16 = pygame.font.Font(font_path, 16) if os.path.exists(font_path) else pygame.font.SysFont('consolas', 16)
+		prompt_font_18 = pygame.font.Font(font_path, 18) if os.path.exists(font_path) else pygame.font.SysFont('consolas', 18)
+	except Exception:
+		story_font = pygame.font.SysFont('consolas', 22)
+		prompt_font_16 = pygame.font.SysFont('consolas', 16)
+		prompt_font_18 = pygame.font.SysFont('consolas', 18)
+
 	# 图片淡入相关变量
 	image_fadein = False  # 是否开始淡入
 	image_alpha = 0       # 当前alpha值（0-255）
@@ -635,14 +665,13 @@ def run(screen):
 				
 				screen.blit(overlay, (rect_x, rect_y))
 
-				# Draw text below the brush
+				# Draw text below the brush (使用预加载的字体)
 				text_lines = ["To dwell in the light,", "with a brush, with a truth"]
-				font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 22) if os.path.exists(os.path.join(ROOT, 'assets', 'Silver.ttf')) else pygame.font.SysFont('consolas', 22)
 				
 				total_height = 0
 				text_surfs = []
 				for line in text_lines:
-					surf = font.render(line, True, (0, 0, 0))
+					surf = story_font.render(line, True, (0, 0, 0))
 					surf.set_alpha(brush_img_alpha)
 					text_surfs.append(surf)
 					total_height += surf.get_height()
@@ -659,57 +688,44 @@ def run(screen):
 				show_brush_projection = False
 				show_121_img = True
 
-		# --- Show 1-2-1.png after brush projection ---
-		if show_121_img:
-			try:
-				img_121_path = os.path.join(ROOT, 'assets', '1-2-1.png')
-				if os.path.exists(img_121_path):
-					img_121 = pygame.image.load(img_121_path).convert_alpha()
-					img_121 = pygame.transform.smoothscale(img_121, (80, 80))
-					
-					# Mouse click detection (left button)
-					for ev in pygame.event.get(pygame.MOUSEBUTTONDOWN):
-						if ev.button == 1:
-							if not img_121_clicked:
-								img_x = rect_x + (rect_w - 80) // 2
-								img_y = rect_y + (rect_h - 80) // 2
-								img_rect = pygame.Rect(img_x, img_y, 80, 80)
-								mx, my = ev.pos
-								if img_rect.collidepoint(mx, my):
-									img_121_clicked = True
-					
+		# --- Show 1-2-1.png after brush projection (使用预加载的图片) ---
+		if show_121_img and reward_img_121:
+			# Mouse click detection (left button)
+			for ev in pygame.event.get(pygame.MOUSEBUTTONDOWN):
+				if ev.button == 1:
 					if not img_121_clicked:
-						# Draw in center with click prompt
 						img_x = rect_x + (rect_w - 80) // 2
 						img_y = rect_y + (rect_h - 80) // 2
-						screen.blit(img_121, (img_x, img_y))
-						
-						# Draw 'click' prompt
-						prompt_font2 = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 16) if os.path.exists(os.path.join(ROOT, 'assets', 'Silver.ttf')) else pygame.font.SysFont('consolas', 16)
-						prompt_text2 = 'click'
-						prompt_surf2 = prompt_font2.render(prompt_text2, True, (255, 255, 255))
-						prompt_bg2 = pygame.Surface((prompt_surf2.get_width()+6, prompt_surf2.get_height()+2), pygame.SRCALPHA)
-						prompt_bg2.fill((0,0,0,180))
-						prompt_bg2.blit(prompt_surf2, (3,1))
-						prompt_x2 = img_x + 80 - prompt_bg2.get_width() + 8
-						prompt_y2 = img_y - prompt_bg2.get_height() - 4
-						screen.blit(prompt_bg2, (prompt_x2, prompt_y2))
-					else:
-						# Move the image to the bottom right corner
-						margin = 16
-						img_x = screen.get_width() - 80 - margin
-						img_y = screen.get_height() - 80 - margin
-						screen.blit(img_121, (img_x, img_y))
-			except Exception:
-				pass
+						img_rect = pygame.Rect(img_x, img_y, 80, 80)
+						mx, my = ev.pos
+						if img_rect.collidepoint(mx, my):
+							img_121_clicked = True
+			
+			if not img_121_clicked:
+				# Draw in center with click prompt
+				img_x = rect_x + (rect_w - 80) // 2
+				img_y = rect_y + (rect_h - 80) // 2
+				screen.blit(reward_img_121, (img_x, img_y))
+				
+				# Draw 'click' prompt (使用预加载的字体)
+				prompt_text2 = 'click'
+				prompt_surf2 = prompt_font_16.render(prompt_text2, True, (255, 255, 255))
+				prompt_bg2 = pygame.Surface((prompt_surf2.get_width()+6, prompt_surf2.get_height()+2), pygame.SRCALPHA)
+				prompt_bg2.fill((0,0,0,180))
+				prompt_bg2.blit(prompt_surf2, (3,1))
+				prompt_x2 = img_x + 80 - prompt_bg2.get_width() + 8
+				prompt_y2 = img_y - prompt_bg2.get_height() - 4
+				screen.blit(prompt_bg2, (prompt_x2, prompt_y2))
+			else:
+				# Move the image to the bottom right corner
+				margin = 16
+				img_x = screen.get_width() - 80 - margin
+				img_y = screen.get_height() - 80 - margin
+				screen.blit(reward_img_121, (img_x, img_y))
 
 		# 沙漏拾取后，在幕布下方显示指定文字，并支持淡出
 		if show_only_group_img:
-			font = None
-			try:
-				font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 22)
-			except Exception:
-				font = pygame.font.SysFont('consolas', 22)
+			# Use preloaded story_font_22 for better performance
 			
 			# Update text alpha based on fadein/fadeout
 			if story_text_fadein and not story_text_fully_visible:
@@ -726,7 +742,7 @@ def run(screen):
 				total_height = 0
 				text_surfs = []
 				for line in story_text_lines:
-					surf = font.render(line, True, (40, 40, 40))
+					surf = story_font.render(line, True, (40, 40, 40))
 					# Create alpha surface
 					surf_alpha = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
 					surf_alpha.blit(surf, (0, 0))
@@ -742,50 +758,41 @@ def run(screen):
 					screen.blit(surf, (x, y))
 					y += surf.get_height() + spacing
 
-			# Show 1-1-1.png after group.png fades out
-			if show_only_group_img and group_img_fadeout and group_img_alpha == 0:
-				try:
-					reward_img_path = os.path.join(ROOT, 'assets', '1-1-1.png')
-					if os.path.exists(reward_img_path):
-						reward_img = pygame.image.load(reward_img_path).convert_alpha()
-						reward_img = pygame.transform.smoothscale(reward_img, (80, 80))
-						
-						# Mouse click detection (left button)
-						for ev in pygame.event.get(pygame.MOUSEBUTTONDOWN):
-							if ev.button == 1:
-								mx, my = ev.pos
-								img_w, img_h = reward_img.get_size()
-								img_x = rect_x + (rect_w - img_w) // 2
-								img_y = rect_y + (rect_h - img_h) // 2
-								img_rect = pygame.Rect(img_x, img_y, img_w, img_h)
-								if not reward_img_clicked and img_rect.collidepoint(mx, my):
-									reward_img_clicked = True
-						
-						if not reward_img_clicked:
-							# Draw in center with click prompt
-							img_w, img_h = reward_img.get_size()
-							img_x = rect_x + (rect_w - img_w) // 2
-							img_y = rect_y + (rect_h - img_h) // 2
-							screen.blit(reward_img, (img_x, img_y))
-							
-							# Draw 'click' prompt
-							prompt_font2 = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 16) if os.path.exists(os.path.join(ROOT, 'assets', 'Silver.ttf')) else pygame.font.SysFont('consolas', 16)
-							prompt_text2 = 'click'
-							prompt_surf2 = prompt_font2.render(prompt_text2, True, (255, 255, 255))
-							prompt_bg2 = pygame.Surface((prompt_surf2.get_width()+6, prompt_surf2.get_height()+2), pygame.SRCALPHA)
-							prompt_bg2.fill((0,0,0,180))
-							prompt_bg2.blit(prompt_surf2, (3,1))
-							prompt_x2 = img_x + img_w - prompt_bg2.get_width() + 8
-							prompt_y2 = img_y - prompt_bg2.get_height() - 4
-							screen.blit(prompt_bg2, (prompt_x2, prompt_y2))
-						else:
-							# Move the reward image to the bottom left corner
-							margin = 16
-							img_x = margin
-							img_y = screen.get_height() - reward_img.get_height() - margin
-							screen.blit(reward_img, (img_x, img_y))
-				except Exception:
-					pass
+			# Show 1-1-1.png after group.png fades out (use preloaded image)
+			if show_only_group_img and group_img_fadeout and group_img_alpha == 0 and reward_img_111:
+				# Mouse click detection (left button)
+				for ev in pygame.event.get(pygame.MOUSEBUTTONDOWN):
+					if ev.button == 1:
+						mx, my = ev.pos
+						img_w, img_h = reward_img_111.get_size()
+						img_x = rect_x + (rect_w - img_w) // 2
+						img_y = rect_y + (rect_h - img_h) // 2
+						img_rect = pygame.Rect(img_x, img_y, img_w, img_h)
+						if not reward_img_clicked and img_rect.collidepoint(mx, my):
+							reward_img_clicked = True
+				
+				if not reward_img_clicked:
+					# Draw in center with click prompt
+					img_w, img_h = reward_img_111.get_size()
+					img_x = rect_x + (rect_w - img_w) // 2
+					img_y = rect_y + (rect_h - img_h) // 2
+					screen.blit(reward_img_111, (img_x, img_y))
+					
+					# Draw 'click' prompt (use preloaded font)
+					prompt_text2 = 'click'
+					prompt_surf2 = prompt_font_16.render(prompt_text2, True, (255, 255, 255))
+					prompt_bg2 = pygame.Surface((prompt_surf2.get_width()+6, prompt_surf2.get_height()+2), pygame.SRCALPHA)
+					prompt_bg2.fill((0,0,0,180))
+					prompt_bg2.blit(prompt_surf2, (3,1))
+					prompt_x2 = img_x + img_w - prompt_bg2.get_width() + 8
+					prompt_y2 = img_y - prompt_bg2.get_height() - 4
+					screen.blit(prompt_bg2, (prompt_x2, prompt_y2))
+				else:
+					# Move the reward image to the bottom left corner
+					margin = 16
+					img_x = margin
+					img_y = screen.get_height() - reward_img_111.get_height() - margin
+					screen.blit(reward_img_111, (img_x, img_y))
 
 		# debug overlays removed so collision tiles are visible
 		# (platform and door debug rectangles were here and have been disabled)
@@ -799,11 +806,7 @@ def run(screen):
 
 		# Show 'Check (C)' prompt above hourglass if player is near and reward_img_clicked is False
 		# Show 'Check (C)' prompt above lamp if player is near and reward_img_clicked is True
-		prompt_font = None
-		try:
-			prompt_font = pygame.font.Font(os.path.join(ROOT, 'assets', 'Silver.ttf'), 18)
-		except Exception:
-			prompt_font = pygame.font.SysFont('consolas', 18)
+		# Use preloaded prompt_font_18 for better performance
 
 		for it in items:
 			show_prompt = False
@@ -825,7 +828,7 @@ def run(screen):
 				dist = hypot(px - it['rect'].centerx, py - it['rect'].centery)
 				if dist < max(tile_w * 6, 160):
 					prompt_text = 'Check (C)'
-					prompt_surf = prompt_font.render(prompt_text, True, (255, 255, 255))
+					prompt_surf = prompt_font_18.render(prompt_text, True, (255, 255, 255))
 					prompt_bg = pygame.Surface((prompt_surf.get_width()+8, prompt_surf.get_height()+4), pygame.SRCALPHA)
 					prompt_bg.fill((0,0,0,180))
 					prompt_bg.blit(prompt_surf, (4,2))
@@ -856,3 +859,12 @@ def run(screen):
 		pygame.display.flip()
 
 	return
+
+
+if __name__ == "__main__":
+	import pygame
+	pygame.init()
+	screen = pygame.display.set_mode((1280, 720))
+	pygame.display.set_caption("Map01 Final Test")
+	run(screen)
+	pygame.quit()
