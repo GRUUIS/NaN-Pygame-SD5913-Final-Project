@@ -1,160 +1,49 @@
+"""
+Mind's Maze - Main Entry Point
+
+Menu → First Dream Puzzle → Dream Transition → Third Puzzle.
+"""
+
+#region Imports
 import pygame
 import sys
 import os
+import subprocess
 import globals as g
-from src.scenes.game_manager import GameManager
-from src.entities.boss_battle_scene import BossBattleScene
 from src.utils.logger import setup_logger
 logger = setup_logger()
 logger.info("Game started!")
+#endregion Imports
 
-def main():
-    """
-    Main game entry point.
-    Initializes Pygame and starts the appropriate game mode.
-    """
+#region Game Flow Manager Bridge
+def run_menu_and_flow():
+    """Delegate to testing/game_flow_manager.py for menu + flow."""
     try:
-        # Initialize Pygame
-        pygame.init()
-        
-        # Check for command line arguments
-        if len(sys.argv) > 1:
-            mode = sys.argv[1].lower()
-            
-            if mode in ['boss1', 'intro']:
-                print("Starting Boss Battle Test Mode... (Intro/Boss1)")
-                run_boss_test('boss1')
-                return
-            if mode in ['boss2', 'sloth', 'the_sloth', 'b0ss', 'snail']:
-                print("Starting Boss Battle Test Mode... (The Sloth)")
-                run_boss_test('sloth')
-                return
-            if mode in ['boss3', 'hollow', 'the_hollow', 'nihilism', 'procrastinator', 'procrastination']:
-                print("Starting Boss Battle Test Mode... (The Hollow)")
-                run_boss_test('hollow')
-                return
-            if mode in ['boss', 'test']:
-                # Direct boss battle test mode
-                boss_type = 'perfectionist'
-                if len(sys.argv) > 2:
-                    arg = (sys.argv[2] or '').lower()
-                    if arg in ('perfectionist', 'sloth', 'the_sloth', 'b0ss', 'snail', 'procrastinator', 'procrastination', 'hollow', 'the_hollow', 'nihilism'):
-                        if arg in ('sloth','the_sloth','b0ss','snail'):
-                            boss_type = 'sloth'
-                        elif arg in ('hollow','the_hollow','nihilism','procrastinator','procrastination'):
-                            boss_type = 'hollow'
-                        else:
-                            boss_type = 'perfectionist'
-                display_name = 'The Sloth' if boss_type == 'sloth' else ('The Hollow' if boss_type == 'hollow' else 'Perfectionist')
-                print(f"Starting Boss Battle Test Mode... ({display_name})")
-                run_boss_test(boss_type)
-                return
-            elif mode == 'help':
-                show_help()
-                return
-        
-        # Normal game mode
-        print("Starting Normal Game Mode...")
-        
-        # Set up the game window
-        screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
-        pygame.display.set_caption("Mind's Maze - Psychological Platformer")
-        
-        # Initialize game manager
-        game_manager = GameManager(screen)
-        
-        # Start the game
-        game_manager.run()
-        
+        from testing.game_flow_manager import main as run_flow
+        run_flow()
+    except Exception as e:
+        print(f"Failed to run game_flow_manager: {e}")
+#endregion Game Flow Manager Bridge
+
+#region Entry Point
+def main():
+    try:
+        # CLI shortcuts: help only; boss tests removed per new flow
+        if len(sys.argv) > 1 and sys.argv[1].lower() == 'help':
+            show_help()
+            return
+        # Normal: menu + flow
+        run_menu_and_flow()
     except Exception as e:
         print(f"Error starting game: {e}")
         sys.exit(1)
-    
     finally:
         pygame.quit()
         sys.exit()
+#endregion Entry Point
 
 
-def run_boss_test(boss_type: str = 'perfectionist'):
-    """
-    Direct boss battle test without menu navigation.
-    Tests the Perfectionist boss with full 2D platformer mechanics.
-    """
-    # Initialize display
-    screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
-    # Title mapping: show The Hollow when using the new boss aliases or legacy procrastinator alias
-    bt = (boss_type or 'perfectionist').lower()
-    title = ("The Sloth" if bt in ('sloth','the_sloth','b0ss','snail') else
-             ("The Hollow" if bt in ('hollow','the_hollow','nihilism','procrastinator','procrastination') else
-              "Perfectionist"))
-    pygame.display.set_caption(f"Boss Battle Test - {title}")
-    clock = pygame.time.Clock()
-    
-    # Initialize boss battle scene
-    if bt in ('sloth','the_sloth','b0ss','snail'):
-        from src.entities.sloth_battle_scene import SlothBattleScene
-        boss_scene = SlothBattleScene()
-    elif bt == 'boss1':
-        from src.scenes.boss1_scripted_scene import Boss1ScriptedScene
-        boss_scene = Boss1ScriptedScene(None)
-    else:
-        boss_scene = BossBattleScene(boss_type=boss_type)
-    
-    print("Boss Battle Controls:")
-    print("  WASD: Move")
-    print("  Space: Jump")
-    print("  Mouse: Aim and Shoot")
-    print("  R: Reset Battle")
-    print("  ESC: Exit")
-    print(f"  Boss: {title}")
-    
-    # Game loop
-    running = True
-    show_game_over_timer = 0
-    
-    while running:
-        dt = clock.tick(g.FPS) / 1000.0
-        
-        # Handle events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-                elif event.key == pygame.K_SPACE and boss_scene.is_game_over():
-                    # Continue after defeat/victory
-                    running = False
-                elif event.key == pygame.K_r and not boss_scene.is_game_over():
-                    # Reset only if not already game over prompt flow
-                    boss_scene.reset_battle()
-                    show_game_over_timer = 0
-                    print("Boss battle reset!")
-        
-        # Update and draw
-        if not boss_scene.is_game_over() or show_game_over_timer > 0:
-            boss_scene.update(dt)
-        
-        boss_scene.draw(screen)
-
-        # Show instructions and debug info
-        draw_ui_overlay(screen, boss_scene)
-
-        # Handle game over state
-        if boss_scene.is_game_over():
-            if show_game_over_timer <= 0:
-                show_game_over_timer = 3.0  # Show for 3 seconds
-                if boss_scene.player.health <= 0:
-                    print("DEFEAT")
-                elif boss_scene.boss.health <= 0:
-                    print("VICTORY!")
-            else:
-                show_game_over_timer -= dt
-                draw_game_over_screen(screen, boss_scene)
-        
-        pygame.display.flip()
-    
-    pygame.quit()
+# Boss battle test code removed per new flow requirements
 
 
 def draw_ui_overlay(screen, boss_scene):
@@ -323,20 +212,9 @@ def draw_game_over_screen(screen, boss_scene):
 
 def show_help():
     """Show help information"""
-    print("\nMind's Maze - Game Modes:")
-    print("  python main.py                              - Start normal game")
-    print("  python main.py boss [perfectionist|sloth|hollow]  - Boss battle test mode (default: perfectionist)")
-    print("  python main.py test [perfectionist|sloth|hollow]  - Same as boss mode") 
-    print("  XXXpython main.py boss1                            - Shortcut: Perfectionist boss test")
-    print("  python main.py boss2                            - Shortcut: The Sloth boss test")
-    print("  python main.py boss3                            - Shortcut: The Hollow boss test")
-    print("  python main.py help   - Show this help")
-    print("\nBoss Battle Controls:")
-    print("  WASD: Move player")
-    print("  Space: Jump")
-    print("  Mouse: Aim and shoot")
-    print("  R: Reset battle")
-    print("  ESC: Exit")
+    print("\nMind's Maze")
+    print("  python main.py           - Menu → First Dream → Transition → Third Puzzle")
+    print("  python main.py help      - Show this help")
 
 
 if __name__ == "__main__":

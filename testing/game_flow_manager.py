@@ -495,7 +495,18 @@ def main():
         pygame.quit()
         return
     
-    # 第二阶段：运行解谜场景
+    # 第2阶段：进入 First Dream Puzzle（独立脚本）
+    print("进入 First Dream Puzzle 场景...")
+    try:
+        import subprocess, sys, os
+        script_path = os.path.join('testing', 'first_dream_puzzle.py')
+        ret = subprocess.call([sys.executable, script_path])
+        if ret != 0:
+            print(f"First Dream Puzzle 退出码: {ret}")
+    except Exception as e:
+        print(f"启动 First Dream Puzzle 失败: {e}")
+    
+    # 第3阶段：运行解谜场景
     print("进入解谜场景...")
     puzzle_result = run_puzzle_scene(screen)
     
@@ -503,7 +514,7 @@ def main():
         pygame.quit()
         return
     
-    # 第三阶段：梦境过渡场景
+    # 第4阶段：梦境过渡场景
     if puzzle_result == 'next':
         print("解谜完成，进入梦境过渡...")
         try:
@@ -517,7 +528,7 @@ def main():
             print(f'梦境场景加载失败: {e}')
             dream_result = 'next'  # 失败则跳过梦境场景
     
-    # 第四阶段：跳转到战斗场景（map01）
+    # 第5阶段：跳转到战斗场景（map01）
     if puzzle_result == 'next':
         print("进入战斗场景...")
         
