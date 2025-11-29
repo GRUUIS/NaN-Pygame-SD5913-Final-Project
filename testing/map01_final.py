@@ -188,6 +188,41 @@ def run(screen):
 			filtered_platforms.append(p)
 	platforms = filtered_platforms
 
+	# Merge horizontally adjacent platform rects so we can trim them properly
+	platforms.sort(key=lambda r: (r.y, r.x))
+	merged_platforms = []
+	if platforms:
+		curr_p = platforms[0]
+		for next_p in platforms[1:]:
+			# Check if next_p is directly to the right of curr_p
+			if (next_p.y == curr_p.y and 
+				next_p.height == curr_p.height and 
+				abs(next_p.x - curr_p.right) < 2): # Allow 1px slop just in case
+				curr_p.width += next_p.width
+			else:
+				merged_platforms.append(curr_p)
+				curr_p = next_p
+		merged_platforms.append(curr_p)
+	platforms = merged_platforms
+
+	# Trim one tile column from the left side of each platform so collision
+	# matches the grey platform area on the tilemap (fixes left-side overhang).
+	try:
+		trim_px = tile_w * scale_int
+		trimmed = []
+		for p in platforms:
+			if p.width > trim_px:
+				new_rect = pygame.Rect(p.left + trim_px, p.top, p.width - trim_px, p.height)
+				trimmed.append(new_rect)
+			# if platform is too narrow to trim safely, keep it as-is
+			else:
+				trimmed.append(p)
+		platforms = trimmed
+		print(f'[map01_scene DEBUG] trimmed {len(filtered_platforms)-len(trimmed)} platform columns on left')
+	except Exception:
+		# if pygame or rect operations fail, keep original platforms
+		pass
+
 	# --- place a single 'hourglass' item on the top-most platform ---
 	items = []
 
@@ -209,7 +244,7 @@ def run(screen):
 				top_plat = min(candidates, key=lambda r: r.top)
 			item_w = int(tile_w * scale_int)
 			item_h = int(tile_h * scale_int)
-			item_x = int(top_plat.left + (top_plat.width - item_w) // 2)
+			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 16
 			item_y = int(top_plat.top - item_h)
 
 			def _find_asset(name):
@@ -271,7 +306,7 @@ def run(screen):
 					lamp_surf = pygame.Surface((lamp_w, lamp_h), pygame.SRCALPHA)
 					lamp_surf.blit(lamp_img_scaled, (0, 0))
 					# Place lamp further to the right of the hourglass, with a larger gap
-					lamp_gap = 160  # Increased from 40 to 160
+					lamp_gap = 60  # Reduced from 160 to keep it on platform
 					lamp_x = item_x + item_w + lamp_gap
 					# Clamp to map bounds
 					lamp_x = max(0, min(lamp_x, map_pixel_w - lamp_w))
@@ -435,6 +470,30 @@ def run(screen):
 		dt = clock.tick(60) / 1000.0
 		mouse_pos = pygame.mouse.get_pos()
 		for ev in pygame.event.get():
+			# Event-based click detection for reward / 1-2-1 images so clicks
+			# are consumed by the event loop and won't cause instant lock on mouseup.
+			if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+				# Pick up / start drag for 1-2-1 (right gear) if it's shown and not picked
+				try:
+					if show_121_img and not img_121_clicked and img_121_pos:
+						r = pygame.Rect(img_121_pos[0], img_121_pos[1], 80, 80)
+						if r.collidepoint(ev.pos):
+							img_121_clicked = True
+							drag_candidate_121 = True
+							drag_start_pos_121 = ev.pos
+				except Exception:
+					pass
+				# Pick up / start drag for 1-1-1 (left reward) if it's shown and not picked
+				try:
+					# reward image is only displayed after group fadeout
+					if group_img_fadeout and group_img_alpha == 0 and not reward_img_clicked and reward_img_pos:
+						r = pygame.Rect(reward_img_pos[0], reward_img_pos[1], 80, 80)
+						if r.collidepoint(ev.pos):
+							reward_img_clicked = True
+							drag_candidate_111 = True
+							drag_start_pos_111 = ev.pos
+				except Exception:
+					pass
 			# Drag logic for reward images with locking
 			if show_121_img and img_121_clicked and not gear_121_locked:
 				if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
@@ -957,11 +1016,7 @@ def run(screen):
 						prompt_y2 = img_y - prompt_bg2.get_height() - 4
 						screen.blit(prompt_bg2, (prompt_x2, prompt_y2))
 						# Mouse click detection (left button)
-						if pygame.mouse.get_pressed()[0]:
-							mx, my = mouse_pos
-							img_rect = pygame.Rect(img_x, img_y, 80, 80)
-							if img_rect.collidepoint(mx, my):
-								img_121_clicked = True
+						# Mouse click is handled in the event loop to avoid click->instant-lock
 					else:
 						# Draw gears first, then 1-2-1.png on top
 						if img_121_pos is None:
@@ -1077,11 +1132,7 @@ def run(screen):
 						prompt_y2 = img_y - prompt_bg2.get_height() - 4
 						screen.blit(prompt_bg2, (prompt_x2, prompt_y2))
 						# Mouse click detection (left button)
-						if pygame.mouse.get_pressed()[0]:
-							mx, my = mouse_pos
-							img_rect = pygame.Rect(img_x, img_y, img_w, img_h)
-							if img_rect.collidepoint(mx, my):
-								reward_img_clicked = True
+						# Mouse click is handled in the event loop to avoid click->instant-lock
 					else:
 						# Draggable: draw at current position
 						if reward_img_pos is None:
