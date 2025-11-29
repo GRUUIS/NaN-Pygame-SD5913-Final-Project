@@ -244,7 +244,7 @@ def run(screen):
 				top_plat = min(candidates, key=lambda r: r.top)
 			item_w = int(tile_w * scale_int)
 			item_h = int(tile_h * scale_int)
-			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 16
+			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 48
 			item_y = int(top_plat.top - item_h)
 
 			def _find_asset(name):

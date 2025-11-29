@@ -215,7 +215,7 @@ def run(screen):
 			item_w = int(tile_w * scale_int)
 			item_h = int(tile_h * scale_int)
 			# center item horizontally on the platform and place it on top
-			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 16
+			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 48
 			item_y = int(top_plat.top - item_h)
 
 			# try to load hourglass image; fallback to item_clock.png if not found
