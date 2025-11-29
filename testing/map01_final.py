@@ -393,6 +393,11 @@ def run(screen):
 	gear_111_locked = False
 	gear_121_locked = False
 
+	# Door shine effect state (used to visually highlight doors after gears placed)
+	door_shine_timer = 0.0
+	door_shine_period = 1.2
+	show_door_shine = False
+
 	# 图片淡入相关变量
 	image_fadein = False  # 是否开始淡入
 	image_alpha = 0       # 当前alpha值（0-255）
@@ -675,6 +680,41 @@ def run(screen):
 		# draw
 		draw_map(screen, m, tiles_by_gid, scale=scale_int)
 
+		# Door arrow effect: minimalist white arrow pointing horizontally
+		if show_door_shine:
+			import math
+			# Bobbing animation
+			bob = 4 * math.sin(door_shine_timer * 4.0)
+			map_center_x = map_pixel_w // 2
+			# Group doors by left/right side and skip the uppermost (smallest top) on each side
+			left_doors = [d for d in door_rects if d.centerx < map_center_x]
+			right_doors = [d for d in door_rects if d.centerx >= map_center_x]
+			skip_doors = []
+			if left_doors:
+				upper_left = min(left_doors, key=lambda r: r.top)
+				skip_doors.append(upper_left)
+			if right_doors:
+				upper_right = min(right_doors, key=lambda r: r.top)
+				skip_doors.append(upper_right)
+			for d in door_rects:
+				if d in skip_doors:
+					continue
+				# Move arrow down by one tile (map unit) to align with tile base
+				cy = d.centery + (tile_h * scale_int)
+				if d.centerx < map_center_x:
+					# Left door: arrow on right, pointing left
+					tip_x = d.right + 4 + bob
+					p1 = (tip_x, cy)
+					p2 = (tip_x + 8, cy - 6)
+					p3 = (tip_x + 8, cy + 6)
+				else:
+					# Right door: arrow on left, pointing right
+					tip_x = d.left - 4 - bob
+					p1 = (tip_x, cy)
+					p2 = (tip_x - 8, cy - 6)
+					p3 = (tip_x - 8, cy + 6)
+				pygame.draw.polygon(screen, (255, 255, 255), [p1, p2, p3])
+
 		# 画面中央的半透明白色屏幕
 		screen_w, screen_h = screen.get_size()
 		rect_w, rect_h = 320, 320  # Increased height to fit text inside
@@ -889,6 +929,16 @@ def run(screen):
 
 
 		# 沙漏拾取后，在幕布下方显示指定文字，并支持淡出
+
+		# Update door shine state and timer: show when both gears locked
+		if gear_111_locked and gear_121_locked and show_gear_targets:
+			show_door_shine = True
+		else:
+			show_door_shine = False
+		door_shine_timer += dt
+		# wrap timer
+		if door_shine_timer > door_shine_period:
+			door_shine_timer -= door_shine_period
 		# Show story text if group.png is visible or fading
 		if show_only_group_img or (group_img_fadeout and group_img_alpha > 0):
 			font = None
