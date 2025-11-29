@@ -660,7 +660,7 @@ def run(screen):
 					for ev in pygame.event.get(pygame.MOUSEBUTTONDOWN):
 						if ev.button == 1:
 							if not img_121_clicked:
-								img_x = rect_x + (rect_w - 80) // 2
+								img_x = rect_x + (rect_w // 2) + 20
 								img_y = rect_y + (rect_h - 80) // 2
 								img_rect = pygame.Rect(img_x, img_y, 80, 80)
 								mx, my = ev.pos
@@ -668,8 +668,8 @@ def run(screen):
 									img_121_clicked = True
 					
 					if not img_121_clicked:
-						# Draw in center with click prompt
-						img_x = rect_x + (rect_w - 80) // 2
+						# Draw offset to right
+						img_x = rect_x + (rect_w // 2) + 20
 						img_y = rect_y + (rect_h - 80) // 2
 						screen.blit(img_121, (img_x, img_y))
 						
@@ -744,17 +744,18 @@ def run(screen):
 							if ev.button == 1:
 								mx, my = ev.pos
 								img_w, img_h = reward_img.get_size()
-								img_x = rect_x + (rect_w - img_w) // 2
+								img_x = rect_x + (rect_w // 2) - img_w - 20
 								img_y = rect_y + (rect_h - img_h) // 2
 								img_rect = pygame.Rect(img_x, img_y, img_w, img_h)
 								if not reward_img_clicked and img_rect.collidepoint(mx, my):
 									reward_img_clicked = True
 						
 						if not reward_img_clicked:
-							# Draw in center with click prompt
+							# Draw offset to left
 							img_w, img_h = reward_img.get_size()
-							img_x = rect_x + (rect_w - img_w) // 2
+							img_x = rect_x + (rect_w // 2) - img_w - 20
 							img_y = rect_y + (rect_h - img_h) // 2
+							reward_img_pos = (img_x, img_y)
 							screen.blit(reward_img, (img_x, img_y))
 							
 							# Draw 'click' prompt

@@ -361,6 +361,9 @@ def run(screen):
 	group_img_fadeout = False   # 是否进入淡出阶段
 	group_img_fadeout_time = 1.5  # 淡出动画时长（秒）
 	group_img_fadeout_progress = 0.0  # 当前淡出进度（秒）
+
+	# Track whether each story window has completed showing (used to gate gear targets)
+	group_story_completed = False
 	
 	# Story text state
 	story_text_lines = [
@@ -376,6 +379,9 @@ def run(screen):
 	show_brush_projection = False
 	brush_img_alpha = 0
 	brush_proj_timer = 0.0
+
+	# Track brush story window completion
+	brush_story_completed = False
 	
 	# Reward images state
 	reward_img_clicked = False # For 1-1-1.png
@@ -384,6 +390,10 @@ def run(screen):
 	# Drag state for reward images
 	drag_111 = False
 	drag_121 = False
+	drag_candidate_111 = False
+	drag_candidate_121 = False
+	drag_start_pos_111 = (0, 0)
+	drag_start_pos_121 = (0, 0)
 	drag_offset_111 = (0, 0)
 	drag_offset_121 = (0, 0)
 	# Positions for draggable images (default: bottom corners)
@@ -431,37 +441,74 @@ def run(screen):
 					if img_121_pos:
 						img_121_rect = pygame.Rect(img_121_pos[0], img_121_pos[1], 80, 80)
 						if img_121_rect.collidepoint(ev.pos):
-							drag_121 = True
-							drag_offset_121 = (ev.pos[0] - img_121_pos[0], ev.pos[1] - img_121_pos[1])
+							# start a drag candidate; only become an actual drag after movement
+							drag_candidate_121 = True
+							drag_start_pos_121 = ev.pos
 				elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
-					drag_121 = False
-					# Check if dropped in right target zone
-					if show_gear_targets and len(gear_target_positions) == 2:
-						target_rect = pygame.Rect(gear_target_positions[1][0] - gear_target_radius, gear_target_positions[1][1] - gear_target_radius, gear_target_radius*2, gear_target_radius*2)
-						if img_121_pos and target_rect.collidepoint(img_121_pos[0] + 40, img_121_pos[1] + 40):
-							gear_121_locked = True
-							img_121_pos = (gear_target_positions[1][0] - 40, gear_target_positions[1][1] - 40)
-							print('[DEBUG] gear_121_locked set ->', gear_121_locked)
-				elif ev.type == pygame.MOUSEMOTION and drag_121:
-					img_121_pos = (ev.pos[0] - drag_offset_121[0], ev.pos[1] - drag_offset_121[1])
-			if group_img_fadeout and group_img_alpha == 0 and reward_img_clicked and not gear_111_locked:
+					# Only consider dropping into the target if a drag actually happened
+					if drag_121:
+						drag_121 = False
+						# Check if dropped in right target zone
+						if show_gear_targets and len(gear_target_positions) == 2:
+							target_rect = pygame.Rect(gear_target_positions[1][0] - gear_target_radius, gear_target_positions[1][1] - gear_target_radius, gear_target_radius*2, gear_target_radius*2)
+							if img_121_pos and target_rect.collidepoint(img_121_pos[0] + 40, img_121_pos[1] + 40):
+								gear_121_locked = True
+								img_121_pos = (gear_target_positions[1][0] - 40, gear_target_positions[1][1] - 40)
+								print('[DEBUG] gear_121_locked set ->', gear_121_locked)
+					# clear candidate on mouseup regardless
+					drag_candidate_121 = False
+				elif ev.type == pygame.MOUSEMOTION:
+					# If we have a drag candidate and movement exceeds threshold, start actual drag
+					if drag_candidate_121 and not drag_121:
+						dx = ev.pos[0] - drag_start_pos_121[0]
+						dy = ev.pos[1] - drag_start_pos_121[1]
+						if (dx*dx + dy*dy) >= (6*6):
+							drag_121 = True
+							# compute offset so the image sticks to cursor
+							if img_121_pos:
+								drag_offset_121 = (ev.pos[0] - img_121_pos[0], ev.pos[1] - img_121_pos[1])
+							else:
+								drag_offset_121 = (0, 0)
+					# If actively dragging, update position
+					if drag_121:
+						img_121_pos = (ev.pos[0] - drag_offset_121[0], ev.pos[1] - drag_offset_121[1])
+			# allow dragging the reward gear once it's been clicked, regardless of group fade flags
+			if reward_img_clicked and not gear_111_locked:
 				if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
 					if reward_img_pos:
 						reward_img_rect = pygame.Rect(reward_img_pos[0], reward_img_pos[1], 80, 80)
 						if reward_img_rect.collidepoint(ev.pos):
-							drag_111 = True
-							drag_offset_111 = (ev.pos[0] - reward_img_pos[0], ev.pos[1] - reward_img_pos[1])
+							# start a drag candidate; only become an actual drag after movement
+							drag_candidate_111 = True
+							drag_start_pos_111 = ev.pos
 				elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
-					drag_111 = False
-					# Check if dropped in left target zone
-					if show_gear_targets and len(gear_target_positions) == 2:
-						target_rect = pygame.Rect(gear_target_positions[0][0] - gear_target_radius, gear_target_positions[0][1] - gear_target_radius, gear_target_radius*2, gear_target_radius*2)
-						if reward_img_pos and target_rect.collidepoint(reward_img_pos[0] + 40, reward_img_pos[1] + 40):
-							gear_111_locked = True
-							reward_img_pos = (gear_target_positions[0][0] - 40, gear_target_positions[0][1] - 40)
-							print('[DEBUG] gear_111_locked set ->', gear_111_locked)
-				elif ev.type == pygame.MOUSEMOTION and drag_111:
-					reward_img_pos = (ev.pos[0] - drag_offset_111[0], ev.pos[1] - drag_offset_111[1])
+					# Only consider dropping into the target if a drag actually happened
+					if drag_111:
+						drag_111 = False
+						# Check if dropped in left target zone
+						if show_gear_targets and len(gear_target_positions) == 2:
+							target_rect = pygame.Rect(gear_target_positions[0][0] - gear_target_radius, gear_target_positions[0][1] - gear_target_radius, gear_target_radius*2, gear_target_radius*2)
+							if reward_img_pos and target_rect.collidepoint(reward_img_pos[0] + 40, reward_img_pos[1] + 40):
+								gear_111_locked = True
+								reward_img_pos = (gear_target_positions[0][0] - 40, gear_target_positions[0][1] - 40)
+								print('[DEBUG] gear_111_locked set ->', gear_111_locked)
+					# clear candidate on mouseup regardless
+					drag_candidate_111 = False
+				elif ev.type == pygame.MOUSEMOTION:
+					# If we have a drag candidate and movement exceeds threshold, start actual drag
+					if drag_candidate_111 and not drag_111:
+						dx = ev.pos[0] - drag_start_pos_111[0]
+						dy = ev.pos[1] - drag_start_pos_111[1]
+						if (dx*dx + dy*dy) >= (6*6):
+							drag_111 = True
+							# compute offset so the image sticks to cursor
+							if reward_img_pos:
+								drag_offset_111 = (ev.pos[0] - reward_img_pos[0], ev.pos[1] - reward_img_pos[1])
+							else:
+								drag_offset_111 = (0, 0)
+					# If actively dragging, update position
+					if drag_111:
+						reward_img_pos = (ev.pos[0] - drag_offset_111[0], ev.pos[1] - drag_offset_111[1])
 			if ev.type == pygame.QUIT:
 				running = False
 			elif ev.type == pygame.KEYDOWN:
@@ -792,6 +839,9 @@ def run(screen):
 					show_only_group_img = False  # 完全消失后关闭group.png和文字
 					current_img_idx = -1 # Reset to no image
 					image_alpha = 0 # Reset alpha
+					# Mark that the group story window completed its show+fade cycle
+					group_story_completed = True
+					print('[DEBUG] group_story_completed set')
 
 		# 只显示group.png图片，不再切换
 		if show_only_group_img:
@@ -878,6 +928,9 @@ def run(screen):
 			if brush_proj_timer > 5.0 + brush_fadeout_time:
 				show_brush_projection = False
 				show_121_img = True
+				# Mark that the brush story window completed
+				brush_story_completed = True
+				print('[DEBUG] brush_story_completed set')
 
 		# --- Show 1-2-1.png after brush projection ---
 		if show_121_img:
@@ -888,8 +941,8 @@ def run(screen):
 					img_121 = pygame.transform.smoothscale(img_121, (80, 80))
 
 					if not img_121_clicked:
-						# Draw in center with click prompt
-						img_x = rect_x + (rect_w - 80) // 2
+						# Draw offset to right to avoid overlap
+						img_x = rect_x + (rect_w // 2) + 20
 						img_y = rect_y + (rect_h - 80) // 2
 						img_121_pos = (img_x, img_y)
 						screen.blit(img_121, img_121_pos)
@@ -919,15 +972,18 @@ def run(screen):
 			except Exception:
 				pass
 
-		# --- Show gear target zones after both gear items are acquired ---
-		if reward_img_clicked and img_121_clicked:
+		# --- Show gear target zones after story windows shown ---
+		# Show holes as soon as both story windows have completed, so the player
+		# can drag the gears into them afterwards.
+		if group_story_completed and brush_story_completed:
 			if not show_gear_targets:
 				show_gear_targets = True
+				print('[DEBUG] show_gear_targets set -> drawing holes')
 				# Calculate two positions centered horizontally, spaced apart
 				sw, sh = screen.get_size()
 				cx = sw // 2
 				cy = sh // 2
-				offset = 80
+				offset = 140
 				gear_target_positions = [
 					(cx - offset, cy),
 					(cx + offset, cy)
@@ -1004,9 +1060,9 @@ def run(screen):
 					reward_img = pygame.image.load(reward_img_path).convert_alpha()
 					reward_img = pygame.transform.smoothscale(reward_img, (80, 80))
 					if not reward_img_clicked:
-						# Draw in center with click prompt
+						# Draw offset to left to avoid overlap
 						img_w, img_h = reward_img.get_size()
-						img_x = rect_x + (rect_w - img_w) // 2
+						img_x = rect_x + (rect_w // 2) - img_w - 20
 						img_y = rect_y + (rect_h - img_h) // 2
 						reward_img_pos = (img_x, img_y)
 						screen.blit(reward_img, reward_img_pos)
