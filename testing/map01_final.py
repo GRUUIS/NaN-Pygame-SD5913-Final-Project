@@ -717,7 +717,7 @@ def run(screen):
 
 		# 画面中央的半透明白色屏幕
 		screen_w, screen_h = screen.get_size()
-		rect_w, rect_h = 320, 320  # Increased height to fit text inside
+		rect_w, rect_h = 420, 320  # Wider popup (more horizontal) to fit image and text
 
 		# Center overlay on the projected image (group.png/brush.png etc.)
 		# If an image is present, center overlay on it; else, center on screen
@@ -744,7 +744,13 @@ def run(screen):
 
 		# 创建半透明白色surface
 		overlay = pygame.Surface((rect_w, rect_h), pygame.SRCALPHA)
-		overlay.fill((255, 255, 255, 180))  # 180为透明度，可调整
+		overlay.fill((0, 0, 0, 0))  # Transparent base
+
+		# Draw a lighter window with rounded corners and subtle border
+		# Background (light neutral to contrast black edges)
+		pygame.draw.rect(overlay, (245, 245, 250, 220), (0, 0, rect_w, rect_h), border_radius=12)
+		# Border (soft gray)
+		pygame.draw.rect(overlay, (120, 120, 130, 255), (0, 0, rect_w, rect_h), width=2, border_radius=12)
 
 		# Update image_alpha for fade-in
 		if image_fadein:
@@ -767,7 +773,19 @@ def run(screen):
 				fade = max(0.0, 1.0 - group_img_fadeout_progress / group_img_fadeout_time)
 				group_img_alpha = int(image_alpha * fade)
 				# Also fade the overlay background
-				overlay.fill((255, 255, 255, int(180 * fade)))
+				# For fadeout, we redraw the window with reduced alpha
+				overlay.fill((0, 0, 0, 0))
+				alpha_val = int(230 * fade)
+				border_alpha = int(255 * fade)
+				if alpha_val > 0:
+					# Draw background with fade (lighter)
+					bg_surf = pygame.Surface((rect_w, rect_h), pygame.SRCALPHA)
+					pygame.draw.rect(bg_surf, (245, 245, 250, alpha_val), (0, 0, rect_w, rect_h), border_radius=12)
+					overlay.blit(bg_surf, (0, 0))
+					# Draw border with fade (soft gray)
+					border_surf = pygame.Surface((rect_w, rect_h), pygame.SRCALPHA)
+					pygame.draw.rect(border_surf, (120, 120, 130, border_alpha), (0, 0, rect_w, rect_h), width=2, border_radius=12)
+					overlay.blit(border_surf, (0, 0))
 				
 				if group_img_fadeout_progress >= group_img_fadeout_time:
 					group_img_alpha = 0
@@ -825,7 +843,11 @@ def run(screen):
 
 			# Draw only if alpha > 0
 			if brush_img and brush_alpha_to_use > 0:
-				overlay.fill((255, 255, 255, 180)) # Clear/reset overlay
+				overlay.fill((0, 0, 0, 0)) # Clear/reset overlay
+				# Draw lighter window background for better contrast with black edges
+				pygame.draw.rect(overlay, (245, 245, 250, 220), (0, 0, rect_w, rect_h), border_radius=12)
+				pygame.draw.rect(overlay, (120, 120, 130, 255), (0, 0, rect_w, rect_h), width=2, border_radius=12)
+				
 				img = brush_img.copy()
 				img.set_alpha(brush_alpha_to_use)
 				img_x = (rect_w - img.get_width()) // 2

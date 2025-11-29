@@ -538,7 +538,7 @@ def run(screen):
 
 		# 画面中央的半透明白色屏幕
 		screen_w, screen_h = screen.get_size()
-		rect_w, rect_h = 320, 320  # Increased height to fit text inside
+		rect_w, rect_h = 420, 320  # Wider popup (more horizontal) to fit image and text
 		rect_x = (screen_w - rect_w) // 2
 		rect_y = (screen_h - rect_h) // 2
 
