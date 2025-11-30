@@ -198,7 +198,12 @@ def run(screen, inventory=None):
 							return os.path.join(root, fn)
 				return None
 
-			img_path = _find_asset('hourglass.png') or _find_asset('item_clock.png')
+			# Prefer packaged UI hourglass in assets/UI if present
+			explicit_ui = os.path.join('assets', 'UI', 'hourglass.png')
+			if os.path.exists(explicit_ui):
+				img_path = explicit_ui
+			else:
+				img_path = _find_asset('hourglass.png') or _find_asset('item_clock.png')
 			if img_path:
 				try:
 					img = pygame.image.load(img_path).convert_alpha()
