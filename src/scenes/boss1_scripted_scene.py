@@ -326,9 +326,14 @@ class Boss1ScriptedScene(BaseScene):
                 self.sfx_defeat.play()
 
     def exit(self):
-        # Restore any globals we modified
+        """Clean up and restore modified globals when exiting the scene"""
+        # Restore player move speed to original value
         try:
-            g.PLAYER_MOVE_SPEED = getattr(self, '_orig_player_move_speed', g.PLAYER_MOVE_SPEED)
-        except Exception:
-            pass
-        # No color overrides to restore
+            original_speed = getattr(self, '_orig_player_move_speed', 100)
+            g.PLAYER_MOVE_SPEED = original_speed
+            print(f"Boss1 exit: Restored PLAYER_MOVE_SPEED to {original_speed}")
+        except Exception as e:
+            print(f"Warning: Failed to restore player speed: {e}")
+            # Fallback to hardcoded default
+            g.PLAYER_MOVE_SPEED = 100
+        super().exit()

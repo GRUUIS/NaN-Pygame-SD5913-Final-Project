@@ -1,13 +1,13 @@
 """
 游戏流程管理器
-整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> The Hollow战斗 -> 镜子房间 -> Boss2 -> 画作房
+整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> Boss1剧情战 -> 镜子房间 -> Boss2 -> 画作房
 
 场景流程：
 1. combine/game.py 的菜单界面（初始界面）
 2. testing/new_third_puzzle.py 的解谜场景
 3. testing/first_dream_puzzle.py 的梦境解谜场景（4个谜题）
 4. testing/dream_transition_scene.py 的梦境过渡场景（主角转换为小女巫）
-5. testing/map01_final.py 的 The Hollow 战斗场景
+5. src/scenes/boss1_scripted_scene.py 的 Boss1 剧情战斗场景（玩家被秒杀）
 6. testing/mirror_room_puzzle.py 的镜子房间谜题
 7. src/entities/sloth_battle_scene.py 的 Boss2 战斗场景 (The Sloth)
 8. testing/painting_room_puzzle.py 的画作房谜题
@@ -974,23 +974,71 @@ def main():
             print(f'梦境场景加载失败: {e}')
             dream_result = 'next'  # 失败则跳过梦境场景
     
-    # 第五阶段：The Hollow 战斗场景（map01）
+    # 第五阶段：Boss1 剧情战斗场景（The Hollow Intro - 玩家被秒杀）
     if puzzle_result == 'next':
-        print("进入 The Hollow 战斗场景...")
+        print("进入 Boss1 剧情战斗场景 (The Hollow - 初遇)...")
         
         try:
-            import importlib
-            mod = importlib.import_module('testing.map01_final')
-            mod_file = getattr(mod, '__file__', None)
-            print(f"DEBUG: testing.map01_final loaded from: {mod_file}")
-
-            run_map01 = getattr(mod, 'run', None)
-            if not callable(run_map01):
-                raise ImportError('testing.map01_final has no callable run(screen)')
-            run_map01(screen)
+            from src.scenes.boss1_scripted_scene import Boss1ScriptedScene
+            
+            boss_scene = Boss1ScriptedScene(game_manager=None)
+            if hasattr(boss_scene, 'enter'):
+                try:
+                    boss_scene.enter()
+                except Exception:
+                    pass
+            
+            pygame.display.set_caption("Boss1 - The First Attack")
+            clock = pygame.time.Clock()
+            boss_running = True
+            
+            while boss_running:
+                dt = clock.tick(g.FPS) / 1000.0
+                
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        boss_running = False
+                        pygame.quit()
+                        return
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            boss_running = False
+                        # Z 键跳过关卡
+                        elif event.key == pygame.K_z:
+                            boss_running = False
+                        elif event.key == pygame.K_SPACE:
+                            # 死亡后按空格继续
+                            is_over = hasattr(boss_scene, 'is_game_over') and boss_scene.is_game_over()
+                            if is_over:
+                                boss_running = False
+                    
+                    try:
+                        boss_scene.handle_event(event)
+                    except Exception:
+                        pass
+                
+                try:
+                    boss_scene.update(dt)
+                except Exception:
+                    pass
+                
+                try:
+                    boss_scene.draw(screen)
+                except Exception:
+                    pass
+                
+                pygame.display.flip()
+            
+            # 退出Boss1场景时恢复玩家速度
+            if hasattr(boss_scene, 'exit'):
+                try:
+                    boss_scene.exit()
+                except Exception:
+                    pass
+                
         except Exception as e:
             import traceback
-            print('Failed to run map01 scene:', e)
+            print(f'Boss1 场景加载失败: {e}')
             traceback.print_exc()
     
     # 第六阶段：镜子房间谜题
