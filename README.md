@@ -68,10 +68,11 @@ python main.py boss3
 
 ### Controls
 - **WASD**: Move
-- **Space**: Jump
-- **Mouse**: Aim & Shoot
-- **R**: Reset (during battle in Boss Test Mode)
-- **Space (Game Over)**: Continue (Boss Test Mode)
+- **W**: Jump (double jump available in boss battles)
+- **Mouse**: Aim direction
+- **Left Click**: Shoot (bullet type varies by boss)
+- **R**: Restart (on defeat)
+- **SPACE**: Continue (on victory)
 
 ### Puzzle Prototypes & Tools
 - Yume Nikki-style puzzle scene:

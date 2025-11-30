@@ -312,19 +312,18 @@ def draw_ui_overlay(screen, boss_scene):
             pill_color = (200, 120, 255) if getattr(boss, 'enraged', False) else (140, 200, 255)
             _draw_status_pill(screen, f"Phase {getattr(boss, 'phase', 1)}", (pane_rect.centerx, pane_rect.bottom - 16), pill_color)
 
-    # Bottom reading (controls + timers + debug info)
+    # Bottom reading (controls + timers)
     footer_height = 52
     footer_rect = pygame.Rect(0, g.SCREENHEIGHT - footer_height, g.SCREENWIDTH, footer_height)
     _draw_shadow_box(screen, footer_rect, alpha=200, radius=0)
     font = pygame.font.Font(None, 24)
-    controls = "WASD move  |  SPACE jump  |  LMB Voidfire  |  RMB Phase Blink  |  R restart  |  ESC exit"
+    controls = "WASD move  |  W jump (double)  |  Left Click shoot  |  R restart  |  ESC exit"
     screen.blit(font.render(controls, True, (230, 230, 230)), (40, g.SCREENHEIGHT - footer_height + 12))
 
-    # Right-aligned runtime info
+    # Right-aligned runtime info (without FPS)
     info_font = pygame.font.Font(None, 22)
     runtime = _format_time(getattr(boss_scene, 'elapsed_time', pygame.time.get_ticks() / 1000))
-    fps = int(pygame.time.Clock().get_fps()) if pygame.time.get_ticks() > 0 else g.FPS
-    info_text = f"{runtime}  |  {fps:02d} FPS"
+    info_text = f"Time: {runtime}"
     info_surf = info_font.render(info_text, True, (200, 200, 200))
     screen.blit(info_surf, info_surf.get_rect(bottomright=(g.SCREENWIDTH - 40, g.SCREENHEIGHT - 12)))
 
