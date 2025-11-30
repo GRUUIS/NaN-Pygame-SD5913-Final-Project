@@ -120,8 +120,8 @@ class Player:
             else:
                 self.vx *= g.AIR_RESISTANCE
         
-        # Jumping with double jump support (W key for jump)
-        w_pressed = self.keys[pygame.K_w]
+        # Jumping with double jump support (W key or UP arrow for jump)
+        w_pressed = self.keys[pygame.K_w] or self.keys[pygame.K_UP]
         if w_pressed and not self.w_key_was_pressed:
             if self.jump_count < self.max_jumps:
                 self.vy = -g.JUMP_STRENGTH

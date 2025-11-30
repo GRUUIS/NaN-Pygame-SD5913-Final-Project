@@ -573,6 +573,9 @@ def run(screen):
 			elif ev.type == pygame.KEYDOWN:
 				if ev.key == pygame.K_ESCAPE:
 					running = False
+				# Z 键跳过关卡
+				elif ev.key == pygame.K_z:
+					running = False
 				elif ev.key == pygame.K_t:
 					# 按T键切换下一张图片
 					if projected_imgs:

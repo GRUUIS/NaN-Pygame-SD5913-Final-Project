@@ -1,14 +1,18 @@
 """
 游戏流程管理器
-整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> 战斗场景
+整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> The Hollow战斗 -> 镜子房间 -> Boss2 -> 画作房
 
 场景流程：
 1. combine/game.py 的菜单界面（初始界面）
 2. testing/new_third_puzzle.py 的解谜场景
 3. testing/first_dream_puzzle.py 的梦境解谜场景（4个谜题）
 4. testing/dream_transition_scene.py 的梦境过渡场景（主角转换为小女巫）
-5. combine/game.py 的 map01 场景（战斗场景）
+5. testing/map01_final.py 的 The Hollow 战斗场景
+6. testing/mirror_room_puzzle.py 的镜子房间谜题
+7. src/entities/sloth_battle_scene.py 的 Boss2 战斗场景 (The Sloth)
+8. testing/painting_room_puzzle.py 的画作房谜题
 
+按 Z 键可以跳过任何关卡。
 在解谜场景中，玩家走到门前（坐标 21,12 和 21,13）右键点击可跳转到梦境场景。
 """
 
@@ -898,11 +902,10 @@ def run_puzzle_scene(screen):
             if event.type == pygame.QUIT:
                 return 'quit'
             
-            # Developer Mode Skip
+            # Z 键跳过关卡
             if event.type == pygame.KEYDOWN and event.key == pygame.K_z:
-                if getattr(g, 'DEVELOPER_MODE', False):
-                    print("Developer Mode: Skipping scene...")
-                    return 'next'
+                print("跳过关卡...")
+                return 'next'
             
             # 空格键交互
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
@@ -971,28 +974,15 @@ def main():
             print(f'梦境场景加载失败: {e}')
             dream_result = 'next'  # 失败则跳过梦境场景
     
-    # 第四阶段：跳转到战斗场景（map01）
+    # 第五阶段：The Hollow 战斗场景（map01）
     if puzzle_result == 'next':
-        print("进入战斗场景...")
+        print("进入 The Hollow 战斗场景...")
         
         try:
-            # Debug: ensure we're importing the expected `testing.map01_final` module
             import importlib
             mod = importlib.import_module('testing.map01_final')
             mod_file = getattr(mod, '__file__', None)
             print(f"DEBUG: testing.map01_final loaded from: {mod_file}")
-            # Quick heuristic: check source for immediate lamp append vs delayed data
-            try:
-                with open(mod_file, 'r', encoding='utf-8') as f:
-                    src = f.read()
-                if "items.append({'id': 'lamp'" in src or "items.append({\'id\': 'lamp'" in src:
-                    print('DEBUG: lamp is appended immediately in the map file')
-                elif 'lamp_item_data' in src:
-                    print('DEBUG: lamp appears delayed (lamp_item_data present)')
-                else:
-                    print('DEBUG: lamp logic not detected in source')
-            except Exception:
-                pass
 
             run_map01 = getattr(mod, 'run', None)
             if not callable(run_map01):
@@ -1001,6 +991,113 @@ def main():
         except Exception as e:
             import traceback
             print('Failed to run map01 scene:', e)
+            traceback.print_exc()
+    
+    # 第六阶段：镜子房间谜题
+    if puzzle_result == 'next':
+        print("进入镜子房间...")
+        try:
+            from testing.mirror_room_puzzle import run_mirror_room
+            mirror_result = run_mirror_room(screen)
+            
+            if mirror_result == 'quit':
+                pygame.quit()
+                return
+        except Exception as e:
+            import traceback
+            print(f'镜子房间加载失败: {e}')
+            traceback.print_exc()
+            mirror_result = 'next'  # 失败则跳过
+    
+    # 第七阶段：Boss2 战斗场景 (The Sloth)
+    if puzzle_result == 'next':
+        print("进入 Boss2 战斗场景 (The Sloth)...")
+        try:
+            from src.entities.sloth_battle_scene import SlothBattleScene
+            
+            boss_scene = SlothBattleScene()
+            if hasattr(boss_scene, 'enter'):
+                try:
+                    boss_scene.enter()
+                except Exception:
+                    pass
+            
+            pygame.display.set_caption("Boss Battle - The Sloth")
+            clock = pygame.time.Clock()
+            boss_running = True
+            
+            while boss_running:
+                dt = clock.tick(g.FPS) / 1000.0
+                
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        boss_running = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            boss_running = False
+                        # Z 键跳过关卡
+                        elif event.key == pygame.K_z:
+                            boss_running = False
+                        elif event.key == pygame.K_r:
+                            # 重置战斗
+                            if hasattr(boss_scene, 'is_game_over') and callable(boss_scene.is_game_over) and not boss_scene.is_game_over():
+                                if hasattr(boss_scene, 'reset_battle') and callable(boss_scene.reset_battle):
+                                    boss_scene.reset_battle()
+                                elif hasattr(boss_scene, 'enter') and callable(boss_scene.enter):
+                                    boss_scene.enter()
+                        elif event.key == pygame.K_SPACE:
+                            # 胜利后按空格退出
+                            boss = getattr(boss_scene, 'boss', None)
+                            is_over = hasattr(boss_scene, 'is_game_over') and boss_scene.is_game_over()
+                            victory = False
+                            if boss is not None and hasattr(boss, 'health'):
+                                victory = getattr(boss, 'health', 1) <= 0
+                            else:
+                                victory = is_over and boss is None
+                            if is_over and victory:
+                                boss_running = False
+                    
+                    try:
+                        boss_scene.handle_event(event)
+                    except Exception:
+                        pass
+                
+                try:
+                    boss_scene.update(dt)
+                except Exception:
+                    pass
+                
+                try:
+                    boss_scene.draw(screen)
+                except Exception:
+                    pass
+                
+                pygame.display.flip()
+                
+                # 检查是否胜利
+                boss = getattr(boss_scene, 'boss', None)
+                if boss is not None and hasattr(boss, 'health') and boss.health <= 0:
+                    # 胜利，等待玩家按空格
+                    pass
+                    
+        except Exception as e:
+            import traceback
+            print(f'Boss2 场景加载失败: {e}')
+            traceback.print_exc()
+    
+    # 第八阶段：画作房谜题
+    if puzzle_result == 'next':
+        print("进入画作房谜题...")
+        try:
+            from testing.painting_room_puzzle import run_painting_room
+            painting_result = run_painting_room(screen)
+            
+            if painting_result == 'quit':
+                pygame.quit()
+                return
+        except Exception as e:
+            import traceback
+            print(f'画作房谜题加载失败: {e}')
             traceback.print_exc()
     
     pygame.quit()

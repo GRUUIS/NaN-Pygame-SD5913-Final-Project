@@ -169,6 +169,9 @@ class Meun:
                 self.selected_option = (self.selected_option + 1) % len(self.menu_options)
             elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 return self.select_option()
+            elif event.key == pygame.K_z:
+                # Z 键直接开始游戏
+                return 'start'
             elif event.key == pygame.K_ESCAPE:
                 return 'quit'
         # mouse handling for settings slider

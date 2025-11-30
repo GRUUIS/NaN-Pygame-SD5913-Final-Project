@@ -1111,13 +1111,14 @@ class Door:
 
 class MirrorRoomPuzzle:
     def __init__(self, screen=None):
-        pygame.init()
-        pygame.mixer.init()
-        
         if screen is not None:
             self.screen = screen
+            self.owns_screen = False
         else:
+            pygame.init()
+            pygame.mixer.init()
             self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+            self.owns_screen = True
         pygame.display.set_caption("Dream Diary - Mirror Room")
         self.clock = pygame.time.Clock()
         
@@ -1245,6 +1246,7 @@ class MirrorRoomPuzzle:
         
         # Door transition state
         self.door_transitioning = False
+        self.should_exit = False  # 用于标记是否应该退出到下一关
     
     def check_collision(self, x, y, width, height):
         check_points = [(x, y), (x - width//2, y), (x + width//2, y),
@@ -1334,6 +1336,12 @@ class MirrorRoomPuzzle:
                 if event.key == pygame.K_ESCAPE:
                     return False
                 
+                # Z 键跳过关卡
+                if event.key == pygame.K_z:
+                    self.game_complete = True
+                    self.should_exit = True
+                    return True
+                
                 if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
                     if self.dialogue.active:
                         self.dialogue.skip()
@@ -1378,6 +1386,7 @@ class MirrorRoomPuzzle:
         if self.door_transitioning and self.door.activation_timer >= 2.0:
             self.dialogue.show("You step through the door...\n\n[Scene Complete!]")
             self.dream_effect.flash((255, 255, 255), 255)
+            self.should_exit = True  # 标记应该退出到下一关
         
         if self.game_complete:
             # Still update mirror for any remaining shards
@@ -1547,12 +1556,28 @@ class MirrorRoomPuzzle:
             running = self.handle_events()
             self.update(dt)
             self.draw()
-        pygame.quit()
+            
+            # 检查是否应该退出到下一关（通过门）
+            if self.should_exit:
+                pygame.time.wait(500)  # 短暂延迟让玩家看到效果
+                running = False
+        
+        # 返回结果以便 game_flow_manager 使用
+        # should_exit 或 game_complete 都表示成功完成
+        return 'next' if (self.game_complete or self.should_exit) else 'quit'
+
+
+def run_mirror_room(screen=None):
+    """运行镜子房间谜题的入口函数"""
+    game = MirrorRoomPuzzle(screen)
+    return game.run()
 
 
 def main():
     game = MirrorRoomPuzzle()
-    game.run()
+    result = game.run()
+    pygame.quit()
+    return result
 
 
 if __name__ == "__main__":

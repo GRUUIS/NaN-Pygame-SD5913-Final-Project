@@ -116,8 +116,9 @@ def run_dream_transition(screen):
             if event.type == pygame.QUIT:
                 return 'quit'
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_z and getattr(g, 'DEVELOPER_MODE', False):
-                    print("Developer Mode: Skipping transition...")
+                # Z 键跳过关卡
+                if event.key == pygame.K_z:
+                    print("跳过过渡场景...")
                     return 'next'
                 if event.key == pygame.K_ESCAPE:
                     return 'quit'

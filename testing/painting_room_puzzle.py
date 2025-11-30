@@ -917,13 +917,12 @@ class AbsorptionEffect:
 class PaintingRoomPuzzle:
     """画作房谜题主类"""
     def __init__(self, screen=None):
-        pygame.init()
-        pygame.mixer.init()
-        
         if screen is not None:
             self.screen = screen
             self.owns_screen = False
         else:
+            pygame.init()
+            pygame.mixer.init()
             self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
             self.owns_screen = True
         
@@ -1087,6 +1086,10 @@ class PaintingRoomPuzzle:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
+                    # Z 键跳过关卡
+                    elif event.key == pygame.K_z:
+                        self.game_complete = True
+                        self.transition_to_next = True
                     elif event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
                         if self.dialogue.active:
                             self.dialogue.skip()
@@ -1166,7 +1169,10 @@ class PaintingRoomPuzzle:
         if self.owns_screen:
             pygame.quit()
         
-        return self.game_complete
+        # 返回 'next' 表示继续下一关，'quit' 表示退出
+        if self.transition_to_next or self.game_complete:
+            return 'next'
+        return 'quit'
     
     def _try_collect(self):
         if self.burning_effect.active or self.absorption_effect.active:

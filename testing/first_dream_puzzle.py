@@ -865,14 +865,13 @@ class HintObject:
 
 class YumeNikkiPuzzle:
     def __init__(self, screen=None):
-        pygame.init()
-        pygame.mixer.init()
-        
         # Use provided screen or create new one
         if screen is not None:
             self.screen = screen
             self.owns_screen = False
         else:
+            pygame.init()
+            pygame.mixer.init()
             self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
             self.owns_screen = True
         
@@ -1171,9 +1170,9 @@ class YumeNikkiPuzzle:
                 return False
             
             if event.type == pygame.KEYDOWN:
-                # Developer Mode Skip
-                if event.key == pygame.K_z and getattr(g, 'DEVELOPER_MODE', False):
-                    print("Developer Mode: Skipping puzzle...")
+                # Z 键跳过关卡
+                if event.key == pygame.K_z:
+                    print("跳过关卡...")
                     self.game_complete = True
                     return True
 
