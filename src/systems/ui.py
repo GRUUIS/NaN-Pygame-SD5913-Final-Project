@@ -213,15 +213,22 @@ def draw_game_over_screen(screen, boss_scene):
     title_font = pygame.font.Font(None, 72)
     small_font = pygame.font.Font(None, 36)
 
-    if getattr(boss_scene, 'player', None) and boss_scene.player.health <= 0:
+    # Check if player defeated or boss defeated
+    player_defeated = getattr(boss_scene, 'player', None) and boss_scene.player.health <= 0
+    boss_defeated = getattr(boss_scene, 'boss', None) and boss_scene.boss.health <= 0
+    
+    if player_defeated:
         title = title_font.render("DEFEAT", True, g.COLORS.get('ui_health_low'))
-    elif getattr(boss_scene, 'boss', None) and boss_scene.boss.health <= 0:
+        sub_text = "Press R to restart"
+    elif boss_defeated:
         title = title_font.render("VICTORY!", True, g.COLORS.get('ui_health_high'))
+        sub_text = "Press SPACE to continue"
     else:
         title = title_font.render("GAME OVER", True, g.COLORS.get('ui_text'))
+        sub_text = "Press R to restart"
 
     screen.blit(title, title.get_rect(center=(g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2 - 20)))
-    sub = small_font.render("Press R to restart", True, g.COLORS.get('ui_text'))
+    sub = small_font.render(sub_text, True, g.COLORS.get('ui_text'))
     screen.blit(sub, sub.get_rect(center=(g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2 + 40)))
 
 
@@ -291,7 +298,9 @@ def draw_ui_overlay(screen, boss_scene):
         meter_y = pane_rect.y + 42 + bar_height + 18
         meters = []
         if hasattr(boss, 'stress') and hasattr(boss, 'max_stress'):
-            meters.append((boss.stress, boss.max_stress, "Stress", (220, 120, 120)))
+            # Only show stress meter if boss is alive
+            if boss.health > 0:
+                meters.append((boss.stress, boss.max_stress, "Stress", (220, 120, 120)))
         if hasattr(boss, 'deadline_left') and hasattr(boss, 'deadline_total'):
             meters.append((boss.deadline_left, boss.deadline_total, "Deadline", (120, 200, 180)))
         meter_width = (pane_width - 60)

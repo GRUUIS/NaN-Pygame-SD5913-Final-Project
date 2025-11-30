@@ -40,6 +40,13 @@ class BossBattleScene:
         self._defeat_shown = False
         self._transition_timer = 0.0
         self._earthquake_timer = 0.0
+        self._void_particles = []
+        self._falling_platforms = []
+        self._bgm_fading = False
+        self._boss_death_location = None  # Store where boss died
+        self._boss_defeated = False  # Track if boss is defeated but transition not started
+        self._death_marker_particles = []  # Visual indicator at death location
+        self._death_marker_time = 0.0
         # Idle penalty tracking
         self._idle_timer = 0.0
         self._idle_spawn_timer = 0.0
@@ -152,6 +159,15 @@ class BossBattleScene:
             self._transition_timer += dt
             if isinstance(self.boss, TheHollow):
                 self._earthquake_timer += dt
+                self._update_void_particles(dt)
+            # Fade out BGM
+            if self._bgm_fading:
+                current_volume = pygame.mixer.music.get_volume()
+                new_volume = max(0, current_volume - 0.3 * dt)
+                pygame.mixer.music.set_volume(new_volume)
+                if new_volume <= 0:
+                    pygame.mixer.music.stop()
+                    self._bgm_fading = False
             return
         
         # Handle defeat
@@ -206,22 +222,40 @@ class BossBattleScene:
             # Check bullet collisions
             self.bullet_manager.check_collisions(self.player, self.boss)
             
-            # Check for boss defeat to start transition
-            if self.boss.health <= 0 and not self._victory_transition:
+            # Check for boss defeat - store location, let player explore
+            if self.boss.health <= 0 and not self._boss_defeated and not self._victory_transition:
                 if hasattr(self.boss, 'fully_defeated') and self.boss.fully_defeated:
+                    self._boss_defeated = True
+                    self._boss_death_location = (self.boss.x + self.boss.width/2, self.boss.y + self.boss.height/2)
+                    self._spawn_death_marker()
+                elif not hasattr(self.boss, 'fully_defeated'):
+                    self._boss_defeated = True
+                    self._boss_death_location = (self.boss.x + self.boss.width/2, self.boss.y + self.boss.height/2)
+                    self._spawn_death_marker()
+            
+            # Check proximity to boss death location to trigger transition
+            if self._boss_defeated and self._boss_death_location and not self._victory_transition:
+                self._death_marker_time += dt
+                self._update_death_marker(dt)
+                
+                px = self.player.x + self.player.width/2
+                py = self.player.y + self.player.height/2
+                bx, by = self._boss_death_location
+                distance = ((px - bx)**2 + (py - by)**2)**0.5
+                
+                if distance < 120:  # Player approaches within ~120 pixels
                     self._victory_transition = True
                     self._transition_timer = 0.0
+                    self._bgm_fading = True
                     if self.victory_sfx:
                         self.victory_sfx.play()
                     if isinstance(self.boss, TheHollow):
                         if self.earthquake_sfx:
                             self.earthquake_sfx.play()
                         self._earthquake_timer = 0.0
-                elif not hasattr(self.boss, 'fully_defeated'):
-                    self._victory_transition = True
-                    self._transition_timer = 0.0
-                    if self.victory_sfx:
-                        self.victory_sfx.play()
+                        self._spawn_void_particles()
+                    else:
+                        self._spawn_void_particles()
 
             # Idle penalty: spawn void shards above player if idle too long (escalating)
             moving = abs(self.player.vx) > 10 or not self.player.on_ground
@@ -258,6 +292,31 @@ class BossBattleScene:
                 self._last_boss_health = self.boss.health
     #endregion Update Loop
     
+    def handle_event(self, event):
+        """Handle input events"""
+        if event.type == pygame.KEYDOWN:
+            # R key: restart battle (for defeat)
+            if event.key == pygame.K_r and self.is_game_over():
+                # Only allow restart on defeat
+                if self.player.health <= 0:
+                    # Reset battle
+                    self.reset_battle()
+                    # Restart BGM
+                    try:
+                        pygame.mixer.music.play(-1)
+                        pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+                    except Exception:
+                        pass
+                    # Clear transition states
+                    self._victory_transition = False
+                    self._defeat_shown = False
+                    self._transition_timer = 0.0
+                    self._boss_defeated = False
+                    self._boss_death_location = None
+                    self._death_marker_particles = []
+                    self._bgm_fading = False
+            # SPACE key: continue after victory (handled by main.py CLI runner)
+    
     #region Draw
     def draw(self, screen: pygame.Surface):
         """Draw the entire battle scene"""
@@ -286,41 +345,323 @@ class BossBattleScene:
             draw_ui_overlay(screen, self)
         except Exception:
             pass
-
-        if self.is_game_over():
-            try:
-                draw_game_over_screen(screen, self)
-            except Exception:
-                pass
         
-        # Victory transition overlay for Hollow (earthquake + white fade)
+        # Draw death marker indicator (before victory transition)
+        if self._boss_defeated and not self._victory_transition and self._boss_death_location:
+            import math
+            bx, by = self._boss_death_location
+            pulse = (math.sin(self._death_marker_time * 3) + 1) / 2
+            
+            # Pulsing bubble background
+            bubble_radius = int(50 + 15 * pulse)
+            bubble_surf = pygame.Surface((bubble_radius*2, bubble_radius*2), pygame.SRCALPHA)
+            bubble_alpha = int(80 + 40 * pulse)
+            pygame.draw.circle(bubble_surf, (100, 80, 140, bubble_alpha), 
+                             (bubble_radius, bubble_radius), bubble_radius)
+            pygame.draw.circle(bubble_surf, (120, 100, 160, bubble_alpha + 30), 
+                             (bubble_radius, bubble_radius), bubble_radius, 3)
+            screen.blit(bubble_surf, (int(bx - bubble_radius), int(by - bubble_radius)))
+            
+            # Draw orbiting particles
+            for p in self._death_marker_particles:
+                particle_surf = pygame.Surface((int(p['size']*2), int(p['size']*2)), pygame.SRCALPHA)
+                pygame.draw.circle(particle_surf, (*p['color'], int(p['alpha'] * (0.6 + 0.4 * pulse))),
+                                 (int(p['size']), int(p['size'])), int(p['size']))
+                screen.blit(particle_surf, (int(p['x'] - p['size']), int(p['y'] - p['size'])))
+        
+        # Victory transition overlay for Hollow (elaborate void descent)
         if self._victory_transition and isinstance(self.boss, TheHollow):
-            # Earthquake shake
-            shake_intensity = max(0, 1.5 - self._earthquake_timer)
+            # Phase 1: Earthquake (0-2s)
+            shake_intensity = max(0, 1.0 - self._earthquake_timer / 2.0)
             if shake_intensity > 0:
                 import random
-                shake_x = random.uniform(-8 * shake_intensity, 8 * shake_intensity)
-                shake_y = random.uniform(-8 * shake_intensity, 8 * shake_intensity)
+                shake_x = random.uniform(-10 * shake_intensity, 10 * shake_intensity)
+                shake_y = random.uniform(-10 * shake_intensity, 10 * shake_intensity)
                 temp_surf = screen.copy()
                 screen.fill((0, 0, 0))
                 screen.blit(temp_surf, (int(shake_x), int(shake_y)))
             
-            # White fade overlay
-            fade_start = 1.5
+            # Phase 2: Void particles swirling (0.5s+)
+            if self._transition_timer > 0.5:
+                for p in self._void_particles:
+                    # Draw particle trail
+                    for i in range(3):
+                        trail_alpha = int(p['alpha'] * (0.3 - i * 0.1))
+                        if trail_alpha > 0:
+                            trail_x = p['x'] - p['vx'] * i * 0.05
+                            trail_y = p['y'] - p['vy'] * i * 0.05
+                            surf = pygame.Surface((int(p['size']*1.5), int(p['size']*1.5)), pygame.SRCALPHA)
+                            pygame.draw.circle(surf, (*p['color'], trail_alpha), 
+                                             (int(p['size']*0.75), int(p['size']*0.75)), int(p['size']))
+                            screen.blit(surf, (int(trail_x), int(trail_y)))
+            
+            # Phase 3: Platform crumbling effect (1s+)
+            if self._transition_timer > 1.0 and not self._falling_platforms:
+                import random
+                for platform in self.platforms[1:]:  # Skip ground
+                    for x in range(platform.rect.left, platform.rect.right, 20):
+                        self._falling_platforms.append({
+                            'x': x,
+                            'y': platform.rect.top,
+                            'vy': random.uniform(50, 150),
+                            'rotation': random.uniform(-2, 2),
+                            'alpha': 255
+                        })
+            
+            # Draw falling platforms
+            for chunk in self._falling_platforms:
+                chunk['y'] += chunk['vy'] * getattr(self, '_last_dt', 0.016)
+                chunk['vy'] += 300 * getattr(self, '_last_dt', 0.016)  # Gravity
+                chunk['rotation'] += 2 * getattr(self, '_last_dt', 0.016)
+                chunk['alpha'] = max(0, chunk['alpha'] - 100 * getattr(self, '_last_dt', 0.016))
+                
+                if chunk['alpha'] > 0:
+                    surf = pygame.Surface((18, 18), pygame.SRCALPHA)
+                    color = (100, 100, 100, int(chunk['alpha']))
+                    pygame.draw.rect(surf, color, surf.get_rect())
+                    rotated = pygame.transform.rotate(surf, chunk['rotation'] * 30)
+                    screen.blit(rotated, (int(chunk['x']), int(chunk['y'])))
+            
+            # Phase 4: Player spiraling descent (1.5s+)
+            if self._transition_timer > 1.5:
+                # Spiral motion
+                import math
+                spiral_offset_x = math.sin(self._transition_timer * 4) * 60
+                self.player.x += spiral_offset_x * getattr(self, '_last_dt', 0.016)
+                self.player.y += 180 * getattr(self, '_last_dt', 0.016)
+                
+                # Draw motion blur
+                blur_surf = pygame.Surface((self.player.width, self.player.height), pygame.SRCALPHA)
+                blur_surf.fill((100, 150, 255, 80))
+                screen.blit(blur_surf, (int(self.player.x), int(self.player.y - 20)))
+            
+            # Phase 5: Void vortex background (2s+)
+            if self._transition_timer > 2.0:
+                import math
+                vortex_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                center_x, center_y = g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2
+                
+                for ring in range(8):
+                    radius = 50 + ring * 80 + (self._transition_timer - 2.0) * 100
+                    segments = 24 + ring * 4
+                    for seg in range(segments):
+                        angle = (seg / segments) * math.pi * 2 + self._transition_timer * 2
+                        x = center_x + math.cos(angle) * radius
+                        y = center_y + math.sin(angle) * radius
+                        alpha = max(0, 120 - ring * 15)
+                        pygame.draw.circle(vortex_surf, (10, 10, 30, alpha), (int(x), int(y)), 3)
+                
+                screen.blit(vortex_surf, (0, 0))
+            
+            # Phase 6: White fade liberation (3.5s+) - Transition to ethereal realm
+            fade_start = 3.5
             if self._transition_timer > fade_start:
-                alpha = min(255, int((self._transition_timer - fade_start) * 200))
+                fade_progress = min(1.0, (self._transition_timer - fade_start) / 2.0)
+                
+                # Gentle white fade (not harsh)
+                alpha = int(fade_progress * 220)
                 fade_overlay = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT))
                 fade_overlay.fill((255, 255, 255))
                 fade_overlay.set_alpha(alpha)
                 screen.blit(fade_overlay, (0, 0))
                 
-                if self._transition_timer > fade_start + 0.5 and self.fade_sfx and not getattr(self, '_fade_played', False):
+                # Expanding light rays with soft fade
+                if fade_progress < 0.8:
+                    import math
+                    rays_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                    num_rays = 16
+                    for ray in range(num_rays):
+                        angle = (ray / num_rays) * math.pi * 2 + self._transition_timer * 0.3
+                        # Rays expand outward
+                        ray_length = g.SCREENWIDTH * (0.5 + fade_progress * 1.5)
+                        end_x = g.SCREENWIDTH // 2 + math.cos(angle) * ray_length
+                        end_y = g.SCREENHEIGHT // 2 + math.sin(angle) * ray_length
+                        ray_alpha = int((1 - fade_progress) * 120)
+                        # Gradient rays (thicker at center)
+                        for thickness in range(4, 0, -1):
+                            t_alpha = ray_alpha // (5 - thickness)
+                            pygame.draw.line(rays_surf, (255, 250, 240, t_alpha),
+                                           (g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2),
+                                           (int(end_x), int(end_y)), thickness)
+                    screen.blit(rays_surf, (0, 0))
+                
+                # Void dissolving into light particles (continuity from Phase 5)
+                if fade_progress < 0.6:
+                    dissolve_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                    import random
+                    # Dynamic seed for variation
+                    random.seed(int(self._transition_timer * 10))
+                    for _ in range(int(80 * (1 - fade_progress))):
+                        px = random.randint(0, g.SCREENWIDTH)
+                        py = random.randint(0, g.SCREENHEIGHT)
+                        p_size = random.uniform(2, 6)
+                        # Void colors fading to white
+                        base_color = random.choice([(40, 40, 80), (50, 50, 100), (30, 30, 60)])
+                        fade_to_white = fade_progress * 0.8
+                        final_color = tuple(int(c + (255 - c) * fade_to_white) for c in base_color)
+                        p_alpha = int(random.uniform(60, 150) * (1 - fade_progress))
+                        pygame.draw.circle(dissolve_surf, (*final_color, p_alpha), (px, py), int(p_size))
+                    screen.blit(dissolve_surf, (0, 0))
+                
+                if self._transition_timer > fade_start + 0.8 and self.fade_sfx and not getattr(self, '_fade_played', False):
                     self.fade_sfx.play()
                     self._fade_played = True
             
-            # Player descends (visual effect)
-            if self._transition_timer > 0.5:
-                self.player.y += 150 * getattr(self, '_last_dt', 0.016)
+            # Phase 7: Waking from dream (5.5s+) - Ethereal pixel realm dissolve
+            dream_start = 5.5
+            if self._transition_timer > dream_start:
+                import math
+                import random
+                wake_progress = min(1.0, (self._transition_timer - dream_start) / 4.0)
+                
+                # Soft pastel gradient background - ethereal sky
+                dawn_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT))
+                for y in range(0, g.SCREENHEIGHT, 2):
+                    ratio = y / g.SCREENHEIGHT
+                    # Lavender-to-cream gradient with subtle shimmer
+                    shimmer = math.sin(self._transition_timer * 1.5 + ratio * math.pi) * 10
+                    r = int(210 + 45 * ratio * wake_progress + shimmer)
+                    g_val = int(190 + 65 * ratio * wake_progress + shimmer * 0.7)
+                    b = int(230 - 50 * ratio * wake_progress + shimmer * 0.5)
+                    pygame.draw.line(dawn_surf, (r, g_val, b), (0, y), (g.SCREENWIDTH, y), 2)
+                dawn_surf.set_alpha(int(200 * wake_progress))
+                screen.blit(dawn_surf, (0, 0))
+                
+                # Dynamic pixelated dissolve - world fragmenting
+                if wake_progress < 0.75:
+                    dissolve_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                    pixel_size = int(3 + wake_progress * 15)
+                    # Dynamic pattern each frame
+                    random.seed(int(self._transition_timer * 30))
+                    density = int(200 * (1 - wake_progress * 0.7))
+                    for i in range(density):
+                        x = random.randint(0, g.SCREENWIDTH // pixel_size) * pixel_size
+                        y = random.randint(0, g.SCREENHEIGHT // pixel_size) * pixel_size
+                        fade_chance = random.random()
+                        # Progressive fade based on position and time
+                        spatial_fade = (x / g.SCREENWIDTH + y / g.SCREENHEIGHT) / 2
+                        if fade_chance < wake_progress + spatial_fade * 0.3:
+                            pixel_colors = [(245, 235, 255), (235, 225, 250), (255, 245, 255), (225, 215, 245)]
+                            p_color = random.choice(pixel_colors)
+                            p_alpha = int(random.uniform(70, 160) * (1 - wake_progress))
+                            pygame.draw.rect(dissolve_surf, (*p_color, p_alpha), 
+                                           (x, y, pixel_size, pixel_size))
+                    screen.blit(dissolve_surf, (0, 0))
+                
+                # Floating memory fragments - more organic motion
+                fragment_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                num_fragments = int(30 - 20 * wake_progress)
+                random.seed(100)  # Consistent positions
+                for i in range(max(6, num_fragments)):
+                    # Vertical rising with horizontal wave
+                    base_y = ((i * 60 + self._transition_timer * 20) % (g.SCREENHEIGHT + 120)) - 60
+                    base_x = (i * 79) % g.SCREENWIDTH
+                    wave_x = math.sin(self._transition_timer * 0.6 + i * 0.4) * 40
+                    wave_y = math.cos(self._transition_timer * 0.4 + i * 0.6) * 15
+                    
+                    frag_x = int(base_x + wave_x)
+                    frag_y = int(base_y - wake_progress * 120 + wave_y)
+                    
+                    # Varied shapes with rotation
+                    shape_type = i % 4
+                    size = int(10 + (i % 6) * 4)
+                    rotation = self._transition_timer * 20 + i * 30
+                    frag_alpha = int(140 * (1 - wake_progress) * (1 - min(1.0, base_y / g.SCREENHEIGHT)))
+                    
+                    if frag_alpha > 10:
+                        if shape_type == 0:
+                            # Rotating square
+                            angle_rad = math.radians(rotation)
+                            half = size // 2
+                            corners = [
+                                (frag_x + math.cos(angle_rad + i*math.pi/2) * half,
+                                 frag_y + math.sin(angle_rad + i*math.pi/2) * half)
+                                for i in range(4)
+                            ]
+                            pygame.draw.polygon(fragment_surf, (205, 185, 225, frag_alpha), corners)
+                        elif shape_type == 1:
+                            # Pulsing diamond
+                            pulse = 1 + 0.2 * math.sin(self._transition_timer * 2 + i)
+                            points = [(frag_x, frag_y - int(size*pulse)//2), 
+                                     (frag_x + int(size*pulse)//2, frag_y),
+                                     (frag_x, frag_y + int(size*pulse)//2),
+                                     (frag_x - int(size*pulse)//2, frag_y)]
+                            pygame.draw.polygon(fragment_surf, (215, 195, 235, frag_alpha), points)
+                        elif shape_type == 2:
+                            # Glowing cross
+                            glow_size = int(size * 1.3)
+                            pygame.draw.line(fragment_surf, (225, 205, 245, frag_alpha // 2),
+                                           (frag_x - glow_size//2, frag_y), (frag_x + glow_size//2, frag_y), 3)
+                            pygame.draw.line(fragment_surf, (225, 205, 245, frag_alpha // 2),
+                                           (frag_x, frag_y - glow_size//2), (frag_x, frag_y + glow_size//2), 3)
+                            pygame.draw.line(fragment_surf, (235, 215, 250, frag_alpha),
+                                           (frag_x - size//2, frag_y), (frag_x + size//2, frag_y), 1)
+                            pygame.draw.line(fragment_surf, (235, 215, 250, frag_alpha),
+                                           (frag_x, frag_y - size//2), (frag_x, frag_y + size//2), 1)
+                        else:
+                            # Hollow circle
+                            pygame.draw.circle(fragment_surf, (215, 195, 235, frag_alpha), 
+                                             (frag_x, frag_y), size // 2, 2)
+                
+                screen.blit(fragment_surf, (0, 0))
+                
+                # Enhanced light motes - volumetric feeling
+                mote_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                random.seed(int(self._transition_timer * 25))
+                num_motes = int(50 + 30 * wake_progress)
+                for _ in range(num_motes):
+                    mx = random.randint(0, g.SCREENWIDTH)
+                    my = random.randint(0, g.SCREENHEIGHT)
+                    # Gentle downward drift with horizontal sway
+                    my_offset = int(self._transition_timer * 12 + random.random() * 80) % (g.SCREENHEIGHT + 40)
+                    mx_sway = int(math.sin(self._transition_timer + my * 0.01) * 15)
+                    my = (my + my_offset) % g.SCREENHEIGHT
+                    mx = (mx + mx_sway) % g.SCREENWIDTH
+                    
+                    mote_size = random.uniform(1.5, 4)
+                    # Organic twinkling
+                    twinkle = (math.sin(self._transition_timer * 3.5 + mx * 0.015 + my * 0.01) * 0.4 + 0.6)
+                    mote_alpha = int(random.uniform(120, 220) * twinkle * wake_progress)
+                    # Warm ethereal glow
+                    mote_colors = [(255, 250, 235), (250, 245, 225), (255, 248, 230), (245, 242, 220)]
+                    m_color = random.choice(mote_colors)
+                    # Soft glow halo
+                    pygame.draw.circle(mote_surf, (*m_color, mote_alpha // 3), (mx, my), int(mote_size * 2))
+                    pygame.draw.circle(mote_surf, (*m_color, mote_alpha), (mx, my), int(mote_size))
+                
+                screen.blit(mote_surf, (0, 0))
+                
+                # Soft radial vignette - consciousness focusing
+                if wake_progress > 0.35:
+                    vignette_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT), pygame.SRCALPHA)
+                    center_x, center_y = g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2
+                    max_dist = math.sqrt(center_x**2 + center_y**2)
+                    vignette_strength = (wake_progress - 0.35) / 0.65
+                    
+                    # Multi-ring soft vignette
+                    for ring in range(10):
+                        radius = int(max_dist * (0.3 + ring * 0.08))
+                        ring_alpha = int(25 * ring * vignette_strength)
+                        if ring_alpha > 0:
+                            pygame.draw.circle(vignette_surf, (255, 252, 248, ring_alpha),
+                                             (center_x, center_y), radius, max(2, 18 - ring * 2))
+                    
+                    screen.blit(vignette_surf, (0, 0))
+                
+                # Final fade to bright white (awakening) at 70%+
+                if wake_progress > 0.7:
+                    awaken_alpha = int((wake_progress - 0.7) / 0.3 * 255)
+                    awaken_surf = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT))
+                    awaken_surf.fill((255, 255, 250))
+                    awaken_surf.set_alpha(awaken_alpha)
+                    screen.blit(awaken_surf, (0, 0))
+        
+        # Draw game over screen on top of all effects
+        if self.is_game_over():
+            try:
+                draw_game_over_screen(screen, self)
+            except Exception:
+                pass
         
         # Draw active spikes
         if self.spikes_active:
@@ -372,10 +713,8 @@ class BossBattleScene:
         """Check if battle is over"""
         if self.player.health <= 0:
             return True
-        if self.boss.health <= 0:
-            # Wait for boss to finish fading animation/dialogue
-            if hasattr(self.boss, 'fully_defeated') and not self.boss.fully_defeated:
-                return False
+        # Only game over when victory transition starts (player approached boss)
+        if self._victory_transition:
             return True
         return False
 
@@ -393,6 +732,111 @@ class BossBattleScene:
         if not self.is_game_over():
             return "ongoing"
         return "victory" if self.boss.health <= 0 else "defeat"
+    
+    def _spawn_void_particles(self):
+        """Create swirling void particles for Hollow transition"""
+        import random
+        import math
+        for _ in range(80):
+            angle = random.uniform(0, math.pi * 2)
+            distance = random.uniform(100, 400)
+            self._void_particles.append({
+                'x': g.SCREENWIDTH // 2 + math.cos(angle) * distance,
+                'y': g.SCREENHEIGHT // 2 + math.sin(angle) * distance,
+                'vx': math.cos(angle) * random.uniform(-100, -50),
+                'vy': math.sin(angle) * random.uniform(-100, -50),
+                'size': random.uniform(2, 6),
+                'alpha': random.randint(150, 255),
+                'color': random.choice([(20, 20, 40), (30, 30, 60), (10, 10, 20), (40, 40, 80)])
+            })
+    
+    def _spawn_death_marker(self):
+        """Create pulsing marker at boss death location"""
+        if not self._boss_death_location:
+            return
+        import random
+        bx, by = self._boss_death_location
+        
+        if isinstance(self.boss, TheHollow):
+            # Void-themed: dark purple swirling particles
+            for _ in range(30):
+                angle = random.uniform(0, 6.28)
+                radius = random.uniform(5, 40)
+                self._death_marker_particles.append({
+                    'x': bx,
+                    'y': by,
+                    'orbit_radius': radius,
+                    'orbit_angle': angle,
+                    'orbit_speed': random.uniform(1.5, 3.0),
+                    'size': random.uniform(2, 5),
+                    'alpha': random.randint(180, 255),
+                    'color': random.choice([(80, 60, 120), (60, 40, 100), (100, 80, 140), (50, 30, 90)])
+                })
+        else:
+            # Generic void particles for other bosses
+            for _ in range(30):
+                angle = random.uniform(0, 6.28)
+                radius = random.uniform(5, 40)
+                self._death_marker_particles.append({
+                    'x': bx,
+                    'y': by,
+                    'orbit_radius': radius,
+                    'orbit_angle': angle,
+                    'orbit_speed': random.uniform(1.5, 3.0),
+                    'size': random.uniform(2, 5),
+                    'alpha': random.randint(180, 255),
+                    'color': random.choice([(80, 60, 120), (60, 40, 100), (100, 80, 140), (50, 30, 90)])
+                })
+    
+    def _update_death_marker(self, dt):
+        """Animate death marker particles in orbit"""
+        import math
+        if not self._boss_death_location:
+            return
+        
+        bx, by = self._boss_death_location
+        pulse = (math.sin(self._death_marker_time * 3) + 1) / 2  # 0..1
+        
+        for p in self._death_marker_particles:
+            p['orbit_angle'] += p['orbit_speed'] * dt
+            # Pulsing orbit radius
+            current_radius = p['orbit_radius'] * (0.8 + 0.4 * pulse)
+            p['x'] = bx + math.cos(p['orbit_angle']) * current_radius
+            p['y'] = by + math.sin(p['orbit_angle']) * current_radius
+    
+    def _update_void_particles(self, dt):
+        """Update void particle swirl toward center"""
+        import math
+        center_x, center_y = g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2
+        for p in self._void_particles:
+            # Pull toward center with spiral
+            dx = center_x - p['x']
+            dy = center_y - p['y']
+            dist = max(1, math.hypot(dx, dy))
+            
+            # Spiral force
+            angle = math.atan2(dy, dx)
+            spiral_angle = angle + math.pi / 4
+            pull_strength = 200
+            
+            p['vx'] = math.cos(spiral_angle) * pull_strength
+            p['vy'] = math.sin(spiral_angle) * pull_strength
+            
+            p['x'] += p['vx'] * dt
+            p['y'] += p['vy'] * dt
+            
+            # Fade near center
+            if dist < 100:
+                p['alpha'] = max(0, p['alpha'] - 300 * dt)
+            
+            # Regenerate at edges
+            if dist > 600 or p['alpha'] <= 0:
+                import random
+                angle = random.uniform(0, math.pi * 2)
+                distance = 500
+                p['x'] = g.SCREENWIDTH // 2 + math.cos(angle) * distance
+                p['y'] = g.SCREENHEIGHT // 2 + math.sin(angle) * distance
+                p['alpha'] = random.randint(150, 255)
 
     #region Spike System
     def _current_spike_interval(self):
