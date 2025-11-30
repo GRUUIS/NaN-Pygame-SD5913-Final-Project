@@ -74,6 +74,14 @@ python main.py boss3
 - **R**: Restart (on defeat)
 - **SPACE**: Continue (on victory)
 
+
+
+https://github.com/user-attachments/assets/8342c2e7-798e-4933-a2a0-3b14df6ebc09
+
+
+- Change attributes in globals.py if you need :)
+
+
 ### Puzzle Prototypes & Tools
 - Yume Nikki-style puzzle scene:
     ```bash
