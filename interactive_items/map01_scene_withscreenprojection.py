@@ -158,6 +158,41 @@ def run(screen):
 			filtered_platforms.append(p)
 	platforms = filtered_platforms
 
+	# Merge horizontally adjacent platform rects so we can trim them properly
+	platforms.sort(key=lambda r: (r.y, r.x))
+	merged_platforms = []
+	if platforms:
+		curr_p = platforms[0]
+		for next_p in platforms[1:]:
+			# Check if next_p is directly to the right of curr_p
+			if (next_p.y == curr_p.y and 
+				next_p.height == curr_p.height and 
+				abs(next_p.x - curr_p.right) < 2): # Allow 1px slop just in case
+				curr_p.width += next_p.width
+			else:
+				merged_platforms.append(curr_p)
+				curr_p = next_p
+		merged_platforms.append(curr_p)
+	platforms = merged_platforms
+
+	# Trim one tile column from the left side of each platform so collision
+	# matches the grey platform area on the tilemap (fixes left-side overhang).
+	try:
+		trim_px = tile_w * scale_int
+		trimmed = []
+		for p in platforms:
+			if p.width > trim_px:
+				new_rect = pygame.Rect(p.left + trim_px, p.top, p.width - trim_px, p.height)
+				trimmed.append(new_rect)
+			# if platform is too narrow to trim safely, keep it as-is
+			else:
+				trimmed.append(p)
+		platforms = trimmed
+		print(f'[map01_scene DEBUG] trimmed {len(merged_platforms)-len(trimmed)} platform columns on left')
+	except Exception:
+		# if pygame or rect operations fail, keep original platforms
+		pass
+
 	# --- place a single 'hourglass' item on the top-most platform ---
 	items = []
 	try:
@@ -180,7 +215,7 @@ def run(screen):
 			item_w = int(tile_w * scale_int)
 			item_h = int(tile_h * scale_int)
 			# center item horizontally on the platform and place it on top
-			item_x = int(top_plat.left + (top_plat.width - item_w) // 2)
+			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 48
 			item_y = int(top_plat.top - item_h)
 
 			# try to load hourglass image; fallback to item_clock.png if not found
@@ -247,8 +282,11 @@ def run(screen):
 					lamp_img_scaled = pygame.transform.smoothscale(lamp_img, (lamp_w, lamp_h))
 					lamp_surf = pygame.Surface((lamp_w, lamp_h), pygame.SRCALPHA)
 					lamp_surf.blit(lamp_img_scaled, (0, 0))
-					# Place lamp 120 pixels to the right of the hourglass, but still on the same platform
-					lamp_x = min(item_x + item_w + 120, map_pixel_w - lamp_w)
+					# Place lamp further to the right of the hourglass, with a larger gap
+					lamp_gap = 60  # Reduced from 120 to keep it on platform
+					lamp_x = item_x + item_w + lamp_gap
+					# Clamp to map bounds
+					lamp_x = max(0, min(lamp_x, map_pixel_w - lamp_w))
 					lamp_y = item_y + item_h - lamp_h  # align bottom with hourglass
 					items.append({'id': 'lamp', 'rect': pygame.Rect(lamp_x, lamp_y, lamp_w, lamp_h), 'sprite': lamp_surf})
 					print('[map01_scene DEBUG] placed lamp at', lamp_x, lamp_y, 'on same platform as hourglass')
@@ -538,7 +576,7 @@ def run(screen):
 
 		# 画面中央的半透明白色屏幕
 		screen_w, screen_h = screen.get_size()
-		rect_w, rect_h = 320, 320  # Increased height to fit text inside
+		rect_w, rect_h = 420, 320  # Wider popup (more horizontal) to fit image and text
 		rect_x = (screen_w - rect_w) // 2
 		rect_y = (screen_h - rect_h) // 2
 
@@ -660,7 +698,7 @@ def run(screen):
 					for ev in pygame.event.get(pygame.MOUSEBUTTONDOWN):
 						if ev.button == 1:
 							if not img_121_clicked:
-								img_x = rect_x + (rect_w - 80) // 2
+								img_x = rect_x + (rect_w // 2) + 20
 								img_y = rect_y + (rect_h - 80) // 2
 								img_rect = pygame.Rect(img_x, img_y, 80, 80)
 								mx, my = ev.pos
@@ -668,8 +706,8 @@ def run(screen):
 									img_121_clicked = True
 					
 					if not img_121_clicked:
-						# Draw in center with click prompt
-						img_x = rect_x + (rect_w - 80) // 2
+						# Draw offset to right
+						img_x = rect_x + (rect_w // 2) + 20
 						img_y = rect_y + (rect_h - 80) // 2
 						screen.blit(img_121, (img_x, img_y))
 						
@@ -744,17 +782,18 @@ def run(screen):
 							if ev.button == 1:
 								mx, my = ev.pos
 								img_w, img_h = reward_img.get_size()
-								img_x = rect_x + (rect_w - img_w) // 2
+								img_x = rect_x + (rect_w // 2) - img_w - 20
 								img_y = rect_y + (rect_h - img_h) // 2
 								img_rect = pygame.Rect(img_x, img_y, img_w, img_h)
 								if not reward_img_clicked and img_rect.collidepoint(mx, my):
 									reward_img_clicked = True
 						
 						if not reward_img_clicked:
-							# Draw in center with click prompt
+							# Draw offset to left
 							img_w, img_h = reward_img.get_size()
-							img_x = rect_x + (rect_w - img_w) // 2
+							img_x = rect_x + (rect_w // 2) - img_w - 20
 							img_y = rect_y + (rect_h - img_h) // 2
+							reward_img_pos = (img_x, img_y)
 							screen.blit(reward_img, (img_x, img_y))
 							
 							# Draw 'click' prompt

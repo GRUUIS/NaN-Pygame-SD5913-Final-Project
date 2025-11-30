@@ -36,6 +36,11 @@ class Player:
         self.attack_cooldown = 0.0
         self.invincible_time = 0.0
         
+        # Double jump tracking
+        self.jump_count = 0
+        self.max_jumps = 2
+        self.w_key_was_pressed = False
+        
         # Input state
         self.keys = pygame.key.get_pressed()
         self.mouse_pos = (0, 0)
@@ -81,6 +86,13 @@ class Player:
         except Exception as e:
             print(f"Failed to load player SFX: {e}")
             self.shoot_sfx = None
+        
+        try:
+            jump_sfx_path = os.path.join('assets', 'sfx', 'player_jump.wav')
+            self.jump_sfx = pygame.mixer.Sound(jump_sfx_path)
+            self.jump_sfx.set_volume(0.3)
+        except Exception:
+            self.jump_sfx = None
         #endregion Init/State
     
     #region Update & Physics
@@ -108,10 +120,16 @@ class Player:
             else:
                 self.vx *= g.AIR_RESISTANCE
         
-        # Jumping
-        if (self.keys[pygame.K_SPACE] or self.keys[pygame.K_w] or self.keys[pygame.K_UP]) and self.on_ground:
-            self.vy = -g.JUMP_STRENGTH
-            self.on_ground = False
+        # Jumping with double jump support (W key for jump)
+        w_pressed = self.keys[pygame.K_w]
+        if w_pressed and not self.w_key_was_pressed:
+            if self.jump_count < self.max_jumps:
+                self.vy = -g.JUMP_STRENGTH
+                self.jump_count += 1
+                self.on_ground = False
+                if self.jump_sfx:
+                    self.jump_sfx.play()
+        self.w_key_was_pressed = w_pressed
         
         # Apply gravity
         if not self.on_ground:
@@ -173,6 +191,7 @@ class Player:
                     self.y = platform.rect.top - self.height
                     self.vy = 0
                     self.on_ground = True
+                    self.jump_count = 0  # Reset jump count when landing
                 # Hitting platform from below
                 elif self.vy < 0 and self.y > platform.rect.bottom:
                     self.y = platform.rect.bottom

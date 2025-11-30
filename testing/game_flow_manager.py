@@ -999,7 +999,9 @@ def main():
                 raise ImportError('testing.map01_final has no callable run(screen)')
             run_map01(screen)
         except Exception as e:
+            import traceback
             print('Failed to run map01 scene:', e)
+            traceback.print_exc()
     
     pygame.quit()
 

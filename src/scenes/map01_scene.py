@@ -14,6 +14,8 @@ import time
 
 def run(screen, inventory=None):
 	import pygame
+	import traceback
+	import math
 	from src.tiled_loader import load_map, draw_map, extract_collision_rects
 	from src.entities.player_map import MapPlayer
 	from src.ui.dialog_box_notusing import SpeechBubble
@@ -155,6 +157,41 @@ def run(screen, inventory=None):
 			filtered_platforms.append(p)
 	platforms = filtered_platforms
 
+	# Merge horizontally adjacent platform rects so we can trim them properly
+	platforms.sort(key=lambda r: (r.y, r.x))
+	merged_platforms = []
+	if platforms:
+		curr_p = platforms[0]
+		for next_p in platforms[1:]:
+			# Check if next_p is directly to the right of curr_p
+			if (next_p.y == curr_p.y and 
+				next_p.height == curr_p.height and 
+				abs(next_p.x - curr_p.right) < 2): # Allow 1px slop just in case
+				curr_p.width += next_p.width
+			else:
+				merged_platforms.append(curr_p)
+				curr_p = next_p
+		merged_platforms.append(curr_p)
+	platforms = merged_platforms
+
+	# Trim one tile column from the left side of each platform so collision
+	# matches the grey platform area on the tilemap (fixes left-side overhang).
+	try:
+		trim_px = tile_w * scale_int
+		trimmed = []
+		for p in platforms:
+			if p.width > trim_px:
+				new_rect = pygame.Rect(p.left + trim_px, p.top, p.width - trim_px, p.height)
+				trimmed.append(new_rect)
+			# if platform is too narrow to trim safely, keep it as-is
+			else:
+				trimmed.append(p)
+		platforms = trimmed
+		print(f'[map01_scene DEBUG] trimmed {len(merged_platforms)-len(trimmed)} platform columns on left')
+	except Exception:
+		# if pygame or rect operations fail, keep original platforms
+		pass
+
 	# --- place a single 'hourglass' item on the top-most platform ---
 	items = []
 	try:
@@ -177,7 +214,7 @@ def run(screen, inventory=None):
 			item_w = int(tile_w * scale_int)
 			item_h = int(tile_h * scale_int)
 			# center item horizontally on the platform and place it on top
-			item_x = int(top_plat.left + (top_plat.width - item_w) // 2)
+			item_x = int(top_plat.left + (top_plat.width - item_w) // 2) - 48
 			item_y = int(top_plat.top - item_h)
 
 			# try to load hourglass image; fallback to item_clock.png if not found
@@ -238,6 +275,61 @@ def run(screen, inventory=None):
 	except Exception:
 		items = []
 
+	# --- Prepare Lamp Item (spawned after hourglass pickup) ---
+	lamp_item_data = None
+	try:
+		# Place lamp to the right of where the hourglass was
+		# We use the same platform logic or just offset from the hourglass position
+		lamp_x = 0
+		lamp_y = 0
+		if items:
+			# Use the first item (hourglass) as reference
+			ref_rect = items[0]['rect']
+			lamp_x = ref_rect.right + 20  # Reduced from 48 to keep on platform
+			lamp_y = ref_rect.y
+		else:
+			lamp_x = (map_pixel_w // 2) + 64
+			lamp_y = (map_pixel_h // 4)
+
+		item_w = int(tile_w * scale_int)
+		item_h = int(tile_h * scale_int)
+		
+		# Clamp to map
+		lamp_x = max(0, min(lamp_x, map_pixel_w - item_w))
+		lamp_y = max(0, min(lamp_y, map_pixel_h - item_h))
+
+		img_path = _find_asset('lamp.png') or _find_asset('item_lamp.png')
+		if img_path:
+			try:
+				img = pygame.image.load(img_path).convert_alpha()
+			except Exception:
+				img = None
+		else:
+			img = None
+
+		if img is not None:
+			iw, ih = img.get_size()
+			scale_x = max(1, item_w // iw)
+			scale_y = max(1, item_h // ih)
+			scale_use = min(scale_x, scale_y)
+			new_w = iw * scale_use
+			new_h = ih * scale_use
+			try:
+				img_scaled = pygame.transform.scale(img, (new_w, new_h))
+			except Exception:
+				img_scaled = img
+			surf = pygame.Surface((item_w, item_h), pygame.SRCALPHA)
+			offx = (item_w - new_w) // 2
+			offy = (item_h - new_h) // 2
+			surf.blit(img_scaled, (offx, offy))
+		else:
+			surf = pygame.Surface((item_w, item_h), pygame.SRCALPHA)
+			surf.fill((255, 255, 0)) # Yellow fallback
+
+		lamp_item_data = {'id': 'lamp', 'rect': pygame.Rect(lamp_x, lamp_y, item_w, item_h), 'sprite': surf}
+	except Exception:
+		pass
+
 	# create player near the top-center of the map (position above floor)
 	spawn_x = max(16, map_pixel_w // 2)
 	spawn_y = max(16, map_pixel_h // 4 - (tile_h * 2 * scale_int))
@@ -287,6 +379,10 @@ def run(screen, inventory=None):
 	stuck_above_timeout = 1.5
 	# how far above the top counts as 'stuck' (pixels)
 	stuck_above_limit = tile_h * 2 * scale_int
+
+	# Door shine state
+	door_shine_timer = 0.0
+	door_shine_period = 2.0
 
 	# debug font for on-screen state
 	try:
@@ -341,6 +437,19 @@ def run(screen, inventory=None):
 									items.remove(it)
 									print('Picked up', it.get('id'))
 							break
+
+		# Check for hourglass to spawn lamp and enable door shine
+		show_door_shine = False
+		if inventory and inventory.has_item('hourglass'):
+			show_door_shine = True
+			door_shine_timer += dt
+			if door_shine_timer > door_shine_period:
+				door_shine_timer -= door_shine_period
+			
+			# Spawn lamp if not present
+			if lamp_item_data and not any(it['id'] == 'lamp' for it in items) and not inventory.has_item('lamp'):
+				items.append(lamp_item_data)
+				print('[map01_scene DEBUG] Lamp spawned!')
 
 		# update
 		player.update(dt, platforms)
@@ -400,12 +509,25 @@ def run(screen, inventory=None):
 							# import here to avoid circular imports at module load time
 							try:
 								import main as main_mod
-								# call the main-run helper to start the boss test (boss2/3 hence the first one is deleted)
-								main_mod.run_boss_test('hollow')
+								boss_started = False
+								try:
+									main_mod.run_boss_cli('hollow')
+									boss_started = True
+								except AttributeError:
+									try:
+										main_mod.run_boss_test('hollow')
+										boss_started = True
+									except Exception as e:
+										print('[map01_scene DEBUG] failed to launch boss (fallback):', e)
+								except Exception as e:
+									print('[map01_scene DEBUG] failed to launch boss:', e)
+								if boss_started:
+									# return immediately so the map does not draw to a closed display
+									return
 							except Exception as e:
-								print('[map01_scene DEBUG] failed to launch boss:', e)
-							running = False
-							break
+								print('[map01_scene DEBUG] exception during boss launch:')
+								traceback.print_exc()
+								# continue with normal door behaviour
 					except Exception:
 						# ignore and continue with normal door behaviour
 						pass
@@ -429,6 +551,40 @@ def run(screen, inventory=None):
 
 		# draw
 		draw_map(screen, m, tiles_by_gid, scale=scale_int)
+
+		# Door arrow effect: minimalist white arrow pointing horizontally
+		if show_door_shine:
+			# Bobbing animation
+			bob = 4 * math.sin(door_shine_timer * 4.0)
+			map_center_x = map_pixel_w // 2
+			# Group doors by left/right side and skip the uppermost (smallest top) on each side
+			left_doors = [d for d in door_rects if d.centerx < map_center_x]
+			right_doors = [d for d in door_rects if d.centerx >= map_center_x]
+			skip_doors = []
+			if left_doors:
+				upper_left = min(left_doors, key=lambda r: r.top)
+				skip_doors.append(upper_left)
+			if right_doors:
+				upper_right = min(right_doors, key=lambda r: r.top)
+				skip_doors.append(upper_right)
+			for d in door_rects:
+				if d in skip_doors:
+					continue
+				# Move arrow down by one tile (map unit) to align with tile base
+				cy = d.centery + (tile_h * scale_int)
+				if d.centerx < map_center_x:
+					# Left door: arrow on right, pointing left
+					tip_x = d.right + 4 + bob
+					p1 = (tip_x, cy)
+					p2 = (tip_x + 8, cy - 6)
+					p3 = (tip_x + 8, cy + 6)
+				else:
+					# Right door: arrow on left, pointing right
+					tip_x = d.left - 4 - bob
+					p1 = (tip_x, cy)
+					p2 = (tip_x - 8, cy - 6)
+					p3 = (tip_x - 8, cy + 6)
+				pygame.draw.polygon(screen, (255, 255, 255), [p1, p2, p3])
 
 		# debug overlays removed so collision tiles are visible
 		# (platform and door debug rectangles were here and have been disabled)

@@ -57,7 +57,6 @@ You can directly test specific boss encounters:
 ```bash
 # Intro/Boss1: The First Attack (Hollow ambush)
 python main.py boss1
-python main.py intro
 
 # Boss 2: The Sloth (Procrastination)
 python main.py boss2
@@ -68,10 +67,19 @@ python main.py boss3
 
 ### Controls
 - **WASD**: Move
-- **Space**: Jump
-- **Mouse**: Aim & Shoot
-- **R**: Reset (during battle in Boss Test Mode)
-- **Space (Game Over)**: Continue (Boss Test Mode)
+- **W**: Jump (double jump available in boss battles)
+- **Mouse**: Aim direction
+- **Left Click**: Shoot (bullet type varies by boss)
+- **R**: Restart (on defeat)
+- **SPACE**: Continue (on victory)
+
+
+
+https://github.com/user-attachments/assets/8342c2e7-798e-4933-a2a0-3b14df6ebc09
+
+
+- Change attributes in globals.py if you need :)
+
 
 ### Puzzle Prototypes & Tools
 - Yume Nikki-style puzzle scene:

@@ -213,15 +213,22 @@ def draw_game_over_screen(screen, boss_scene):
     title_font = pygame.font.Font(None, 72)
     small_font = pygame.font.Font(None, 36)
 
-    if getattr(boss_scene, 'player', None) and boss_scene.player.health <= 0:
+    # Check if player defeated or boss defeated
+    player_defeated = getattr(boss_scene, 'player', None) and boss_scene.player.health <= 0
+    boss_defeated = getattr(boss_scene, 'boss', None) and boss_scene.boss.health <= 0
+    
+    if player_defeated:
         title = title_font.render("DEFEAT", True, g.COLORS.get('ui_health_low'))
-    elif getattr(boss_scene, 'boss', None) and boss_scene.boss.health <= 0:
+        sub_text = "Press R to restart"
+    elif boss_defeated:
         title = title_font.render("VICTORY!", True, g.COLORS.get('ui_health_high'))
+        sub_text = "Press SPACE to continue"
     else:
         title = title_font.render("GAME OVER", True, g.COLORS.get('ui_text'))
+        sub_text = "Press R to restart"
 
     screen.blit(title, title.get_rect(center=(g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2 - 20)))
-    sub = small_font.render("Press R to restart", True, g.COLORS.get('ui_text'))
+    sub = small_font.render(sub_text, True, g.COLORS.get('ui_text'))
     screen.blit(sub, sub.get_rect(center=(g.SCREENWIDTH // 2, g.SCREENHEIGHT // 2 + 40)))
 
 
@@ -291,7 +298,9 @@ def draw_ui_overlay(screen, boss_scene):
         meter_y = pane_rect.y + 42 + bar_height + 18
         meters = []
         if hasattr(boss, 'stress') and hasattr(boss, 'max_stress'):
-            meters.append((boss.stress, boss.max_stress, "Stress", (220, 120, 120)))
+            # Only show stress meter if boss is alive
+            if boss.health > 0:
+                meters.append((boss.stress, boss.max_stress, "Stress", (220, 120, 120)))
         if hasattr(boss, 'deadline_left') and hasattr(boss, 'deadline_total'):
             meters.append((boss.deadline_left, boss.deadline_total, "Deadline", (120, 200, 180)))
         meter_width = (pane_width - 60)
@@ -303,19 +312,18 @@ def draw_ui_overlay(screen, boss_scene):
             pill_color = (200, 120, 255) if getattr(boss, 'enraged', False) else (140, 200, 255)
             _draw_status_pill(screen, f"Phase {getattr(boss, 'phase', 1)}", (pane_rect.centerx, pane_rect.bottom - 16), pill_color)
 
-    # Bottom reading (controls + timers + debug info)
+    # Bottom reading (controls + timers)
     footer_height = 52
     footer_rect = pygame.Rect(0, g.SCREENHEIGHT - footer_height, g.SCREENWIDTH, footer_height)
     _draw_shadow_box(screen, footer_rect, alpha=200, radius=0)
     font = pygame.font.Font(None, 24)
-    controls = "WASD move  |  SPACE jump  |  LMB Voidfire  |  RMB Phase Blink  |  R restart  |  ESC exit"
+    controls = "WASD move  |  W jump (double)  |  Left Click shoot  |  R restart  |  ESC exit"
     screen.blit(font.render(controls, True, (230, 230, 230)), (40, g.SCREENHEIGHT - footer_height + 12))
 
-    # Right-aligned runtime info
+    # Right-aligned runtime info (without FPS)
     info_font = pygame.font.Font(None, 22)
     runtime = _format_time(getattr(boss_scene, 'elapsed_time', pygame.time.get_ticks() / 1000))
-    fps = int(pygame.time.Clock().get_fps()) if pygame.time.get_ticks() > 0 else g.FPS
-    info_text = f"{runtime}  |  {fps:02d} FPS"
+    info_text = f"Time: {runtime}"
     info_surf = info_font.render(info_text, True, (200, 200, 200))
     screen.blit(info_surf, info_surf.get_rect(bottomright=(g.SCREENWIDTH - 40, g.SCREENHEIGHT - 12)))
 
