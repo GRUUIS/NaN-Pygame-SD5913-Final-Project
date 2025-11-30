@@ -36,44 +36,282 @@ DIRECTION_MAP = {
 
 FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "Silver.ttf")
 
+# Blue Witch sprite settings
+BLUE_WITCH_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "sprites", "Blue_witch")
+WITCH_FRAME_WIDTH = 32
+WITCH_FRAME_HEIGHT = 32
+WITCH_SCALE = 2.0  # Slightly larger for better visibility
+WITCH_ANIMATION_SPEED = 0.08  # Faster animation for smoother walk cycle
+WITCH_RUN_FRAMES_TO_USE = 6  # Only use first 6 frames (walk cycle before jump)
+
 COLOR_BLACK = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_DREAM = (25, 15, 35)
 COLOR_TEXT = (200, 180, 220)
 
+# 门的配置
+DOOR_WIDTH = 64
+DOOR_HEIGHT = 96
+DOOR_COLOR = (80, 50, 100)  # 深紫色门
+DOOR_GLOW_COLOR = (150, 100, 200)  # 门的光晕
+
+# 8方向角色精灵设置
+GIRL_SPRITE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                "assets", "8Direction_TopDown_Character Sprites_ByBossNelNel", "SpriteSheet.png")
+GIRL_FRAME_WIDTH = 23   # 每帧宽度
+GIRL_FRAME_HEIGHT = 36  # 每帧高度
+GIRL_SCALE = 1.3        # 缩放比例
+GIRL_ANIMATION_SPEED = 0.1  # 动画速度
+
+# 8方向映射: 行索引对应方向
+# Row 0: down, Row 1: down-left, Row 2: left, Row 3: up-left
+# Row 4: up, Row 5: up-right, Row 6: right, Row 7: down-right
+DIRECTION_TO_ROW = {
+    'down': 0, 'down_left': 1, 'left': 2, 'up_left': 3,
+    'up': 4, 'up_right': 5, 'right': 6, 'down_right': 7
+}
+
+
+class Door:
+    """传送门类 - 变身后出现，触发跳转到下一关卡"""
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+        self.width = DOOR_WIDTH
+        self.height = DOOR_HEIGHT
+        self.visible = False
+        self.activated = False
+        self.appear_timer = 0.0
+        self.appear_duration = 1.5  # 门出现的动画时长
+        self.glow_phase = 0.0
+        self.surface = self._create_door_surface()
+        self.interaction_range = 50  # 交互范围
+        
+    def _create_door_surface(self):
+        """创建门的精灵图"""
+        surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        
+        # 门框外部
+        pygame.draw.rect(surface, (60, 40, 80), (0, 0, self.width, self.height), border_radius=8)
+        
+        # 门的主体
+        inner_rect = (6, 6, self.width - 12, self.height - 12)
+        pygame.draw.rect(surface, DOOR_COLOR, inner_rect, border_radius=4)
+        
+        # 门的装饰 - 神秘符文
+        center_x, center_y = self.width // 2, self.height // 2
+        pygame.draw.circle(surface, (120, 80, 160), (center_x, center_y - 10), 18, 2)
+        pygame.draw.circle(surface, (120, 80, 160), (center_x, center_y - 10), 8)
+        
+        # 门把手
+        pygame.draw.circle(surface, (180, 140, 100), (self.width - 16, center_y + 15), 5)
+        pygame.draw.circle(surface, (200, 160, 120), (self.width - 16, center_y + 15), 3)
+        
+        # 门框高光
+        pygame.draw.line(surface, (100, 70, 130), (8, 10), (8, self.height - 10), 2)
+        
+        # 门顶装饰
+        pygame.draw.arc(surface, (100, 70, 140), (8, -20, self.width - 16, 50), 0, 3.14, 3)
+        
+        return surface
+    
+    def show(self):
+        """显示门（带动画）"""
+        self.visible = True
+        self.appear_timer = 0.0
+    
+    def is_near(self, char_x: float, char_y: float, range_override: float = None) -> bool:
+        """检查角色是否在门附近"""
+        if not self.visible:
+            return False
+        
+        check_range = range_override if range_override else self.interaction_range
+        door_center_x = self.x + self.width // 2
+        door_center_y = self.y + self.height // 2
+        
+        dist = math.sqrt((char_x - door_center_x)**2 + (char_y - door_center_y)**2)
+        return dist < check_range
+    
+    def interact(self):
+        """与门交互"""
+        if self.visible and not self.activated:
+            self.activated = True
+            return True
+        return False
+    
+    def update(self, dt: float):
+        """更新门的状态"""
+        if self.visible:
+            self.appear_timer += dt
+            self.glow_phase += dt * 2.0
+    
+    def draw(self, screen: pygame.Surface, offset_x: float, offset_y: float):
+        """绘制门"""
+        if not self.visible:
+            return
+        
+        draw_x = self.x + offset_x
+        draw_y = self.y + offset_y
+        
+        # 计算出现动画的透明度
+        appear_alpha = min(1.0, self.appear_timer / self.appear_duration)
+        
+        # 门的光晕效果
+        glow_intensity = (math.sin(self.glow_phase) + 1) * 0.3 + 0.4
+        glow_surface = pygame.Surface((self.width + 60, self.height + 60), pygame.SRCALPHA)
+        
+        for r in range(30, 5, -5):
+            alpha = int(40 * glow_intensity * appear_alpha * (1 - r / 30))
+            pygame.draw.ellipse(glow_surface, (*DOOR_GLOW_COLOR, alpha),
+                              (30 - r, 30 - r, self.width + r * 2, self.height + r * 2))
+        
+        screen.blit(glow_surface, (draw_x - 30, draw_y - 30))
+        
+        # 绘制门本身
+        door_copy = self.surface.copy()
+        door_copy.set_alpha(int(255 * appear_alpha))
+        
+        # 门出现时的缩放动画
+        if appear_alpha < 1.0:
+            scale = 0.5 + 0.5 * appear_alpha
+            scaled_w = int(self.width * scale)
+            scaled_h = int(self.height * scale)
+            door_copy = pygame.transform.scale(door_copy, (scaled_w, scaled_h))
+            draw_x += (self.width - scaled_w) // 2
+            draw_y += (self.height - scaled_h) // 2
+        
+        screen.blit(door_copy, (draw_x, draw_y))
+        
+        # 传送门激活特效
+        if self.activated:
+            portal_surf = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            flash_alpha = int(200 * (1 + math.sin(self.glow_phase * 3)) / 2)
+            pygame.draw.rect(portal_surf, (200, 150, 255, flash_alpha), 
+                           (10, 10, self.width - 20, self.height - 20), border_radius=4)
+            screen.blit(portal_surf, (self.x + offset_x, self.y + offset_y))
+
 
 class Character:
-    """角色类 - 使用8方向精灵"""
-    def __init__(self, sprite_path: str, x: float, y: float):
+    """角色类 - 初始为Blue Witch，收集碎片后变身为小女孩（带行走动画）"""
+    def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
         self.speed = 120.0
-        self.sprite_sheet = pygame.image.load(sprite_path).convert_alpha()
-        self.frames = self._load_frames()
-        self.direction = 'down'
+        self.witch_sprite = self._load_witch_sprite()
+        self.girl_frames = self._load_girl_frames()  # 8方向动画帧
+        self.direction = 'down'  # 8方向
         self.is_moving = False
-        self.frame_index = 0
-        self.animation_timer = 0.0
         self.collision_width = 16
         self.collision_height = 12
+        self.transformed = False
+        self.transform_effect_timer = 0
+        self.transform_effect_active = False
+        self.frame_index = 0
+        self.animation_timer = 0.0
     
-    def _load_frames(self) -> dict:
-        frames = {}
-        for dir_name, row in DIRECTION_MAP.items():
-            frames[dir_name] = []
-            for col in range(9):
-                rect = pygame.Rect(col * CHAR_FRAME_WIDTH, row * CHAR_FRAME_HEIGHT,
-                                   CHAR_FRAME_WIDTH, CHAR_FRAME_HEIGHT)
-                frame = self.sprite_sheet.subsurface(rect)
-                scaled = pygame.transform.scale(frame,
-                    (int(CHAR_FRAME_WIDTH * CHAR_SCALE), int(CHAR_FRAME_HEIGHT * CHAR_SCALE)))
-                frames[dir_name].append(scaled)
-        return frames
+    def _load_witch_sprite(self):
+        """加载小女巫精灵图（静态）"""
+        idle_path = os.path.join(BLUE_WITCH_DIR, "B_witch_idle.png")
+        
+        try:
+            sprite_sheet = pygame.image.load(idle_path).convert_alpha()
+            first_frame = sprite_sheet.subsurface(pygame.Rect(0, 0, 32, 32))
+            scaled = pygame.transform.scale(first_frame, (64, 64))
+            return scaled
+        except Exception as e:
+            print(f"Warning: Could not load witch sprite: {e}")
+            placeholder = pygame.Surface((64, 64), pygame.SRCALPHA)
+            pygame.draw.circle(placeholder, (100, 100, 200), (32, 32), 20)
+            return placeholder
+    
+    def _load_girl_frames(self):
+        """加载小女孩8方向行走动画帧"""
+        frames = {}  # {direction: [idle_frame, walk1, walk2, ...]}
+        
+        try:
+            sprite_sheet = pygame.image.load(GIRL_SPRITE_PATH).convert_alpha()
+            
+            # 8个方向，每行36像素高
+            # 交换left和right的映射
+            directions = ['down', 'down_right', 'right', 'up_right', 'up', 'up_left', 'left', 'down_left']
+            row_height = 36  # 行间距
+            
+            for row, direction in enumerate(directions):
+                frames[direction] = []
+                # 9列: 第0列是idle，第1-8列是行走动画
+                for col in range(9):
+                    x = col * GIRL_FRAME_WIDTH
+                    y = row * row_height  # 使用行间距
+                    
+                    # 确保不超出边界
+                    if x + GIRL_FRAME_WIDTH <= sprite_sheet.get_width() and y + GIRL_FRAME_HEIGHT <= sprite_sheet.get_height():
+                        frame = sprite_sheet.subsurface(pygame.Rect(x, y, GIRL_FRAME_WIDTH, GIRL_FRAME_HEIGHT))
+                        # 缩放
+                        scaled_w = int(GIRL_FRAME_WIDTH * GIRL_SCALE)
+                        scaled_h = int(GIRL_FRAME_HEIGHT * GIRL_SCALE)
+                        scaled = pygame.transform.scale(frame, (scaled_w, scaled_h))
+                        frames[direction].append(scaled)
+                
+                # 确保至少有一帧
+                if not frames[direction]:
+                    placeholder = pygame.Surface((int(GIRL_FRAME_WIDTH * GIRL_SCALE), 
+                                                 int(GIRL_FRAME_HEIGHT * GIRL_SCALE)), pygame.SRCALPHA)
+                    pygame.draw.circle(placeholder, (255, 200, 150), 
+                                     (int(GIRL_FRAME_WIDTH * GIRL_SCALE // 2), 
+                                      int(GIRL_FRAME_HEIGHT * GIRL_SCALE // 2)), 10)
+                    frames[direction] = [placeholder]
+            
+            return frames
+        except Exception as e:
+            print(f"Warning: Could not load girl sprite sheet: {e}")
+            # 创建占位符
+            placeholder = pygame.Surface((int(GIRL_FRAME_WIDTH * GIRL_SCALE), 
+                                         int(GIRL_FRAME_HEIGHT * GIRL_SCALE)), pygame.SRCALPHA)
+            pygame.draw.circle(placeholder, (255, 200, 150), 
+                             (int(GIRL_FRAME_WIDTH * GIRL_SCALE // 2), 
+                              int(GIRL_FRAME_HEIGHT * GIRL_SCALE // 2)), 10)
+            return {d: [placeholder] for d in ['down', 'down_left', 'left', 'up_left', 'up', 'up_right', 'right', 'down_right']}
+    
+    def transform_to_girl(self):
+        """变身为小女孩"""
+        if not self.transformed:
+            self.transformed = True
+            self.transform_effect_active = True
+            self.transform_effect_timer = 0
+    
+    def _get_direction_from_input(self, dx, dy):
+        """根据输入获取8方向"""
+        if dx == 0 and dy == 0:
+            return self.direction
+        
+        if dx > 0 and dy > 0:
+            return 'down_right'
+        elif dx < 0 and dy > 0:
+            return 'down_left'
+        elif dx > 0 and dy < 0:
+            return 'up_right'
+        elif dx < 0 and dy < 0:
+            return 'up_left'
+        elif dx > 0:
+            return 'right'
+        elif dx < 0:
+            return 'left'
+        elif dy > 0:
+            return 'down'
+        else:
+            return 'up'
     
     def update(self, dt: float, dx: float, dy: float, collision_check=None):
+        # 更新变身特效
+        if self.transform_effect_active:
+            self.transform_effect_timer += dt
+            if self.transform_effect_timer >= 1.5:
+                self.transform_effect_active = False
+        
         if dx != 0 or dy != 0:
             self.is_moving = True
-            self.direction = self._get_direction(dx, dy)
+            self.direction = self._get_direction_from_input(dx, dy)
+            
             if dx != 0 and dy != 0:
                 dx *= 0.7071
                 dy *= 0.7071
@@ -89,31 +327,67 @@ class Character:
         else:
             self.is_moving = False
         
-        self.animation_timer += dt
-        if self.is_moving:
-            if self.animation_timer >= ANIMATION_SPEED:
-                self.animation_timer -= ANIMATION_SPEED
-                self.frame_index = (self.frame_index % 8) + 1
-        else:
-            if self.animation_timer >= ANIMATION_SPEED * 2:
+        # 更新动画帧（变身后）
+        if self.transformed:
+            self.animation_timer += dt
+            if self.animation_timer >= GIRL_ANIMATION_SPEED:
                 self.animation_timer = 0
-                self.frame_index = 0
-    
-    def _get_direction(self, dx, dy):
-        if dx > 0 and dy > 0: return 'down_right'
-        elif dx < 0 and dy > 0: return 'down_left'
-        elif dx > 0 and dy < 0: return 'up_right'
-        elif dx < 0 and dy < 0: return 'up_left'
-        elif dx > 0: return 'right'
-        elif dx < 0: return 'left'
-        elif dy > 0: return 'down'
-        return 'up'
+                if self.is_moving:
+                    # 行走动画使用第1-8帧（跳过第0帧idle）
+                    frames = self.girl_frames.get(self.direction, self.girl_frames['down'])
+                    if len(frames) > 1:
+                        self.frame_index = ((self.frame_index) % 8) + 1  # 1-8循环
+                        if self.frame_index >= len(frames):
+                            self.frame_index = 1
+                else:
+                    self.frame_index = 0  # idle帧
     
     def draw(self, surface, offset_x=0, offset_y=0):
-        frame = self.frames[self.direction][self.frame_index]
-        draw_x = self.x + offset_x - frame.get_width() // 2
-        draw_y = self.y + offset_y - frame.get_height() + self.collision_height
-        surface.blit(frame, (draw_x, draw_y))
+        # 选择当前精灵
+        if self.transformed:
+            # 变身后使用8方向动画
+            frames = self.girl_frames.get(self.direction, self.girl_frames['down'])
+            frame_idx = min(self.frame_index, len(frames) - 1)
+            sprite = frames[frame_idx]
+        else:
+            # 变身前使用小女巫静态图
+            sprite = self.witch_sprite
+            # 根据方向翻转（小女巫只有左右）
+            if self.direction in ['left', 'up_left', 'down_left']:
+                sprite = pygame.transform.flip(sprite, True, False)
+        
+        # 绘制位置
+        draw_x = self.x + offset_x - sprite.get_width() // 2
+        draw_y = self.y + offset_y - sprite.get_height() + 12
+        
+        # 变身特效 - 发光效果
+        if self.transform_effect_active:
+            # 计算光芒强度
+            t = self.transform_effect_timer
+            if t < 0.5:
+                glow_intensity = t / 0.5  # 渐强
+            elif t < 1.0:
+                glow_intensity = 1.0  # 最强
+            else:
+                glow_intensity = max(0, 1.0 - (t - 1.0) / 0.5)  # 渐弱
+            
+            # 绘制多层发光
+            for i in range(3):
+                glow_size = max(1, int(40 + i * 20 + 10 * math.sin(t * 10)))
+                glow_surf = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+                glow_alpha = max(0, min(255, int(100 * glow_intensity * (1 - i * 0.3))))
+                # 金色/白色光芒 - 确保颜色值在0-255范围内
+                r = min(255, 255)
+                g = min(255, 220 + i * 10)
+                b = min(255, 150 + i * 20)
+                color = (r, g, b, glow_alpha)
+                pygame.draw.circle(glow_surf, color, (glow_size, glow_size), glow_size)
+                glow_x = draw_x + sprite.get_width() // 2 - glow_size
+                glow_y = draw_y + sprite.get_height() // 2 - glow_size
+                surface.blit(glow_surf, (glow_x, glow_y), special_flags=pygame.BLEND_ADD)
+        
+        # 绘制精灵
+        surface.blit(sprite, (draw_x, draw_y))
 
 
 class DreamEffect:
@@ -529,7 +803,7 @@ class BurningEffect:
         for flame in self.flames:
             fx = flame['x'] + offset_x
             fy = flame['y'] + offset_y
-            life_ratio = max(0, flame['life'] / flame['max_life'])
+            life_ratio = max(0.0, min(1.0, flame['life'] / flame['max_life']))
             
             if flame['hue'] < 0.4:
                 color = (255, int(220 * life_ratio), 50)
@@ -540,7 +814,7 @@ class BurningEffect:
             
             size = max(2, int(flame['size']))
             flame_surf = pygame.Surface((size*2, size*2), pygame.SRCALPHA)
-            alpha = int(220 * life_ratio)
+            alpha = max(0, min(255, int(220 * life_ratio)))
             pygame.draw.circle(flame_surf, (*color, alpha), (size, size), size)
             surface.blit(flame_surf, (fx - size, fy - size))
 
@@ -664,14 +938,10 @@ class PaintingRoomPuzzle:
         
         self._generate_map()
         
-        sprite_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "assets", "8Direction_TopDown_Character Sprites_ByBossNelNel", "SpriteSheet.png"
-        )
-        
+        # Character now uses Blue Witch sprites directly
         spawn_x = 13 * TILE_SIZE + TILE_SIZE // 2
         spawn_y = 14 * TILE_SIZE + TILE_SIZE // 2
-        self.character = Character(sprite_path, spawn_x, spawn_y)
+        self.character = Character(spawn_x, spawn_y)
         
         self.dialogue = DialogueBox(SCREEN_WIDTH, SCREEN_HEIGHT)
         self.dream_effect = DreamEffect(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -681,6 +951,15 @@ class PaintingRoomPuzzle:
         self.game_complete = False
         self.burning_started = False
         self.burn_delay_timer = 0
+        
+        # 创建传送门（位于房间中央）
+        door_x = (MAP_WIDTH // 2) * TILE_SIZE - DOOR_WIDTH // 2
+        door_y = (MAP_HEIGHT // 2) * TILE_SIZE - DOOR_HEIGHT // 2 - TILE_SIZE
+        self.exit_door = Door(door_x, door_y)
+        self.door_shown = False
+        self.transition_to_next = False  # 跳转到下一关卡的标志
+        self.transition_timer = 0.0
+        self.transition_duration = 2.0  # 跳转动画时长
         
         self.dialogue.show("Welcome to the Painting Room...\nCollect 6 fragments of the shattered masterpiece.")
     
@@ -811,11 +1090,18 @@ class PaintingRoomPuzzle:
                     elif event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
                         if self.dialogue.active:
                             self.dialogue.skip()
+                        elif self.exit_door.visible and self.exit_door.is_near(self.character.x, self.character.y):
+                            # 与门交互，触发跳转
+                            self._trigger_door_transition()
                         else:
                             self._try_collect()
                     elif event.key == pygame.K_c:
                         if not self.dialogue.active:
                             self._try_collect()
+                    elif event.key == pygame.K_e:
+                        # E键也可以与门交互
+                        if self.exit_door.visible and self.exit_door.is_near(self.character.x, self.character.y):
+                            self._trigger_door_transition()
             
             if not self.dialogue.active and not self.absorption_effect.active:
                 keys = pygame.key.get_pressed()
@@ -850,7 +1136,29 @@ class PaintingRoomPuzzle:
                 self.absorption_effect.update(dt, self.character.x, self.character.y)
                 if self.absorption_effect.complete and not self.game_complete:
                     self.game_complete = True
-                    self.dialogue.show("The flames of creation flow into your soul...\n\n[FIRE SOUL] acquired!")
+                    # 触发变身！小女巫变成小女孩
+                    self.character.transform_to_girl()
+                    self.dream_effect.flash((255, 220, 150), 200)
+                    self.dream_effect.shake(0.8, 8)
+                    self.dialogue.show("The flames of creation flow into your soul...\nYou feel yourself changing...\n\n[FIRE SOUL] acquired!")
+            
+            # 变身完成后显示门
+            if self.game_complete and not self.door_shown and self.character.transformed:
+                # 等待变身特效结束后显示门
+                if not self.character.transform_effect_active:
+                    self.door_shown = True
+                    self.exit_door.show()
+                    self.dream_effect.flash((150, 100, 200), 150)
+                    self.dialogue.show("A mysterious door appears before you...\nPerhaps it leads to the next dream?")
+            
+            # 更新门
+            self.exit_door.update(dt)
+            
+            # 处理跳转动画
+            if self.transition_to_next:
+                self.transition_timer += dt
+                if self.transition_timer >= self.transition_duration:
+                    running = False  # 结束当前关卡
             
             self._render()
             pygame.display.flip()
@@ -882,6 +1190,16 @@ class PaintingRoomPuzzle:
                     'duration': 0.9
                 })
                 return
+    
+    def _trigger_door_transition(self):
+        """触发门的跳转"""
+        if not self.transition_to_next and self.exit_door.visible:
+            self.transition_to_next = True
+            self.transition_timer = 0.0
+            self.exit_door.interact()
+            self.dream_effect.flash((200, 150, 255), 250)
+            self.dream_effect.shake(0.5, 5)
+            self.dialogue.show("Stepping through the portal...\nA new dream awaits...")
     
     def _update_flying_fragments(self, dt):
         for flying in self.flying_fragments[:]:
@@ -946,8 +1264,28 @@ class PaintingRoomPuzzle:
             self.screen.blit(rotated, rect)
         
         self.burning_effect.draw(self.screen, total_offset_x, total_offset_y)
+        
+        # 绘制门（在角色之前，这样角色可以覆盖部分门）
+        self.exit_door.draw(self.screen, total_offset_x, total_offset_y)
+        
         self.character.draw(self.screen, total_offset_x, total_offset_y)
         self.absorption_effect.draw(self.screen, total_offset_x, total_offset_y, self.character.x, self.character.y)
+        
+        # 门的交互提示
+        if self.exit_door.visible and not self.transition_to_next and not self.dialogue.active:
+            if self.exit_door.is_near(self.character.x, self.character.y, 70):
+                try:
+                    font = pygame.font.Font(FONT_PATH, 18)
+                except:
+                    font = pygame.font.Font(None, 18)
+                hint = font.render("Press SPACE or E to enter", True, (180, 150, 255))
+                hx = self.exit_door.x + total_offset_x + DOOR_WIDTH // 2 - hint.get_width() // 2
+                hy = self.exit_door.y + total_offset_y - 30
+                bg = pygame.Surface((hint.get_width() + 14, hint.get_height() + 8), pygame.SRCALPHA)
+                bg.fill((0, 0, 0, 180))
+                pygame.draw.rect(bg, (120, 80, 160), (0, 0, bg.get_width(), bg.get_height()), 1)
+                self.screen.blit(bg, (hx - 7, hy - 4))
+                self.screen.blit(hint, (hx, hy))
         
         if not self.dialogue.active and not self.burning_effect.active:
             for frag in self.fragments:
@@ -984,6 +1322,33 @@ class PaintingRoomPuzzle:
         if self.game_complete:
             status = font.render("[FIRE SOUL] Absorbed", True, (255, 180, 80))
             self.screen.blit(status, (SCREEN_WIDTH//2 - status.get_width()//2, SCREEN_HEIGHT - 50))
+        
+        # 跳转时的淡出效果
+        if self.transition_to_next:
+            fade_progress = min(1.0, self.transition_timer / self.transition_duration)
+            fade_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            
+            # 先是紫色光芒，然后淡出到白色
+            if fade_progress < 0.5:
+                # 紫色光芒阶段
+                alpha = int(200 * (fade_progress * 2))
+                fade_surface.fill((150, 100, 200, alpha))
+            else:
+                # 白色淡出阶段
+                alpha = int(255 * ((fade_progress - 0.5) * 2))
+                fade_surface.fill((255, 255, 255, alpha))
+            
+            self.screen.blit(fade_surface, (0, 0))
+            
+            # 显示跳转文字
+            try:
+                trans_font = pygame.font.Font(FONT_PATH, 32)
+            except:
+                trans_font = pygame.font.Font(None, 32)
+            trans_text = trans_font.render("Entering the next dream...", True, (255, 255, 255))
+            text_alpha = int(255 * min(1.0, fade_progress * 2))
+            trans_text.set_alpha(text_alpha)
+            self.screen.blit(trans_text, (SCREEN_WIDTH//2 - trans_text.get_width()//2, SCREEN_HEIGHT//2 - 20))
         
         self.dialogue.draw(self.screen)
 
