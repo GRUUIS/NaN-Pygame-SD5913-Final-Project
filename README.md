@@ -57,7 +57,6 @@ You can directly test specific boss encounters:
 ```bash
 # Intro/Boss1: The First Attack (Hollow ambush)
 python main.py boss1
-python main.py intro
 
 # Boss 2: The Sloth (Procrastination)
 python main.py boss2
