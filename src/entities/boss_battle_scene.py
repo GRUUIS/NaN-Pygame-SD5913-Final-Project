@@ -35,6 +35,11 @@ class BossBattleScene:
         self.ui = UIManager()
         self._shown_victory = False
         self._shown_entry = False
+        # Transition states
+        self._victory_transition = False
+        self._defeat_shown = False
+        self._transition_timer = 0.0
+        self._earthquake_timer = 0.0
         # Idle penalty tracking
         self._idle_timer = 0.0
         self._idle_spawn_timer = 0.0
@@ -95,6 +100,32 @@ class BossBattleScene:
                 pygame.mixer.music.play(-1)
         except Exception as e:
             print(f"Failed to load BGM: {e}")
+        
+        # Load SFX
+        self.defeat_sfx = None
+        self.victory_sfx = None
+        self.earthquake_sfx = None
+        self.fade_sfx = None
+        try:
+            self.defeat_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'player_defeat.wav'))
+            self.defeat_sfx.set_volume(0.5)
+        except Exception:
+            pass
+        try:
+            self.victory_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'victory_fanfare.wav'))
+            self.victory_sfx.set_volume(0.6)
+        except Exception:
+            pass
+        try:
+            self.earthquake_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'earthquake_rumble.wav'))
+            self.earthquake_sfx.set_volume(0.7)
+        except Exception:
+            pass
+        try:
+            self.fade_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'white_fade.wav'))
+            self.fade_sfx.set_volume(0.5)
+        except Exception:
+            pass
         #endregion Initialization
 
     def _create_boss(self):
@@ -115,6 +146,21 @@ class BossBattleScene:
     #region Update Loop
     def update(self, dt: float):
         """Update the entire battle scene"""
+        self._last_dt = dt  # Store for transition effects
+        # Handle victory transition
+        if self._victory_transition:
+            self._transition_timer += dt
+            if isinstance(self.boss, TheHollow):
+                self._earthquake_timer += dt
+            return
+        
+        # Handle defeat
+        if self.player.health <= 0 and not self._defeat_shown:
+            self._defeat_shown = True
+            if self.defeat_sfx:
+                self.defeat_sfx.play()
+            return
+        
         if not self.is_game_over():
             # Update entities
             # Full width movement
@@ -159,6 +205,23 @@ class BossBattleScene:
             
             # Check bullet collisions
             self.bullet_manager.check_collisions(self.player, self.boss)
+            
+            # Check for boss defeat to start transition
+            if self.boss.health <= 0 and not self._victory_transition:
+                if hasattr(self.boss, 'fully_defeated') and self.boss.fully_defeated:
+                    self._victory_transition = True
+                    self._transition_timer = 0.0
+                    if self.victory_sfx:
+                        self.victory_sfx.play()
+                    if isinstance(self.boss, TheHollow):
+                        if self.earthquake_sfx:
+                            self.earthquake_sfx.play()
+                        self._earthquake_timer = 0.0
+                elif not hasattr(self.boss, 'fully_defeated'):
+                    self._victory_transition = True
+                    self._transition_timer = 0.0
+                    if self.victory_sfx:
+                        self.victory_sfx.play()
 
             # Idle penalty: spawn void shards above player if idle too long (escalating)
             moving = abs(self.player.vx) > 10 or not self.player.on_ground
@@ -229,6 +292,35 @@ class BossBattleScene:
                 draw_game_over_screen(screen, self)
             except Exception:
                 pass
+        
+        # Victory transition overlay for Hollow (earthquake + white fade)
+        if self._victory_transition and isinstance(self.boss, TheHollow):
+            # Earthquake shake
+            shake_intensity = max(0, 1.5 - self._earthquake_timer)
+            if shake_intensity > 0:
+                import random
+                shake_x = random.uniform(-8 * shake_intensity, 8 * shake_intensity)
+                shake_y = random.uniform(-8 * shake_intensity, 8 * shake_intensity)
+                temp_surf = screen.copy()
+                screen.fill((0, 0, 0))
+                screen.blit(temp_surf, (int(shake_x), int(shake_y)))
+            
+            # White fade overlay
+            fade_start = 1.5
+            if self._transition_timer > fade_start:
+                alpha = min(255, int((self._transition_timer - fade_start) * 200))
+                fade_overlay = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT))
+                fade_overlay.fill((255, 255, 255))
+                fade_overlay.set_alpha(alpha)
+                screen.blit(fade_overlay, (0, 0))
+                
+                if self._transition_timer > fade_start + 0.5 and self.fade_sfx and not getattr(self, '_fade_played', False):
+                    self.fade_sfx.play()
+                    self._fade_played = True
+            
+            # Player descends (visual effect)
+            if self._transition_timer > 0.5:
+                self.player.y += 150 * getattr(self, '_last_dt', 0.016)
         
         # Draw active spikes
         if self.spikes_active:

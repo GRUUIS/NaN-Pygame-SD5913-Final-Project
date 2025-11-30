@@ -34,6 +34,11 @@ class SlothBattleScene:
         self._shown_entry = False
         self._shown_victory = False
         self._last_boss_health = getattr(self.boss, 'health', 0)
+        # Transition states
+        self._victory_transition = False
+        self._defeat_shown = False
+        self._transition_timer = 0.0
+        self._dandelion_particles = []
 
         ground_h = 78
         ground_top = g.SCREENHEIGHT - ground_h
@@ -63,6 +68,26 @@ class SlothBattleScene:
             pygame.mixer.music.play(-1) # Loop
         except Exception as e:
             print(f"Failed to load Sloth BGM: {e}")
+        
+        # Load SFX
+        self.defeat_sfx = None
+        self.victory_sfx = None
+        self.dandelion_sfx = None
+        try:
+            self.defeat_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'player_defeat.wav'))
+            self.defeat_sfx.set_volume(0.5)
+        except Exception:
+            pass
+        try:
+            self.victory_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'victory_fanfare.wav'))
+            self.victory_sfx.set_volume(0.6)
+        except Exception:
+            pass
+        try:
+            self.dandelion_sfx = pygame.mixer.Sound(os.path.join('assets', 'sfx', 'dandelion_float.wav'))
+            self.dandelion_sfx.set_volume(0.5)
+        except Exception:
+            pass
 
     # --- Internal helpers ---
     def _load_background(self):
@@ -173,6 +198,21 @@ class SlothBattleScene:
 
     # --- Public API ---
     def update(self, dt: float):
+        self._last_dt = dt  # Store for transitions
+        
+        # Handle victory transition
+        if self._victory_transition:
+            self._transition_timer += dt
+            self._update_dandelion_particles(dt)
+            return
+        
+        # Handle defeat
+        if self.player.health <= 0 and not self._defeat_shown:
+            self._defeat_shown = True
+            if self.defeat_sfx:
+                self.defeat_sfx.play()
+            return
+        
         if not self.is_game_over():
             self.player.update(dt, self.platforms)
             self.boss.update(dt, self.player, self.bullet_manager)
@@ -190,6 +230,26 @@ class SlothBattleScene:
                     x,y,dx,dy = info
                     speed = g.BULLET_SPEEDS['player']
                     self.bullet_manager.add_bullet(x,y,dx*speed,dy*speed,'player','player')
+            
+            # Check for boss defeat
+            if self.boss.health <= 0 and not self._victory_transition:
+                if hasattr(self.boss, 'fully_defeated') and self.boss.fully_defeated:
+                    self._victory_transition = True
+                    self._transition_timer = 0.0
+                    if self.victory_sfx:
+                        self.victory_sfx.play()
+                    if self.dandelion_sfx:
+                        self.dandelion_sfx.play()
+                    self._spawn_dandelions()
+                elif not hasattr(self.boss, 'fully_defeated'):
+                    self._victory_transition = True
+                    self._transition_timer = 0.0
+                    if self.victory_sfx:
+                        self.victory_sfx.play()
+                    if self.dandelion_sfx:
+                        self.dandelion_sfx.play()
+                    self._spawn_dandelions()
+            
             # Debug health prints
             if g.DEBUG_MODE and self._last_boss_health != self.boss.health:
                 print(f"Boss health: {self.boss.health}/{self.boss.max_health}")
@@ -213,6 +273,28 @@ class SlothBattleScene:
                 draw_game_over_screen(screen, self)
             except Exception:
                 pass
+        
+        # Victory transition: dandelion float
+        if self._victory_transition:
+            # Draw dandelion particles
+            for p in self._dandelion_particles:
+                surf = pygame.Surface((int(p['size']*2), int(p['size']*2)), pygame.SRCALPHA)
+                pygame.draw.circle(surf, (255, 255, 230, int(p['alpha'])), (int(p['size']), int(p['size'])), int(p['size']))
+                screen.blit(surf, (int(p['x']), int(p['y'])))
+            
+            # Player floats upward
+            if self._transition_timer > 0.3:
+                self.player.y -= 100 * getattr(self, '_last_dt', 0.016)
+            
+            # Fade to white
+            fade_start = 1.5
+            if self._transition_timer > fade_start:
+                alpha = min(255, int((self._transition_timer - fade_start) * 180))
+                fade_overlay = pygame.Surface((g.SCREENWIDTH, g.SCREENHEIGHT))
+                fade_overlay.fill((255, 250, 240))
+                fade_overlay.set_alpha(alpha)
+                screen.blit(fade_overlay, (0, 0))
+        
         if g.SHOW_DEBUG_INFO:
             self._draw_debug(screen)
 
@@ -225,6 +307,28 @@ class SlothBattleScene:
         ]
         for i,l in enumerate(lines):
             screen.blit(font.render(l,True,(220,230,220)), (8, g.SCREENHEIGHT-120 + i*20))
+    
+    def _spawn_dandelions(self):
+        """Create dandelion particles around player"""
+        import random
+        px, py = self.player.x + self.player.width/2, self.player.y + self.player.height/2
+        for _ in range(12):
+            self._dandelion_particles.append({
+                'x': px + random.uniform(-30, 30),
+                'y': py + random.uniform(-30, 30),
+                'vx': random.uniform(-20, 20),
+                'vy': random.uniform(-80, -40),
+                'size': random.uniform(3, 8),
+                'alpha': 255
+            })
+    
+    def _update_dandelion_particles(self, dt):
+        """Update dandelion particle positions"""
+        for p in self._dandelion_particles:
+            p['x'] += p['vx'] * dt
+            p['y'] += p['vy'] * dt
+            p['alpha'] = max(0, p['alpha'] - 60 * dt)
+        self._dandelion_particles = [p for p in self._dandelion_particles if p['alpha'] > 0]
 
     def is_game_over(self):
         if self.player.health <= 0:
