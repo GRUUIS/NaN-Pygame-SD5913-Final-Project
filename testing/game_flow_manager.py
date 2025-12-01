@@ -1,6 +1,6 @@
 """
 游戏流程管理器
-整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> Boss1剧情战 -> 镜子房间 -> Boss2 -> 画作房
+整合游戏的多个场景：初始菜单 -> 解谜场景 -> 梦境解谜 -> 梦境过渡 -> Boss1剧情战 -> Map01探索 -> 镜子房间 -> Boss2 -> 画作房 -> Boss3
 
 场景流程：
 1. combine/game.py 的菜单界面（初始界面）
@@ -8,9 +8,11 @@
 3. testing/first_dream_puzzle.py 的梦境解谜场景（4个谜题）
 4. testing/dream_transition_scene.py 的梦境过渡场景（主角转换为小女巫）
 5. src/scenes/boss1_scripted_scene.py 的 Boss1 剧情战斗场景（玩家被秒杀）
-6. testing/mirror_room_puzzle.py 的镜子房间谜题
-7. src/entities/sloth_battle_scene.py 的 Boss2 战斗场景 (The Sloth)
-8. testing/painting_room_puzzle.py 的画作房谜题
+6. testing/map01_final.py 的 Map01 探索场景
+7. testing/mirror_room_puzzle.py 的镜子房间谜题
+8. src/entities/sloth_battle_scene.py 的 Boss2 战斗场景 (The Sloth)
+9. testing/painting_room_puzzle.py 的画作房谜题
+10. src/entities/boss_battle_scene.py 的 Boss3 战斗场景 (The Hollow - 最终BOSS)
 
 按 Z 键可以跳过任何关卡。
 在解谜场景中，玩家走到门前（坐标 21,12 和 21,13）右键点击可跳转到梦境场景。
@@ -1041,7 +1043,23 @@ def main():
             print(f'Boss1 场景加载失败: {e}')
             traceback.print_exc()
     
-    # 第六阶段：镜子房间谜题
+    # 第六阶段：Map01 探索场景
+    if puzzle_result == 'next':
+        print("进入 Map01 探索场景...")
+        try:
+            from testing.map01_final import run as run_map01
+            map01_result = run_map01(screen)
+            
+            if map01_result == 'quit':
+                pygame.quit()
+                return
+        except Exception as e:
+            import traceback
+            print(f'Map01 场景加载失败: {e}')
+            traceback.print_exc()
+            map01_result = 'next'  # 失败则跳过
+    
+    # 第七阶段：镜子房间谜题
     if puzzle_result == 'next':
         print("进入镜子房间...")
         try:
@@ -1057,7 +1075,7 @@ def main():
             traceback.print_exc()
             mirror_result = 'next'  # 失败则跳过
     
-    # 第七阶段：Boss2 战斗场景 (The Sloth)
+    # 第八阶段：Boss2 战斗场景 (The Sloth)
     if puzzle_result == 'next':
         print("进入 Boss2 战斗场景 (The Sloth)...")
         try:
@@ -1133,7 +1151,7 @@ def main():
             print(f'Boss2 场景加载失败: {e}')
             traceback.print_exc()
     
-    # 第八阶段：画作房谜题
+    # 第九阶段：画作房谜题
     if puzzle_result == 'next':
         print("进入画作房谜题...")
         try:
@@ -1148,6 +1166,84 @@ def main():
             print(f'画作房谜题加载失败: {e}')
             traceback.print_exc()
     
+    # 第十阶段：Boss3 最终战斗场景 (The Hollow)
+    if puzzle_result == 'next':
+        print("进入最终 Boss3 战斗场景 (The Hollow)...")
+        try:
+            from src.entities.boss_battle_scene import BossBattleScene
+            
+            boss_scene = BossBattleScene(boss_type='hollow')
+            if hasattr(boss_scene, 'enter'):
+                try:
+                    boss_scene.enter()
+                except Exception:
+                    pass
+            
+            pygame.display.set_caption("Final Boss Battle - The Hollow")
+            clock = pygame.time.Clock()
+            boss_running = True
+            
+            while boss_running:
+                dt = clock.tick(g.FPS) / 1000.0
+                
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        boss_running = False
+                        pygame.quit()
+                        return
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            boss_running = False
+                        # Z 键跳过关卡
+                        elif event.key == pygame.K_z:
+                            boss_running = False
+                        # R 键重新开始战斗
+                        elif event.key == pygame.K_r:
+                            is_over = hasattr(boss_scene, 'is_game_over') and boss_scene.is_game_over()
+                            if is_over:
+                                # 重新初始化 Boss3 场景
+                                if hasattr(boss_scene, 'exit'):
+                                    try:
+                                        boss_scene.exit()
+                                    except Exception:
+                                        pass
+                                boss_scene = BossBattleScene(boss_type='hollow')
+                                if hasattr(boss_scene, 'enter'):
+                                    try:
+                                        boss_scene.enter()
+                                    except Exception:
+                                        pass
+                    
+                    try:
+                        boss_scene.handle_event(event)
+                    except Exception:
+                        pass
+                
+                try:
+                    boss_scene.update(dt)
+                except Exception:
+                    pass
+                
+                try:
+                    boss_scene.draw(screen)
+                except Exception:
+                    pass
+                
+                pygame.display.flip()
+            
+            # 退出Boss3场景
+            if hasattr(boss_scene, 'exit'):
+                try:
+                    boss_scene.exit()
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            import traceback
+            print(f'Boss3 场景加载失败: {e}')
+            traceback.print_exc()
+    
+    print("所有关卡完成！恭喜通关！")
     pygame.quit()
 
 

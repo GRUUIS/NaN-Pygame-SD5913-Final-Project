@@ -69,7 +69,7 @@ python main.py
 ### 5️⃣ **Boss1: The First Attack** (初遇虚无 - 剧情战)
 **文件**: `src/scenes/boss1_scripted_scene.py`  
 **类型**: 剧情式boss战（必败）  
-**Boss**: The Hollow (虚无主义化身)  
+**Boss**: The Hollow (虚无主义化身 - 初遇版本)  
 **特色**:
 - **漆黑背景**: 完全黑暗的战斗环境
 - **压倒性攻击**: 无法躲避的弹幕
@@ -79,6 +79,36 @@ python main.py
 **攻击模式**:
 - **Crossfire Lasers**: 从左右两侧高速射来的激光（每0.18秒）
 - **Aimed Lasers**: 从上方瞄准玩家的追踪激光（每0.6秒）
+
+**全局变量修改**: 
+- 将 `g.PLAYER_MOVE_SPEED` 降低到10%-18%（营造无力感）
+- **重要**: 场景结束时必须调用 `exit()` 恢复原始速度
+
+**转场**: 被击败后按Space → 进入Map01探索
+
+---
+
+### 6️⃣ **Map01 探索场景** (Map01 Exploration)
+**文件**: `testing/map01_final.py`  
+**功能**: 横版探索场景，玩家可以探索房间、收集物品  
+**地图**: `assets/map01/Room1.tmj`  
+**特色**:
+- 横版平台跳跃
+- 物品收集系统
+- 门传送机制
+- 齿轮拼图谜题
+
+**控制**: 
+- WASD/方向键移动
+- W/Space跳跃（双段跳）
+- Space拾取物品
+- Z键跳过关卡
+
+**转场**: 完成探索/到达出口 → 进入镜子房间
+
+---
+
+### 7️⃣ **镜子房间谜题** (Mirror Room Puzzle)
 - **Voidfire**: 从屏幕边缘射向玩家的虚空火焰（每0.9秒）
 
 **音效系统**:
@@ -106,11 +136,31 @@ python main.py
 - 建立后续真正战斗的动机
 - 通过"必败体验"强化虚无主义主题
 
-**转场**: 死亡后按Space → 进入镜子房间
+**转场**: 被击败后按Space → 进入Map01探索
 
 ---
 
-### 6️⃣ **镜子房间谜题** (Mirror Room Puzzle)
+### 6️⃣ **Map01 探索场景** (Map01 Exploration)
+**文件**: `testing/map01_final.py`  
+**功能**: 横版探索场景，玩家可以探索房间、收集物品  
+**地图**: `assets/map01/Room1.tmj`  
+**特色**:
+- 横版平台跳跃
+- 物品收集系统
+- 门传送机制
+- 齿轮拼图谜题
+
+**控制**: 
+- WASD/方向键移动
+- W/Space跳跃（双段跳）
+- Space拾取物品
+- Z键跳过关卡
+
+**转场**: 完成探索/到达出口 → 进入镜子房间
+
+---
+
+### 7️⃣ **镜子房间谜题** (Mirror Room Puzzle)
 **文件**: `testing/mirror_room_puzzle.py`  
 **功能**: 基于镜像反射的解谜房间  
 **机制**: 
@@ -122,7 +172,7 @@ python main.py
 
 ---
 
-### 7️⃣ **Boss2: The Sloth战斗** (Procrastination Boss)
+### 8️⃣ **Boss2: The Sloth战斗** (Procrastination Boss)
 **文件**: `src/entities/sloth_battle_scene.py`  
 **类型**: 战斗boss战  
 **Boss**: The Sloth (拖延症化身)  
@@ -147,62 +197,56 @@ python main.py
 - `sloth_impact.wav` - 碰撞音效
 
 **胜利过渡**: 7阶段蒲公英飘散动画（11.5秒）  
-**转场**: 胜利后按Space → 进入画作房
+**转场**: 胜利后走到场景边缘 → 进入画作房
 
 ---
 
-### 8️⃣ **画作房谜题** (Painting Room Puzzle)
+### 9️⃣ **画作房谜题** (Painting Room Puzzle)
 **文件**: `testing/painting_room_puzzle.py`  
-**功能**: 艺术/画作相关的解谜房间  
+**功能**: 画作相关的艺术谜题  
 **机制**: 
 - 观察画作细节
-- 找出隐藏线索
-- 拼图/排序机制
+- 交互式艺术解谜
+- 美学与逻辑结合
 
-**转场**: 完成谜题 → （未来：Boss3或结局）
+**转场**: 完成谜题 → 进入Boss3最终战
 
 ---
 
-### 🎯 **Boss3: The Hollow完整战** (终极战斗)
+### 🔟 **Boss3: The Hollow最终战** (Final Boss - Nihilism)
 **文件**: `src/entities/boss_battle_scene.py`  
-**类型**: 完整boss战（非剧情）  
-**Boss**: The Hollow (虚无主义终极形态)  
-**难度**: 920 HP，3个阶段
+**类型**: 最终boss战（真正可战胜版本）  
+**Boss**: The Hollow (虚无主义化身 - 完整版)  
+**难度**: 更高血量，完整攻击模式
 
 **攻击模式**:
-- **虚空碎片** (Void Shards): 从上方降落的黑色方块
-- **虚空火焰** (Voidfire): 追踪型暗焰弹幕
-- **传送** (Teleport): 瞬移闪避
-- **虚空雨** (Void Rain): 全屏幕瀑布攻击
-- **虚空尖刺** (Hollow Spikes): 上下夹击的尖刺陷阱
+- **雨滴攻击** (Rain Attack): 从天而降的能量雨
+- **瞄准激光** (Aimed Lasers): 追踪玩家的激光束
+- **交叉火力** (Crossfire): 多方向同时攻击
+- **终极技能**: 全屏压制性攻击
 
-**阶段系统**:
-- Phase 1 (100%-80%): Lissajous飘移模式
-- Phase 2 (80%-60%): 加强追踪
-- Phase 3 (<60%): 狂暴+尖刺陷阱
-
-**压力系统** (Stress Meter):
-- 玩家静止时累积压力
-- 压力越高，boss攻击越频繁
-- 移动降低压力
+**阶段系统**: 多阶段战斗，每阶段解锁新攻击
 
 **音效**:
-- `hollow_shoot.wav` - 虚空火焰
-- `hollow_teleport.wav` - 传送音效
-- `hollow_rain.wav` - 虚空雨
-- `earthquake_rumble.wav` - 地震效果
-- `white_fade.wav` - 胜利淡出
+- `hollow_rain.wav` - 雨滴攻击
+- `hollow_shoot.wav` - 激光发射
+- `hit.wav` - 击中音效
+- BGM动态淡出
 
-**胜利过渡**: 7阶段梦醒效果（11.5秒）
-- 地震破碎
-- 虚空粒子上升
-- 平台崩塌
-- 螺旋下降
-- 漩涡收敛
-- 白光淡入
-- 梦境溶解（像素化+记忆碎片+体积光）
+**胜利过渡**: 7阶段梦境醒来动画（11.5秒）
+- 漆黑逐渐消散
+- 虚空破碎效果
+- 回归现实的视觉转换
 
-**转场**: 胜利后按Space → （结局场景）
+---
+
+## 🎯 完整流程图（ASCII）
+
+```
+菜单 → 解谜场景 → 梦境解谜 → 梦境过渡 → Boss1(必败) → Map01探索 
+  ↓
+镜子房间 → Boss2(The Sloth) → 画作房 → Boss3(The Hollow) → 通关
+```
 
 ---
 
@@ -249,7 +293,7 @@ python main.py
 
 ### Boss战斗
 - **R键**: 失败后重新开始
-- **SPACE**: 胜利后继续
+- **SPACE**: 胜利后继续（部分场景）
 
 ### 测试模式
 ```bash
@@ -260,7 +304,7 @@ python main.py boss3    # 直接测试Boss3 (Hollow)
 
 ---
 
-## 📊 场景流程图（ASCII）
+## 📊 场景流程图（详细版）
 
 ```
 ┌─────────────┐
@@ -292,6 +336,12 @@ python main.py boss3    # 直接测试Boss3 (Hollow)
        │ 被击败后按Space
        ▼
 ┌─────────────┐
+│ Map01探索   │ (map01_final.py)
+│ 横版平台    │ 收集物品，探索房间
+└──────┬──────┘
+       │ 到达出口/完成探索
+       ▼
+┌─────────────┐
 │ 镜子房间    │ (mirror_room_puzzle.py)
 └──────┬──────┘
        │ 完成谜题
@@ -300,7 +350,7 @@ python main.py boss3    # 直接测试Boss3 (Hollow)
 │ Boss2战斗   │ (sloth_battle_scene.py)
 │ The Sloth   │ 720HP, 3阶段
 └──────┬──────┘
-       │ 胜利后按Space
+       │ 胜利后走到边缘
        ▼
 ┌─────────────┐
 │ 画作房间    │ (painting_room_puzzle.py)
@@ -309,12 +359,12 @@ python main.py boss3    # 直接测试Boss3 (Hollow)
        ▼
 ┌─────────────┐
 │ Boss3战斗   │ (boss_battle_scene.py)
-│ The Hollow  │ 920HP, 3阶段 [未集成到主流程]
+│ The Hollow  │ 完整版最终BOSS
 └──────┬──────┘
-       │ 胜利后按Space
+       │ 胜利后
        ▼
 ┌─────────────┐
-│  结局场景   │ [待开发]
+│ 游戏结束    │ 恭喜通关！
 └─────────────┘
 ```
 
@@ -322,17 +372,18 @@ python main.py boss3    # 直接测试Boss3 (Hollow)
 
 ## 🗂️ 核心文件映射
 
-| 场景 | 主文件 | 依赖文件 |
-|------|--------|----------|
-| 主菜单 | `combine/meun.py` | - |
-| 解谜场景 | `testing/new_third_puzzle.py` | `src/tiled_loader.py` |
-| 梦境解谜 | `testing/first_dream_puzzle.py` | 无 |
-| 梦境过渡 | `testing/dream_transition_scene.py` | 无 |
-| Boss1战斗 | `src/scenes/boss1_scripted_scene.py` | `src/entities/player.py`, `src/entities/bullets.py` |
-| 镜子房间 | `testing/mirror_room_puzzle.py` | 无 |
-| Boss2战斗 | `src/entities/sloth_battle_scene.py` | `src/entities/boss_sloth.py`, `src/systems/ui.py` |
-| 画作房间 | `testing/painting_room_puzzle.py` | 无 |
-| Boss3战斗 | `src/entities/boss_battle_scene.py` | `src/entities/boss_the_hollow.py`, `src/systems/ui.py` |
+| 场景序号 | 场景名称 | 主文件 | 依赖文件 |
+|---------|---------|--------|----------|
+| 1 | 主菜单 | `combine/meun.py` | - |
+| 2 | 解谜场景 | `testing/new_third_puzzle.py` | `src/tiled_loader.py` |
+| 3 | 梦境解谜 | `testing/first_dream_puzzle.py` | 无 |
+| 4 | 梦境过渡 | `testing/dream_transition_scene.py` | 无 |
+| 5 | Boss1战斗 | `src/scenes/boss1_scripted_scene.py` | `src/entities/player.py`, `src/entities/bullets.py` |
+| 6 | Map01探索 | `testing/map01_final.py` | `src/tiled_loader.py`, `src/entities/player_map.py` |
+| 7 | 镜子房间 | `testing/mirror_room_puzzle.py` | 无 |
+| 8 | Boss2战斗 | `src/entities/sloth_battle_scene.py` | `src/entities/boss_sloth.py`, `src/systems/ui.py` |
+| 9 | 画作房间 | `testing/painting_room_puzzle.py` | 无 |
+| 10 | Boss3战斗 | `src/entities/boss_battle_scene.py` | `src/entities/boss_the_hollow.py`, `src/systems/ui.py` |
 
 ---
 
@@ -344,34 +395,62 @@ python main.py boss3    # 直接测试Boss3 (Hollow)
 - 梦境解谜（4个子谜题）
 - 梦境过渡
 - Boss1剧情战（含死亡过渡效果）
+- Map01探索场景（横版平台）
 - Boss2完整战斗（含蒲公英胜利过渡）
 - Boss3完整战斗（含梦醒胜利过渡）
 - 集中化UI系统
 - 8-bit音效系统
 - 二段跳机制
+- 完整10场景游戏流程
 
 🔄 **待完善**:
 - 镜子房间谜题内容
 - 画作房间谜题内容
-- Boss3集成到主流程
-- 结局场景
+- Map01与镜子房间的过渡衔接
 
 📝 **待优化**:
 - 跨平台兼容性（sprite加载、音频播放）
-- 关卡间过渡动画
+- 关卡间过渡动画更流畅
 - 存档系统
 
 ---
 
 ## 💡 设计理念
 
-游戏通过**谜题 → boss战**的循环设计，将心理主题具象化：
+游戏通过**谜题 → 探索 → boss战**的循环设计，将心理主题具象化：
 
 1. **解谜场景** = 探索内心困惑
 2. **梦境场景** = 潜意识探索
-3. **Boss战斗** = 对抗心理障碍
-   - Boss1 (The Hollow) = 初遇虚无，无力反抗
+3. **Map01探索** = 现实世界的行动
+4. **Boss战斗** = 对抗心理障碍
+   - Boss1 (The Hollow Intro) = 初遇虚无，无力反抗
    - Boss2 (The Sloth) = 对抗拖延症
-   - Boss3 (The Hollow) = 战胜虚无主义
+   - Boss3 (The Hollow Final) = 战胜虚无主义
 
 每个boss都有独特的**视觉主题、攻击模式、胜利过渡**，确保体验多样性。
+
+---
+
+## 🚀 快速启动指南
+
+### 完整游戏流程
+```bash
+python testing/game_flow_manager.py
+```
+
+### 单独测试场景
+```bash
+# Boss战斗
+python main.py boss1
+python main.py boss2
+python main.py boss3
+
+# 探索场景
+python testing/map01_final.py
+
+# 谜题场景
+python testing/new_third_puzzle.py
+python testing/first_dream_puzzle.py
+python testing/mirror_room_puzzle.py
+python testing/painting_room_puzzle.py
+```

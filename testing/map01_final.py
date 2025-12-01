@@ -39,6 +39,9 @@ def run(screen):
 	gear_target_radius = 108
 	gear_target_teeth = 8
 	gear_target_color = (120, 120, 120, 180)
+	
+	# Return value: 'next' to continue to next scene, 'quit' to exit game
+	result = 'next'
 
 	import pygame
 	import traceback
@@ -575,12 +578,15 @@ def run(screen):
 						reward_img_pos = (ev.pos[0] - drag_offset_111[0], ev.pos[1] - drag_offset_111[1])
 			if ev.type == pygame.QUIT:
 				running = False
+				result = 'quit'
 			elif ev.type == pygame.KEYDOWN:
 				if ev.key == pygame.K_ESCAPE:
 					running = False
+					result = 'quit'
 				# Z 键跳过关卡
 				elif ev.key == pygame.K_z:
 					running = False
+					result = 'next'
 				elif ev.key == pygame.K_t:
 					# 按T键切换下一张图片
 					if projected_imgs:
@@ -741,34 +747,48 @@ def run(screen):
 		if now - last_teleport > teleport_cooldown:
 			for d in door_rects:
 				if player.rect.colliderect(d):
+					# OLD BOSS TRIGGER CODE (PRESERVED AS COMMENT):
 					# If the player is carrying the special 'hourglass', send them to boss1
+					# try:
+					# 	if 'hourglass' in collected_items:
+					# 		print('[map01_scene DEBUG] player has hourglass - launching boss1')
+					# 		print(f"[DEBUG] door triggered; collected_items={collected_items}")
+					# 		# import here to avoid circular imports at module load time
+					# 		try:
+					# 			import main as main_mod
+					# 			boss_started = False
+					# 			# prefer run_boss_cli if present, fallback to legacy run_boss_test
+					# 			try:
+					# 				main_mod.run_boss_cli('hollow')
+					# 				boss_started = True
+					# 			except AttributeError:
+					# 				try:
+					# 					main_mod.run_boss_test('hollow')
+					# 					boss_started = True
+					# 				except Exception as e:
+					# 					print('[map01_scene DEBUG] failed to launch boss (fallback):', e)
+					# 			except Exception as e:
+					# 				print('[map01_scene DEBUG] failed to launch boss:', e)
+					# 			# if the boss actually started, exit the map immediately
+					# 			if boss_started:
+					# 				# return to avoid drawing to a closed display surface
+					# 				return
+					# 		except Exception as e:
+					# 			print('[map01_scene DEBUG] exception during boss launch:')
+					# 			traceback.print_exc()
+					# except Exception:
+					# 	# ignore and continue with normal door behaviour
+					# 	pass
+					
+					# NEW: Exit Map01 when player has hourglass and touches door
 					try:
 						if 'hourglass' in collected_items:
-							print('[map01_scene DEBUG] player has hourglass - launching boss1')
-							print(f"[DEBUG] door triggered; collected_items={collected_items}")
-							# import here to avoid circular imports at module load time
-							try:
-								import main as main_mod
-								boss_started = False
-								# prefer run_boss_cli if present, fallback to legacy run_boss_test
-								try:
-									main_mod.run_boss_cli('hollow')
-									boss_started = True
-								except AttributeError:
-									try:
-										main_mod.run_boss_test('hollow')
-										boss_started = True
-									except Exception as e:
-										print('[map01_scene DEBUG] failed to launch boss (fallback):', e)
-								except Exception as e:
-									print('[map01_scene DEBUG] failed to launch boss:', e)
-								# if the boss actually started, exit the map immediately
-								if boss_started:
-									# return to avoid drawing to a closed display surface
-									return
-							except Exception as e:
-								print('[map01_scene DEBUG] exception during boss launch:')
-								traceback.print_exc()
+							print('[map01_scene] Player has hourglass and touched door - completing Map01')
+							print(f"[DEBUG] Collected items: {collected_items}")
+							# Exit Map01 and continue to next scene (Mirror Room)
+							running = False
+							result = 'next'
+							break
 					except Exception:
 						# ignore and continue with normal door behaviour
 						pass
@@ -1234,7 +1254,7 @@ def run(screen):
 
 		pygame.display.flip()
 
-	return
+	return result
 
 if __name__ == '__main__':
 	import pygame
