@@ -1055,6 +1055,9 @@ def main():
             if map01_result == 'quit':
                 pygame.quit()
                 return
+        except ImportError as e:
+            print(f'Map01 场景文件不存在，跳过: {e}')
+            map01_result = 'next'
         except Exception as e:
             import traceback
             print(f'Map01 场景加载失败: {e}')
@@ -1164,6 +1167,9 @@ def main():
             if painting_result == 'quit':
                 pygame.quit()
                 return
+        except ImportError as e:
+            print(f'画作房谜题文件不存在，跳过此场景: {e}')
+            print('提示：可以创建 testing/painting_room_puzzle.py 并实现 run_painting_room(screen) 函数')
         except Exception as e:
             import traceback
             print(f'画作房谜题加载失败: {e}')
