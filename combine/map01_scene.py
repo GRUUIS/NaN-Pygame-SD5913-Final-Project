@@ -266,7 +266,8 @@ def run(screen, inventory=None):
 				for it in list(items):
 					r = it['rect']
 					dist = hypot(px - r.centerx, py - r.centery)
-					if dist < max(tile_w * 6, 160):
+					# require player to be near the object to pick it up
+					if dist < max(int(tile_w * 1.5), 48):
 						picked = False
 						if inventory:
 							picked = inventory.add_item({'id': it.get('id'), 'name': it.get('id')})
@@ -288,7 +289,8 @@ def run(screen, inventory=None):
 						py = int(player.y + player.ch // 2)
 						from math import hypot
 						dist = hypot(px - obj_screen.centerx, py - obj_screen.centery)
-						if dist < max(tile_w * 6, 160):
+						# require player to be near the object to pick it up
+						if dist < max(int(tile_w * 1.5), 48):
 							# attempt to add to inventory if available
 							picked = False
 							if inventory:

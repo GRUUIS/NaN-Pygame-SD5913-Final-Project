@@ -446,7 +446,8 @@ def run(screen):
 						r = it['rect']
 						dist = hypot(px - r.centerx, py - r.centery)
 						print(f"[map01_scene DEBUG] Item {it.get('id')} at ({r.centerx}, {r.centery}), dist={dist:.1f}")
-						if dist < max(tile_w * 6, 160):
+						# require player to be near the item to pick it up
+						if dist < max(int(tile_w * 1.5), 48):
 							# Pick up item
 							items.remove(it)
 							item_id = it.get('id')
@@ -482,7 +483,8 @@ def run(screen):
 						py = int(player.y + player.ch // 2)
 						from math import hypot
 						dist = hypot(px - obj_screen.centerx, py - obj_screen.centery)
-						if dist < max(tile_w * 6, 160):
+						# require player to be near the item to pick it up
+						if dist < max(int(tile_w * 1.5), 48):
 							# Pick up item
 							items.remove(it)
 							item_id = it.get('id')
@@ -856,7 +858,8 @@ def run(screen):
 				py = int(player.y + player.ch // 2)
 				from math import hypot
 				dist = hypot(px - it['rect'].centerx, py - it['rect'].centery)
-				if dist < max(tile_w * 6, 160):
+				# require player to be near the item to pick it up
+				if dist < max(int(tile_w * 1.5), 48):
 					prompt_text = 'Check (C)'
 					prompt_surf = prompt_font.render(prompt_text, True, (255, 255, 255))
 					prompt_bg = pygame.Surface((prompt_surf.get_width()+8, prompt_surf.get_height()+4), pygame.SRCALPHA)
