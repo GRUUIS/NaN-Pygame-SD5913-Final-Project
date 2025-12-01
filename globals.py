@@ -3,6 +3,38 @@ SCREENWIDTH = 1280
 SCREENHEIGHT = 720
 FPS = 60
 
+import os
+
+# Attempt to expose a canonical font path helper for modules that need
+# to locate the project's Silver.ttf. Prefer the compatibility shim at
+# `src.utils.font` (which delegates to `combine.font`), but fall back to
+# known candidate locations inside the `assets/` tree so the project can
+# run even if the shim doesn't resolve a path.
+def _resolve_font_path():
+    try:
+        from src.utils.font import get_font_path as _shim_get
+        p = _shim_get()
+        if p and os.path.exists(p):
+            return p
+    except Exception:
+        pass
+
+    root = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(root, 'assets', 'Silver.ttf'),
+        os.path.join(root, 'assets', 'art', 'Silver.ttf'),
+        os.path.join(root, 'assets', 'art', 'silver.ttf'),
+        os.path.join(root, 'assets', 'Silver.TTF'),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+FONT_PATH = _resolve_font_path()
+def get_font_path():
+    return FONT_PATH
+
 # Audio Configuration
 MUSIC_VOLUME = 0.2  # Background music volume (0.0 to 1.0)
 

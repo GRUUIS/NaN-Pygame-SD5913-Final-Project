@@ -14,6 +14,24 @@ import traceback
 from src.utils.logger import setup_logger
 logger = setup_logger()
 logger.info("Game started!")
+# Expose centralized font path helper to the global namespace so other
+# modules can find the Silver.ttf (or fallback) consistently. Prefer
+# the `globals` resolution (set in `globals.py`) first, then fall back
+# to the compatibility shim at `src.utils.font` if needed.
+try:
+    # `globals` already defines `get_font_path()` and `FONT_PATH` (see
+    # `globals.py`), so prefer those values when available.
+    setattr(g, 'FONT_PATH', g.get_font_path())
+    setattr(g, 'get_font_path', g.get_font_path)
+except Exception:
+    try:
+        from src.utils.font import get_font_path as _get_font_path
+        setattr(g, 'FONT_PATH', _get_font_path())
+        setattr(g, 'get_font_path', _get_font_path)
+    except Exception:
+        # If fonts are unavailable, ensure attributes exist but set to None
+        setattr(g, 'FONT_PATH', None)
+        setattr(g, 'get_font_path', lambda: None)
 # Centralized UI utilities
 try:
     from src.systems.ui import draw_ui_overlay, draw_game_over_screen

@@ -26,6 +26,16 @@ class Meun:
 
     def __init__(self, screen):
         self.screen = screen
+        # Ensure `font_path` attribute always exists. Prefer the global resolver
+        # from `globals` (set in `globals.py`) which resolves `assets/Silver.ttf`.
+        try:
+            getter = getattr(g, 'get_font_path', None)
+            if callable(getter):
+                self.font_path = getter()
+            else:
+                self.font_path = getattr(g, 'FONT_PATH', None)
+        except Exception:
+            self.font_path = getattr(g, 'FONT_PATH', None)
         # Try to load Silver.ttf from assets (root) or common asset folders; fall back to default
         # Use repo root so paths are correct regardless of CWD
         repo_root = Path(__file__).resolve().parents[1]
