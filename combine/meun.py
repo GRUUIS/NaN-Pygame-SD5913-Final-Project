@@ -16,7 +16,7 @@ repo_root = Path(__file__).resolve().parents[1]
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 import globals as g
-from src.utils.font import get_font, draw_text
+from combine.font import get_font, draw_text
 from PIL import Image
 
 
@@ -50,11 +50,11 @@ class Meun:
 
         # Use centralized font helper which prefers Silver.ttf
         # Prefer an explicit pygame.font.Font created from the resolved font path
-        try:
-            from src.utils.font import get_font_path
-            self.font_path = get_font_path()
-        except Exception:
-            self.font_path = None
+            try:
+                from combine.font import get_font_path
+                self.font_path = get_font_path()
+            except Exception:
+                self.font_path = None
 
         # If a Silver.ttf (or similar) was found, create Font objects directly from it
         if self.font_path:
@@ -114,7 +114,7 @@ class Meun:
 
         # Debug: store and print resolved font path (if any)
         try:
-            from src.utils.font import get_font_path
+            from combine.font import get_font_path
             self.font_path = get_font_path()
         except Exception:
             self.font_path = None
