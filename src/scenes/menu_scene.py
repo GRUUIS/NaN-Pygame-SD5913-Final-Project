@@ -58,8 +58,10 @@ class MenuScene(BaseScene):
             elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 self.select_option()
             elif event.key == pygame.K_ESCAPE:
-                # close settings overlay if open
+                # close settings overlay if open, save volume
                 if self.show_settings:
+                    setattr(g, 'music_volume', self.music_volume)
+                    setattr(g, 'MUSIC_VOLUME', self.music_volume)
                     self.show_settings = False
 
         # mouse handling for settings slider
@@ -75,6 +77,9 @@ class MenuScene(BaseScene):
                         self.music_volume = max(0.0, min(1.0, rel))
                         try:
                             pygame.mixer.music.set_volume(self.music_volume)
+                            # Persist to globals immediately
+                            setattr(g, 'music_volume', self.music_volume)
+                            setattr(g, 'MUSIC_VOLUME', self.music_volume)
                         except Exception:
                             pass
                     # Developer checkbox click
@@ -96,6 +101,9 @@ class MenuScene(BaseScene):
                         self.music_volume = max(0.0, min(1.0, rel))
                         try:
                             pygame.mixer.music.set_volume(self.music_volume)
+                            # Persist to globals immediately
+                            setattr(g, 'music_volume', self.music_volume)
+                            setattr(g, 'MUSIC_VOLUME', self.music_volume)
                         except Exception:
                             pass
             except Exception:
@@ -154,7 +162,7 @@ class MenuScene(BaseScene):
                     frame_orig = pygame.image.load(str(full_frame)).convert_alpha()
 
                 fw = 400
-                fh = 200
+                fh = 280  # Increased height to accommodate back button
                 frame_surf = None
                 if frame_orig:
                     try:
@@ -272,6 +280,7 @@ class MenuScene(BaseScene):
                     screen.blit(label_surf, label_rect)
                 except Exception:
                     self._dev_checkbox_rect = None
+
             except Exception:
                 pass
         else:

@@ -6,14 +6,12 @@ and the integrated boss battle scene. All components use globals.py for configur
 """
 
 from .player import Player
-from .boss import Perfectionist
 from .bullets import Bullet, BulletManager
 from .platform import Platform
 from .boss_battle_scene import BossBattleScene
 
 __all__ = [
     'Player',
-    'Perfectionist', 
     'Bullet',
     'BulletManager',
     'Platform',

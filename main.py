@@ -48,15 +48,11 @@ sys.excepthook = _print_unhandled
 #region Entry Point
 def main():
     try:
-        # Ensure global music_volume is set from config so scenes can read it
+        # Set music volume attribute for runtime access
         try:
-            from config import settings as cfg
-            setattr(g, 'music_volume', getattr(cfg, 'MUSIC_VOLUME', 0.2))
+            setattr(g, 'music_volume', g.MUSIC_VOLUME)
         except Exception:
-            try:
-                setattr(g, 'music_volume', 0.2)
-            except Exception:
-                pass
+            setattr(g, 'music_volume', 0.2)
         # Try to initialize the mixer and set the music default volume so
         # any later playback uses the configured value.
         try:
@@ -84,12 +80,11 @@ def main():
             if mode in ('boss3','hollow','the_hollow'):
                 return run_boss_cli('hollow')
             if mode == 'boss':
-                bt = 'perfectionist'
+                bt = 'hollow'
                 if len(sys.argv) > 2:
                     arg = (sys.argv[2] or '').lower()
                     if arg in ('sloth','the_sloth'): bt = 'sloth'
                     elif arg in ('hollow','the_hollow','nihilism','procrastinator','procrastination'): bt = 'hollow'
-                    else: bt = 'perfectionist'
                 return run_boss_cli(bt)
         # Normal: menu + flow
         run_menu_and_flow()
@@ -103,7 +98,7 @@ def main():
 
 #region Boss CLI Runner
 def run_boss_cli(which: str):
-    """Run a boss scene directly from CLI: 'boss1' | 'sloth' | 'hollow' | 'perfectionist'."""
+    """Run a boss scene directly from CLI: 'boss1' | 'sloth' | 'hollow'."""
     pygame.init()
     screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
     clock = pygame.time.Clock()
@@ -124,9 +119,10 @@ def run_boss_cli(which: str):
             scene = BossBattleScene(boss_type='hollow')
             title = 'The Hollow'
         else:
+            # Default to Hollow
             from src.entities.boss_battle_scene import BossBattleScene
-            scene = BossBattleScene(boss_type='perfectionist')
-            title = 'Perfectionist'
+            scene = BossBattleScene(boss_type='hollow')
+            title = 'The Hollow'
     except Exception as e:
         print(f"Failed to initialize boss scene: {e}")
         pygame.quit(); return
@@ -197,7 +193,7 @@ def show_help():
     print("\nMind's Maze")
     print("  python main.py                - Menu → First Dream → Transition → Third Puzzle")
     print("  python main.py boss1|boss2|boss3  - Direct boss test (boss2=Sloth, boss3=Hollow)")
-    print("  python main.py boss [perfectionist|sloth|hollow] - Boss selector")
+    print("  python main.py boss [sloth|hollow] - Boss selector")
     print("  python main.py help           - Show this help")
 
 

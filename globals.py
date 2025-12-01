@@ -3,6 +3,9 @@ SCREENWIDTH = 1280
 SCREENHEIGHT = 720
 FPS = 60
 
+# Audio Configuration
+MUSIC_VOLUME = 0.2  # Background music volume (0.0 to 1.0)
+
 # Game Physics Constants
 GRAVITY = 800  # pixels per second squared
 MAX_FALL_SPEED = 600  # terminal velocity
@@ -16,17 +19,6 @@ PLAYER_SIZE = 16
 PLAYER_MAX_HEALTH = 200
 PLAYER_ATTACK_COOLDOWN = 0.5
 PLAYER_INVINCIBLE_DURATION = 1.0
-
-# Boss Configuration - Perfectionist
-BOSS_MAX_HEALTH = 500 
-BOSS_ATTACK_COOLDOWN_PHASE1 = 2
-BOSS_ATTACK_COOLDOWN_PHASE2 = 0.5  # Phase 2 more challenging
-BOSS_TELEGRAPH_DURATION = 0.8  # Slightly reduce telegraph time
-BOSS_MOVE_SPEED = 150  # Increase movement speed
-BOSS_CHARGE_SPEED = 300
-
-# Phase thresholds (ratios of max HP)
-PERFECTIONIST_PHASE2_HP_RATIO = 0.5  # Phase 2 when HP <= 50%
 
 # Boss Configuration - The Hollow (Boss #3)
 # Tunable knobs for the Hollow (previously the Procrastinator design). These

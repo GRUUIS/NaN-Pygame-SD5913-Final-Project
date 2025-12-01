@@ -92,10 +92,10 @@ def run_boss_test():
     """
     # Initialize display
     screen = pygame.display.set_mode((g.SCREENWIDTH, g.SCREENHEIGHT))
-    pygame.display.set_caption("Boss Battle Test - Perfectionist")
+    pygame.display.set_caption("Boss Battle Test - The Hollow")
     clock = pygame.time.Clock()
 
-    # Initialize boss battle scene
+    # Initialize boss battle scene (defaults to The Hollow)
     boss_scene = BossBattleScene()
 
     print("Boss Battle Controls:")

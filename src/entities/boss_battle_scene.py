@@ -12,7 +12,6 @@ import random
 import globals as g
 import os
 from .player import Player
-from .boss import Perfectionist
 from .boss_the_hollow import TheHollow
 from .boss_sloth import TheSloth
 from .bullets import BulletManager
@@ -25,11 +24,11 @@ class BossBattleScene:
     """
     Complete boss battle scene with integrated platformer mechanics
     """
-    def __init__(self, boss_type: str = 'perfectionist'):
+    def __init__(self, boss_type: str = 'hollow'):
         #region Initialization
         # Initialize entities
         self.player = Player(g.SCREENWIDTH // 2, g.SCREENHEIGHT - 150)
-        self._boss_type = boss_type.lower() if boss_type else 'perfectionist'
+        self._boss_type = boss_type.lower() if boss_type else 'hollow'
         self.boss = self._create_boss()
         self.bullet_manager = BulletManager()
         self.ui = UIManager()
@@ -147,8 +146,10 @@ class BossBattleScene:
             b = TheHollow(x, y)
             b.ui = getattr(self, 'ui', None)
             return b
-        # default
-        return Perfectionist(x, y)
+        # default to TheHollow
+        b = TheHollow(x, y)
+        b.ui = getattr(self, 'ui', None)
+        return b
     
     #region Update Loop
     def update(self, dt: float):

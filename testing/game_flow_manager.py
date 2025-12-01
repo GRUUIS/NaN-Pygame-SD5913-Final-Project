@@ -904,10 +904,11 @@ def run_puzzle_scene(screen):
             if event.type == pygame.QUIT:
                 return 'quit'
             
-            # Z 键跳过关卡
+            # Z 键跳过关卡 (仅开发者模式)
             if event.type == pygame.KEYDOWN and event.key == pygame.K_z:
-                print("跳过关卡...")
-                return 'next'
+                if getattr(g, 'DEVELOPER_MODE', False):
+                    print("跳过关卡...")
+                    return 'next'
             
             # 空格键交互
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
@@ -1005,9 +1006,10 @@ def main():
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             boss_running = False
-                        # Z 键跳过关卡
+                        # Z 键跳过关卡 (仅开发者模式)
                         elif event.key == pygame.K_z:
-                            boss_running = False
+                            if getattr(g, 'DEVELOPER_MODE', False):
+                                boss_running = False
                         elif event.key == pygame.K_SPACE:
                             # 死亡后按空格继续
                             is_over = hasattr(boss_scene, 'is_game_over') and boss_scene.is_game_over()
@@ -1101,9 +1103,10 @@ def main():
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             boss_running = False
-                        # Z 键跳过关卡
+                        # Z 键跳过关卡 (仅开发者模式)
                         elif event.key == pygame.K_z:
-                            boss_running = False
+                            if getattr(g, 'DEVELOPER_MODE', False):
+                                boss_running = False
                         elif event.key == pygame.K_r:
                             # 重置战斗
                             if hasattr(boss_scene, 'is_game_over') and callable(boss_scene.is_game_over) and not boss_scene.is_game_over():
@@ -1194,9 +1197,10 @@ def main():
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             boss_running = False
-                        # Z 键跳过关卡
+                        # Z 键跳过关卡 (仅开发者模式)
                         elif event.key == pygame.K_z:
-                            boss_running = False
+                            if getattr(g, 'DEVELOPER_MODE', False):
+                                boss_running = False
                         # R 键重新开始战斗
                         elif event.key == pygame.K_r:
                             is_over = hasattr(boss_scene, 'is_game_over') and boss_scene.is_game_over()
