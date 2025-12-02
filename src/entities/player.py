@@ -109,7 +109,7 @@ class Player:
         self.mouse_pressed = buttons[0]
         self.mouse_pressed_right = buttons[2]
         
-        # Horizontal movement
+        # Horizontal movement (A/D keys or Left/Right arrow keys)
         if self.keys[pygame.K_a] or self.keys[pygame.K_LEFT]:
             self.vx = -g.PLAYER_MOVE_SPEED
         elif self.keys[pygame.K_d] or self.keys[pygame.K_RIGHT]:
@@ -120,8 +120,8 @@ class Player:
             else:
                 self.vx *= g.AIR_RESISTANCE
         
-        # Jumping with double jump support (W key for jump)
-        w_pressed = self.keys[pygame.K_w]
+        # Jumping with double jump support (W key or Up arrow for jump)
+        w_pressed = self.keys[pygame.K_w] or self.keys[pygame.K_UP]
         if w_pressed and not self.w_key_was_pressed:
             if self.jump_count < self.max_jumps:
                 self.vy = -g.JUMP_STRENGTH
