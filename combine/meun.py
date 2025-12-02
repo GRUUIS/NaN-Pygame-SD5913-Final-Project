@@ -143,7 +143,7 @@ class Meun:
 
         self.menu_options = ["Start Game", "Settings", "Quit"]
         self.show_settings = False
-        self.music_volume = getattr(g, 'music_volume', 0.2)
+        self.music_volume = getattr(g, 'music_volume', 0.25)
         # Developer mode flag exposed in settings (default: False)
         self.developer_mode = getattr(g, 'DEVELOPER_MODE', False)
         self._settings_dragging = False
@@ -196,6 +196,10 @@ class Meun:
                         self.music_volume = max(0.0, min(1.0, rel))
                         try:
                             pygame.mixer.music.set_volume(self.music_volume)
+                            try:
+                                setattr(g, 'music_volume', self.music_volume)
+                            except Exception:
+                                pass
                         except Exception:
                             pass
                     # Developer checkbox click
@@ -216,6 +220,10 @@ class Meun:
                         self.music_volume = max(0.0, min(1.0, rel))
                         try:
                             pygame.mixer.music.set_volume(self.music_volume)
+                            try:
+                                setattr(g, 'music_volume', self.music_volume)
+                            except Exception:
+                                pass
                         except Exception:
                             pass
             except Exception:
@@ -225,6 +233,12 @@ class Meun:
 
     def select_option(self):
         if self.selected_option == 0:
+            # Persist the chosen music volume into globals so the running game
+            # uses the user's selection for the whole session.
+            try:
+                setattr(g, 'music_volume', self.music_volume)
+            except Exception:
+                pass
             return 'start'
         elif self.selected_option == 1:
             # Toggle settings overlay
@@ -493,7 +507,7 @@ class Meun:
         music_playing = False
         music_path = None
         repo_root = Path(__file__).resolve().parents[1]
-        target_name = "WAV_There's_no_Heart_Like_Yours.wav"
+        target_name = "Chiptune16. Dreams on the beach.mp3"
         # common candidate locations
         candidates = [
             repo_root / 'assets' / 'sfx' / target_name,
@@ -504,13 +518,20 @@ class Meun:
             if p.exists():
                 music_path = str(p)
                 break
-        # fallback: search assets for a wav containing 'heart' in the name
+        # fallback: search assets for a matching audio file (.mp3 or .wav).
+        # Normalize the target name (remove extension and non-alphanumeric chars)
+        # and look for files whose normalized name contains the same token.
         if music_path is None:
             assets_dir = repo_root / 'assets'
             if assets_dir.exists():
+                base_norm = ''.join(ch for ch in Path(target_name).stem.lower() if ch.isalnum())
                 for root, dirs, files in os.walk(assets_dir):
                     for fname in files:
-                        if fname.lower().endswith('.wav') and 'heart' in fname.lower():
+                        fn_lower = fname.lower()
+                        if not fn_lower.endswith(('.mp3', '.wav')):
+                            continue
+                        fname_norm = ''.join(ch for ch in fn_lower if ch.isalnum())
+                        if base_norm and base_norm in fname_norm:
                             music_path = os.path.join(root, fname)
                             break
                     if music_path:
@@ -527,7 +548,7 @@ class Meun:
                 pygame.mixer.music.load(music_path)
                 pygame.mixer.music.play(loops=-1)
                 try:
-                    pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+                    pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.25))
                 except Exception:
                     pass
                 music_playing = True

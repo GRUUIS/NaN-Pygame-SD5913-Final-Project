@@ -70,7 +70,7 @@ def main():
         try:
             setattr(g, 'music_volume', g.MUSIC_VOLUME)
         except Exception:
-            setattr(g, 'music_volume', 0.2)
+            setattr(g, 'music_volume', 0.25)
         # Try to initialize the mixer and set the music default volume so
         # any later playback uses the configured value.
         try:
@@ -79,7 +79,7 @@ def main():
             except Exception:
                 pygame.mixer.init()
             try:
-                pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+                pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.25))
             except Exception:
                 # ignore if mixer not fully ready
                 pass

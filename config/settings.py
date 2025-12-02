@@ -13,7 +13,7 @@ GRAVITY = 1200
 
 # Audio Settings
 MASTER_VOLUME = 0.7
-MUSIC_VOLUME = 0.2
+MUSIC_VOLUME = 0.25
 SFX_VOLUME = 0.8
 
 # Development Flags

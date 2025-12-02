@@ -66,10 +66,10 @@ class SlothBattleScene:
             bgm_path = os.path.join('assets', 'sfx', 'Boss_Sloth_Lurid_Delusion.mp3')
             pygame.mixer.music.load(bgm_path)
             try:
-                pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.2))
+                pygame.mixer.music.set_volume(getattr(g, 'music_volume', 0.25))
             except Exception:
                 try:
-                    pygame.mixer.music.set_volume(0.2)
+                    pygame.mixer.music.set_volume(0.25)
                 except Exception:
                     pass
             pygame.mixer.music.play(-1) # Loop

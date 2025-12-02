@@ -36,7 +36,7 @@ def get_font_path():
     return FONT_PATH
 
 # Audio Configuration
-MUSIC_VOLUME = 0.2  # Background music volume (0.0 to 1.0)
+MUSIC_VOLUME = 0.25  # Background music volume (0.0 to 1.0)
 
 # Game Physics Constants
 GRAVITY = 800  # pixels per second squared
