@@ -3,6 +3,7 @@ import random
 import math
 import os
 import globals as g
+from src.utils.font import get_font
 from src.scenes.base_scene import BaseScene
 from src.entities.player import Player
 from src.entities.bullets import BulletManager
@@ -301,7 +302,7 @@ class Boss1ScriptedScene(BaseScene):
         if self._is_game_over and self._death_fade_progress > 0.6:
             # Small instruction text at bottom center
             text_alpha = min(255, int((self._death_fade_progress - 0.6) * 640))
-            small_font = pygame.font.Font(None, 28)
+            small_font = get_font(28)
             instruction = small_font.render("Press SPACE to continue", True, (160, 160, 160))
             instruction.set_alpha(text_alpha)
             # Position at lower center of screen

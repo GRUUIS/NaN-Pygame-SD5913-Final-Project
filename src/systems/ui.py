@@ -8,6 +8,7 @@ fade-in/fade-out and lifetime.
 #region Imports
 import pygame
 import globals as g
+from src.utils.font import get_font
 #endregion Imports
 
 
@@ -29,7 +30,7 @@ class TextPopup:
         self.bg = bg
         self.padding = padding
         self.elapsed = 0.0
-        self.font = pygame.font.Font(None, 28)
+        self.font = get_font(28)
 
     def update(self, dt: float):
         self.elapsed += dt
@@ -83,7 +84,7 @@ class Announcement:
         self.color = color
         self.bg = bg
         self.elapsed = 0.0
-        self.font = pygame.font.Font(None, 36)
+        self.font = get_font(36)
 
     def update(self, dt: float):
         self.elapsed += dt
@@ -146,7 +147,7 @@ def _draw_shadow_box(screen, rect, alpha=160, radius=10):
 
 def draw_health_bar(screen, current, maximum, x, y, width, height, label, icon=None, icon_color=(255, 255, 255)):
     """Draw a compact health bar with label and numeric readout."""
-    font = pygame.font.Font(None, 18)
+    font = get_font(18)
     maximum = max(1.0, float(maximum))
     current = max(0.0, float(current))
     pct = max(0.0, min(1.0, current / maximum))
@@ -170,7 +171,6 @@ def draw_health_bar(screen, current, maximum, x, y, width, height, label, icon=N
 
     pygame.draw.rect(screen, g.COLORS.get('ui_text', (255, 255, 255)), (x, y, width, height), 2, border_radius=4)
 
-    label_surf = font.render(str(label), True, g.COLORS.get('ui_text', (255, 255, 255)))
     value_surf = font.render(f"{int(current)}/{int(maximum)}", True, g.COLORS.get('ui_text', (255, 255, 255)))
     label_x = x + 6
     if icon:
@@ -179,13 +179,17 @@ def draw_health_bar(screen, current, maximum, x, y, width, height, label, icon=N
         icon_rect = icon_surf.get_rect(center=(x - 10, y + height // 2))
         screen.blit(icon_surf, icon_rect)
         label_x = x + 10
-    screen.blit(label_surf, (label_x, y - 22))
+    # Only draw the textual label if provided (non-empty). Some HUDs may want
+    # to omit the redundant "Boss" label above the health bar.
+    if label:
+        label_surf = font.render(str(label), True, g.COLORS.get('ui_text', (255, 255, 255)))
+        screen.blit(label_surf, (label_x, y - 22))
     screen.blit(value_surf, (x + width - value_surf.get_width() - 6, y - 22))
 
 
 def draw_meter_bar(screen, current, maximum, x, y, width, height, label,
                    color_high=(120, 200, 120), color_mid=(230, 180, 80), color_low=(220, 120, 120)):
-    font = pygame.font.Font(None, 18)
+    font = get_font(18)
     maximum = max(1.0, float(maximum) if maximum else 1.0)
     pct = max(0.0, min(1.0, float(current) / float(maximum))) if maximum else 0.0
 
@@ -201,8 +205,18 @@ def draw_meter_bar(screen, current, maximum, x, y, width, height, label,
     pygame.draw.rect(screen, (56, 56, 56), (x + int(width * pct), y, width - int(width * pct), height), border_radius=3)
     pygame.draw.rect(screen, g.COLORS.get('ui_text', (255, 255, 255)), (x, y, width, height), 2, border_radius=4)
 
+    # Render the label to the left of the meter bar for clarity. If there
+    # isn't enough room to the left, fall back to placing it above the bar.
     label_surf = font.render(str(label), True, g.COLORS.get('ui_text', (255, 255, 255)))
-    screen.blit(label_surf, (x + 6, y - 18))
+    label_x = x - label_surf.get_width() - 8
+    if label_x < 6:
+        # Not enough left-side room; place above the bar as a fallback
+        label_x = x + 6
+        label_y = y - 18
+    else:
+        # vertically center label with the bar
+        label_y = y + (height - label_surf.get_height()) // 2
+    screen.blit(label_surf, (label_x, label_y))
 
 
 def draw_game_over_screen(screen, boss_scene):
@@ -210,8 +224,8 @@ def draw_game_over_screen(screen, boss_scene):
     overlay.fill((0, 0, 0, 170))
     screen.blit(overlay, (0, 0))
 
-    title_font = pygame.font.Font(None, 72)
-    small_font = pygame.font.Font(None, 36)
+    title_font = get_font(72)
+    small_font = get_font(36)
 
     # Check if player defeated or boss defeated
     player_defeated = getattr(boss_scene, 'player', None) and boss_scene.player.health <= 0
@@ -238,7 +252,7 @@ def _format_time(seconds):
 
 
 def _draw_status_pill(screen, text, pos, color):
-    font = pygame.font.Font(None, 24)
+    font = get_font(24)
     surf = font.render(text, True, (10, 10, 10))
     padding = 10
     pill = pygame.Surface((surf.get_width() + padding * 2, surf.get_height() + 8), pygame.SRCALPHA)
@@ -278,10 +292,21 @@ def draw_ui_overlay(screen, boss_scene):
         _draw_shadow_box(screen, pane_rect, alpha=180, radius=18)
 
         boss_name = getattr(boss, 'display_name', None) or getattr(boss, 'name', '') or boss.__class__.__name__
-        title_font = pygame.font.Font(None, 32)
-        title = title_font.render(str(boss_name).replace('_', ' '), True, (230, 230, 230))
-        screen.blit(title, (pane_rect.x + 20, pane_rect.y + 6))
+        base_name = str(boss_name).replace('_', ' ')
+        title_font = get_font(32)
+        suffix_font = get_font(18)
+        # Render the main name and a smaller 'Boss' suffix so the label is less
+        # visually dominant.
+        name_surf = title_font.render(base_name, True, (230, 230, 230))
+        name_pos = (pane_rect.x + 20, pane_rect.y + 6)
+        screen.blit(name_surf, name_pos)
+        suffix_surf = suffix_font.render("Boss", True, (200, 200, 200))
+        suffix_x = name_pos[0] + name_surf.get_width() + 8
+        suffix_y = name_pos[1] + (name_surf.get_height() - suffix_surf.get_height()) // 2
+        screen.blit(suffix_surf, (suffix_x, suffix_y))
 
+        # Omit the textual label above the boss health bar (we already show the
+        # boss name in the title area). Keep the icon and numeric readout.
         draw_health_bar(
             screen,
             boss.health,
@@ -290,7 +315,7 @@ def draw_ui_overlay(screen, boss_scene):
             pane_rect.y + 42,
             pane_width - 40,
             bar_height,
-            "Boss",
+            "",
             icon="B",
             icon_color=(220, 120, 120)
         )
@@ -316,12 +341,12 @@ def draw_ui_overlay(screen, boss_scene):
     footer_height = 52
     footer_rect = pygame.Rect(0, g.SCREENHEIGHT - footer_height, g.SCREENWIDTH, footer_height)
     _draw_shadow_box(screen, footer_rect, alpha=200, radius=0)
-    font = pygame.font.Font(None, 24)
+    font = get_font(24)
     controls = "WASD move  |  W jump (double)  |  Left Click shoot  |  R restart  |  ESC exit"
     screen.blit(font.render(controls, True, (230, 230, 230)), (40, g.SCREENHEIGHT - footer_height + 12))
 
     # Right-aligned runtime info (without FPS)
-    info_font = pygame.font.Font(None, 22)
+    info_font = get_font(22)
     runtime = _format_time(getattr(boss_scene, 'elapsed_time', pygame.time.get_ticks() / 1000))
     info_text = f"Time: {runtime}"
     info_surf = info_font.render(info_text, True, (200, 200, 200))

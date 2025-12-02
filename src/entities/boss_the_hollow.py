@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import pygame
 import globals as g
+from src.utils.font import get_font
 
 from .bullets import BulletManager
 from ..systems.ui import TextPopup
@@ -676,7 +677,7 @@ class TheHollow:
         if self.telegraph_timer > 0 and int(self.telegraph_timer * 10) % 2:
             pygame.draw.rect(screen, (200, 200, 200), (int(self.x), int(self.y), self.width, self.height), 2)
         # phase label (gray)
-        font = pygame.font.Font(None, 22)
+        font = get_font(22)
         label = font.render(f"The Hollow - P{self.phase}", True, (220, 220, 220))
         screen.blit(label, (self.x, self.y - 24))
 
