@@ -321,7 +321,7 @@ GAME_STATES = {
 DEBUG_MODE = True
 # Developer mode enables debug shortcuts (e.g. press 'Z' to skip scenes)
 DEVELOPER_MODE = True
-SHOW_DEBUG_INFO = True
+SHOW_DEBUG_INFO = False
 SHOW_COLLISION_BOXES = False
 
 # Player idle penalty (anti-camping)

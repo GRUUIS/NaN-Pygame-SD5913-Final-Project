@@ -477,18 +477,24 @@ class SlothBattleScene:
                 pass
         
         if g.SHOW_DEBUG_INFO:
-            self._draw_debug(screen)
+            self._draw_debug_info(screen)
 
-    def _draw_debug(self, screen: pygame.Surface):
-        font = pygame.font.Font(None, 18)
-        lines = [
-            f"Player HP {int(self.player.health)}/{int(self.player.max_health)} vx={self.player.vx:.1f}",
-            f"Boss HP {int(self.boss.health)}/{int(self.boss.max_health)} State={self.boss.current_state.__class__.__name__}",
-            f"Trail segs: {len(self.boss.trail_segments)}"
+    def _draw_debug_info(self, screen: pygame.Surface):
+        """Draw debug information overlay"""
+        font = pygame.font.Font(None, 24)
+        y_offset = 10
+        debug_lines = [
+            f"Player HP: {self.player.health}/{self.player.max_health}",
+            f"Boss HP: {self.boss.health}/{self.boss.max_health}",
+            f"Player Pos: ({int(self.player.x)}, {int(self.player.y)})",
+            f"Boss Pos: ({int(self.boss.x)}, {int(self.boss.y)})",
+            f"Victory State: {self._victory_triggered}"
         ]
-        for i,l in enumerate(lines):
-            screen.blit(font.render(l,True,(220,230,220)), (8, g.SCREENHEIGHT-120 + i*20))
-    
+        for line in debug_lines:
+            text = font.render(line, True, (255, 255, 0))
+            screen.blit(text, (10, y_offset))
+            y_offset += 25
+
     def _spawn_dandelions(self):
         """Create dandelion particles around player"""
         import random

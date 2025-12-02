@@ -977,22 +977,6 @@ def main():
             print(f'梦境场景加载失败: {e}')
             dream_result = 'next'  # 失败则跳过梦境场景
     
-    # 插入：镜子房间（提前一房间运行） — 放在梦境过渡之后，Boss1 之前
-    if puzzle_result == 'next':
-        print("进入镜子房间...")
-        try:
-            from testing.mirror_room_puzzle import run_mirror_room
-            mirror_result = run_mirror_room(screen)
-
-            if mirror_result == 'quit':
-                pygame.quit()
-                return
-        except Exception as e:
-            import traceback
-            print(f'镜子房间加载失败: {e}')
-            traceback.print_exc()
-            mirror_result = 'next'  # 失败则跳过
-
     # 第五阶段：Boss1 剧情战斗场景（The Hollow Intro - 玩家被秒杀）
     if puzzle_result == 'next':
         print("进入 Boss1 剧情战斗场景 (The Hollow - 初遇)...")
@@ -1060,6 +1044,41 @@ def main():
             import traceback
             print(f'Boss1 场景加载失败: {e}')
             traceback.print_exc()
+    
+    # 第六阶段：Map01 探索场景
+    if puzzle_result == 'next':
+        print("进入 Map01 探索场景...")
+        try:
+            from testing.map01_final import run as run_map01
+            map01_result = run_map01(screen)
+            
+            if map01_result == 'quit':
+                pygame.quit()
+                return
+        except ImportError as e:
+            print(f'Map01 场景文件不存在，跳过: {e}')
+            map01_result = 'next'
+        except Exception as e:
+            import traceback
+            print(f'Map01 场景加载失败: {e}')
+            traceback.print_exc()
+            map01_result = 'next'  # 失败则跳过
+    
+    # 第七阶段：镜子房间谜题
+    if puzzle_result == 'next':
+        print("进入镜子房间...")
+        try:
+            from testing.mirror_room_puzzle import run_mirror_room
+            mirror_result = run_mirror_room(screen)
+            
+            if mirror_result == 'quit':
+                pygame.quit()
+                return
+        except Exception as e:
+            import traceback
+            print(f'镜子房间加载失败: {e}')
+            traceback.print_exc()
+            mirror_result = 'next'  # 失败则跳过
     
     # 第八阶段：Boss2 战斗场景 (The Sloth)
     if puzzle_result == 'next':
@@ -1138,6 +1157,24 @@ def main():
             print(f'Boss2 场景加载失败: {e}')
             traceback.print_exc()
     
+    # 第九阶段：画作房谜题
+    if puzzle_result == 'next':
+        print("进入画作房谜题...")
+        try:
+            from testing.painting_room_puzzle import run_painting_room
+            painting_result = run_painting_room(screen)
+            
+            if painting_result == 'quit':
+                pygame.quit()
+                return
+        except ImportError as e:
+            print(f'画作房谜题文件不存在，跳过此场景: {e}')
+            print('提示：可以创建 testing/painting_room_puzzle.py 并实现 run_painting_room(screen) 函数')
+        except Exception as e:
+            import traceback
+            print(f'画作房谜题加载失败: {e}')
+            traceback.print_exc()
+    
     # 第十阶段：Boss3 最终战斗场景 (The Hollow)
     if puzzle_result == 'next':
         print("进入最终 Boss3 战斗场景 (The Hollow)...")
@@ -1203,6 +1240,11 @@ def main():
                     pass
                 
                 pygame.display.flip()
+                
+                # Check if player wants to exit after victory
+                if hasattr(boss_scene, 'player_wants_to_exit') and boss_scene.player_wants_to_exit():
+                    print("玩家选择退出战斗...")
+                    boss_running = False
             
             # 退出Boss3场景
             if hasattr(boss_scene, 'exit'):
@@ -1216,26 +1258,8 @@ def main():
             print(f'Boss3 场景加载失败: {e}')
             traceback.print_exc()
     
-        # 第九阶段（重排后）：画作房谜题 — 置于最终 Boss3 之后，作为最后一关
-        if puzzle_result == 'next':
-            print("进入画作房谜题 (作为最终房间)...")
-            try:
-                from testing.painting_room_puzzle import run_painting_room
-                painting_result = run_painting_room(screen)
-
-                if painting_result == 'quit':
-                    pygame.quit()
-                    return
-            except ImportError as e:
-                print(f'画作房谜题文件不存在，跳过此场景: {e}')
-                print('提示：可以创建 testing/painting_room_puzzle.py 并实现 run_painting_room(screen) 函数')
-            except Exception as e:
-                import traceback
-                print(f'画作房谜题加载失败: {e}')
-                traceback.print_exc()
-
-        print("所有关卡完成！恭喜通关！")
-        pygame.quit()
+    print("所有关卡完成！恭喜通关！")
+    pygame.quit()
 
 
 if __name__ == '__main__':

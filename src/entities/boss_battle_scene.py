@@ -46,6 +46,7 @@ class BossBattleScene:
         self._boss_defeated = False  # Track if boss is defeated but transition not started
         self._death_marker_particles = []  # Visual indicator at death location
         self._death_marker_time = 0.0
+        self._player_wants_exit = False  # Track if player pressed space to exit after victory
         # Idle penalty tracking
         self._idle_timer = 0.0
         self._idle_spawn_timer = 0.0
@@ -316,7 +317,12 @@ class BossBattleScene:
                     self._boss_death_location = None
                     self._death_marker_particles = []
                     self._bgm_fading = False
-            # SPACE key: continue after victory (handled by main.py CLI runner)
+                    self._player_wants_exit = False
+            # SPACE key: exit after victory
+            elif event.key == pygame.K_SPACE:
+                # Check if boss is defeated (victory condition)
+                if self.is_game_over() and self.boss.health <= 0:
+                    self._player_wants_exit = True
     
     #region Draw
     def draw(self, screen: pygame.Surface):
@@ -733,6 +739,10 @@ class BossBattleScene:
         if not self.is_game_over():
             return "ongoing"
         return "victory" if self.boss.health <= 0 else "defeat"
+    
+    def player_wants_to_exit(self) -> bool:
+        """Check if player pressed space to exit after victory"""
+        return self._player_wants_exit
     
     def _spawn_void_particles(self):
         """Create swirling void particles for Hollow transition"""
