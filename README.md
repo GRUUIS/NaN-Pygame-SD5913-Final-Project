@@ -71,7 +71,7 @@ Mind's-Maze/
 ## How to Play
 
 ### Run the Game
-game_flow_manager.py
+main.py
 
 ### Boss Battle Test Modes
 You can directly test specific boss encounters:
