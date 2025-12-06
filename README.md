@@ -4,6 +4,8 @@
 
 It is developed by Team NaN. In programming, NotaNumber/NaN represents an undefined or unrepresentable value; in our project, this concept becomes a metaphor for the moments in life when our sense of self feels undefined, inconsistent, or lost. Mind’s Maze uses this idea as its narrative backbone—each level reflects cognitive states where clarity breaks down, and each boss symbolizes a psychological pattern that disrupts meaning or direction.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GRUUIS/Mind_Maze_NaN)
+
 ## Game Concept
  The game progresses through 10 integrated scenes, combining puzzle-solving with metaphorical boss battles:
 
