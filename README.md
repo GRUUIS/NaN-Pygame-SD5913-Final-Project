@@ -149,7 +149,7 @@ Press **Z** (when Developer Mode is enabled) to skip any scene.
 - **Character Pack**: [Witches Pack](https://9e0.itch.io/witches-pack) by 9E0
 - **Icon Pack**: [RPG IAB Icon Pack](https://zeromatrix.itch.io/rpgiab-icons) by ZeroMatrix
 - **UI Styles**: [Complete UI Book Styles Pack](https://crusenho.itch.io/complete-ui-book-styles-pack) by Crusenho
-- **Music**: [Essential Game Music Pack](https://bellkalengar.itch.io/essential-game-music-pack) by Bell Kalengar
+- **Menu Background Music**: [Dreams on the beach](https://youtu.be/eYl84TD44Uw) by Harayu
 - **Sound Effects**: OpenGameArt.org (Space Shoot Sounds, Spiritwatcher, Lurid Delusion)
 
 ### Libraries
