@@ -157,3 +157,4 @@ Press **Z** (when Developer Mode is enabled) to skip any scene.
 - **Custom Sprite Loader**: Mask-based sprite strip slicing and animation (MIT)
  - **Pymunk**: Physics (optional; used in prototypes)
 
+ <!-- secret: Press Z to skip map (developer shortcut) -->
